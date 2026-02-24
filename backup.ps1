@@ -2,6 +2,7 @@
 # Uso: 
 # 1. Crear backup: .\backup.ps1 create "motivo"
 # 2. Restaurar backup: .\backup.ps1 restore
+# 3. Restaurar backup específico: .\backup.ps1 restore "nombre_backup"
 
 param(
     [Parameter(Mandatory=$false)]
@@ -9,13 +10,15 @@ param(
     [string]$Action = "create",
     
     [Parameter(Mandatory=$false)]
-    [string]$Reason = "manual"
+    [string]$Reason = "",
+    
+    [Parameter(Mandatory=$false)]
+    [string]$BackupName = ""
 )
 
 # Configuración
 $BackupDir = "backups"
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$BackupName = "$Timestamp`_$Reason"
 
 # Archivos y carpetas a excluir del backup
 $ExcludePaths = @(
@@ -25,9 +28,34 @@ $ExcludePaths = @(
     "*.log"
 )
 
+# Función para solicitar motivo de manera interactiva
+function Get-BackupReason {
+    param(
+        [string]$Title = "Crear Backup",
+        [string]$Prompt = "Ingrese el motivo del backup:"
+    )
+    
+    # Mostrar diálogo para ingresar el motivo
+    Add-Type -AssemblyName System.Windows.Forms
+    $reason = [Microsoft.VisualBasic.Interaction]::InputBox($Prompt, $Title)
+    
+    # Si el usuario cancela o deja vacío, usar valor por defecto
+    if ([string]::IsNullOrEmpty($reason)) {
+        $reason = "manual"
+    }
+    
+    return $reason
+}
+
 function Create-Backup {
     param([string]$BackupReason)
     
+    # Obtener motivo de manera interactiva si no se proporcionó
+    if ([string]::IsNullOrEmpty($BackupReason)) {
+        $BackupReason = Get-BackupReason
+    }
+    
+    $BackupName = "$Timestamp`_$BackupReason"
     $BackupPath = Join-Path $BackupDir $BackupName
     
     Write-Host "Creando backup: $BackupName" -ForegroundColor Green
@@ -155,10 +183,12 @@ function Restore-Backup {
 # Ejecutar acción
 switch ($Action) {
     "create" {
-        Create-Backup -BackupReason $Reason
+        $BackupReason = Get-BackupReason
+        Create-Backup -BackupReason $BackupReason
     }
     "restore" {
-        Restore-Backup
+        $BackupName = Get-BackupReason
+        Restore-Backup -BackupName $BackupName
     }
     default {
         Write-Host "Uso: .\backup.ps1 [create|restore]" -ForegroundColor White

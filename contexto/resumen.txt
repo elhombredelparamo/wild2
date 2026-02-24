@@ -68,5 +68,5 @@ archivos de "contexto" y en el propio código; este resumen solo da la base
 para entender el proyecto de un vistazo.
 
 ================================================================================
-  Última actualización conceptual: 2026-02-22 - Menús implementados y funcionando
+  Última actualización conceptual: 2026-02-24 - Alpha 0.1.1 con arquitectura cliente-servidor
 ================================================================================

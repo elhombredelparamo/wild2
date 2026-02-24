@@ -63,14 +63,15 @@ teclas por defecto.
 --------------------------------------------------------------------------------
 2. MULTIJUGADOR (ESTADO ACTUAL)
 --------------------------------------------------------------------------------
-• Por el momento el juego NO tendrá modo multijugador.
+• Por el momento el juego NO tendrá modo multijugador activo.
 • Todo el diseño de menús y flujo es para un solo jugador en una sola
   instancia de partida.
+• **IMPLEMENTADO**: Arquitectura cliente-servidor completa como base para futuro multijugador.
 
 --------------------------------------------------------------------------------
 3. ARQUITECTURA: SERVIDOR LOCAL + CLIENTE
 --------------------------------------------------------------------------------
-Aunque no haya multijugador, el juego se ejecutará de la siguiente forma:
+Aunque no haya multijugador activo, el juego se ejecuta de la siguiente forma:
 
 • Se crea una instancia de servidor local (en la misma máquina).
 • El jugador se "une" a ese servidor local como si fuera un cliente.
@@ -78,6 +79,13 @@ Aunque no haya multijugador, el juego se ejecutará de la siguiente forma:
   vive en el servidor; el cliente muestra y envía inputs.
 • Al cerrar la partida, el servidor local se cierra y el flujo vuelve
   al menú principal (o sale del juego).
+
+**IMPLEMENTADO** (Alpha 0.1.1):
+- ✅ GameServer.cs: Sistema servidor local completo
+- ✅ GameClient.cs: Sistema cliente con conexión a servidor local
+- ✅ Comunicación red básica entre cliente y servidor
+- ✅ Gestión automática de conexiones y desconexiones
+- ✅ Integración en flujo de partida (conexión al iniciar, desconexión al salir)
 
 Ventajas de este enfoque:
 • La lógica de juego está centralizada en el servidor desde el inicio.
@@ -91,6 +99,8 @@ Ventajas de este enfoque:
 Resumen ejecutivo:
   "Una partida = servidor local activo + un cliente (el jugador) conectado.
    Fin de partida = desconectar cliente + cerrar servidor local."
+   
+**ESTADO ACTUAL**: Arquitectura completamente implementada y funcional.
 
 --------------------------------------------------------------------------------
 4. FLUJO RESUMIDO
@@ -107,15 +117,18 @@ Resumen ejecutivo:
 --------------------------------------------------------------------------------
 5. DETALLES A DEFINIR (PARA IMPLEMENTACIÓN)
 --------------------------------------------------------------------------------
-• En Godot: uso de nodos/escenas para servidor vs cliente, cómo se
-  instancia el "servidor local", en qué puerto o canal se comunica
-  el cliente local.
-• Formato y ubicación de los archivos de guardado (carpeta, extensión,
-  uno o varios archivos por partida).
-• Si el menú principal es una escena sin servidor, y el servidor se
-  levanta solo al entrar en una partida.
-• Cómo se reparten responsabilidades: autoridad del servidor en mundo
-  y entidades; cliente solo envía input y recibe estado para renderizar.
+✅ **COMPLETADO (Alpha 0.1.1)**:
+- En Godot: uso de nodos/escenas para servidor vs cliente implementado
+- Instanciación del "servidor local" completada con GameServer.cs
+- Comunicación cliente-servidor en puerto/canal local funcional
+- Menú principal sin servidor, servidor se levanta al entrar en partida
+- Reparto de responsabilidades: autoridad del servidor en mundo y entidades; cliente maneja input y renderizado
+
+**PRÓXIMOS PASOS**:
+- Expansión de funcionalidades de sincronización
+- Manejo de múltiples clientes
+- Optimización de comunicación red
+- Persistencia de estado en servidor
 
 ================================================================================
   Para implementación: descomponer menús y flujo servidor/cliente en tareas

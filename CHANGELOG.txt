@@ -1,5 +1,27 @@
 # CHANGELOG - Wild - Videojuego 3D de Simulación Realista
 
+## Versión 0.1.1-ALPHA
+**Fecha:** 2026-02-24  
+**Estado:** Alpha funcional con arquitectura cliente-servidor
+
+---
+
+### 🌐 ARQUITECTURA CLIENTE-SERVIDOR
+- ✅ **Sistema servidor local** completo con GameServer.cs
+- ✅ **Sistema cliente** con GameClient.cs y conexión a servidor local
+- ✅ **Comunicación red** básica entre cliente y servidor
+- ✅ **Gestión de conexiones** y desconexiones automáticas
+- ✅ **Arquitectura preparada** para futuro multijugador cooperativo
+- ✅ **Flujo servidor local + cliente local** implementado
+
+### 🔄 MEJORAS EN FLUJO DE JUEGO
+- ✅ **Integración cliente-servidor** en el flujo de partida
+- ✅ **Conexión automática** al iniciar nueva partida
+- ✅ **Desconexión limpia** al volver al menú principal
+- ✅ **Gestión de estados** centralizada en servidor
+
+---
+
 ## Versión 0.1.0-ALPHA
 **Fecha:** 2026-02-22  
 **Estado:** Alpha funcional
@@ -76,15 +98,19 @@ wild/
 - [ ] Inventario básico
 - [ ] Sistema día/noche
 - [ ] Efectos de sonido básicos
+- [ ] Expansión de funcionalidades cliente-servidor
+- [ ] Sincronización de estado entre cliente y servidor
+- [ ] Manejo de múltiples clientes (base para multijugador)
 
 ---
 
 ## NOTAS
-- Esta versión alpha estable incluye todos los menús básicos funcionando
+- Esta versión alpha 0.1.1 estable incluye arquitectura cliente-servidor completa
 - El sistema de backup preserva todo el proyecto excepto temporales
 - El splash screen personalizado reemplaza el logo de Godot
-- La arquitectura está preparada para futuro multijugador
+- La arquitectura cliente-servidor está implementada y lista para expansión multijugador
+- El servidor local gestiona toda la lógica de juego, el cliente maneja input y renderizado
 
-**Total de commits/features:** ~15 funcionalidades principales  
-**Tiempo de desarrollo:** ~4 horas  
-**Estado:** Estable para continuar desarrollo
+**Total de commits/features:** ~20 funcionalidades principales  
+**Tiempo de desarrollo:** ~6 horas  
+**Estado:** Estable para continuar desarrollo con base cliente-servidor
