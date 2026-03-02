@@ -249,8 +249,12 @@ public partial class WorldSelectMenu : Control
         
         Logger.Log($"WorldSelectMenu: Cargando mundo: {_selectedWorld}");
         
-        // Cargar mundo a través de GameFlow
+        // Obtener el ID del personaje actual desde CharacterManager
+        string currentCharacterId = CharacterManager.Instance.GetCurrentCharacterId();
+        Logger.Log($"WorldSelectMenu: Usando personaje actual: {currentCharacterId}");
+        
+        // Cargar mundo a través de GameFlow con el personaje actual
         var gameFlow = GetNode<GameFlow>("/root/GameFlow");
-        gameFlow.LoadGame(_selectedWorld);
+        gameFlow.LoadGame(_selectedWorld, currentCharacterId);
     }
 }

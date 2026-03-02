@@ -21,6 +21,14 @@ public partial class WorldManager : Node
     public static WorldManager Instance => _instance ?? throw new InvalidOperationException("WorldManager no inicializado");
     
     private JsonSerializerOptions _jsonOptions = null!;
+    private string _currentWorld = "";
+    
+    /// <summary>Obtiene o establece el mundo actual.</summary>
+    public string CurrentWorld 
+    { 
+        get => _currentWorld; 
+        private set => _currentWorld = value; 
+    }
     
     public override void _Ready()
     {
@@ -68,6 +76,30 @@ public partial class WorldManager : Node
                 Logger.LogError("WorldManager: Error al crear carpeta de mundos");
             }
         }
+    }
+    
+    /// <summary>Establece el mundo actual.</summary>
+    public void SetCurrentWorld(string worldName)
+    {
+        _currentWorld = worldName;
+        Logger.Log($"WorldManager: Mundo actual establecido a: {worldName}");
+    }
+    
+    /// <summary>Obtiene la semilla del mundo actual.</summary>
+    public int GetCurrentWorldSeed()
+    {
+        if (string.IsNullOrEmpty(_currentWorld))
+            return 12345; // Semilla por defecto
+            
+        var worldInfo = LoadWorldInfo(_currentWorld);
+        if (worldInfo?.Seed == null || worldInfo.Seed == "")
+            return 12345;
+            
+        // Convertir la semilla de string a int
+        if (int.TryParse(worldInfo.Seed, out int seed))
+            return seed;
+            
+        return 12345; // Valor por defecto si la conversión falla
     }
     
     /// <summary>Crea un nuevo mundo con el nombre especificado.</summary>

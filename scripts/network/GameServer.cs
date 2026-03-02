@@ -244,7 +244,7 @@ public partial class GameServer : Node
             var type = parts[0];
             var data = parts[1];
             
-            Logger.Log($"GameServer: Tipo: {type}, Datos: {data}");
+            // Logger.Log($"GameServer: Tipo: {type}, Datos: {data}");
             
             switch (type)
             {
@@ -254,6 +254,10 @@ public partial class GameServer : Node
                     
                 case "POSITION_UPDATE":
                     ProcessPositionUpdate(data, playerInfo);
+                    break;
+                    
+                case "BLOCKED_POS":
+                    ProcessBlockedPosition(data, playerInfo);
                     break;
                     
                 case "REQUEST_STATE":
@@ -324,6 +328,50 @@ public partial class GameServer : Node
         // Este método ya no se usa en el flujo principal
         // El cliente ahora envía inputs en lugar de actualizaciones de posición
         // Logger.Log($"GameServer: ProcessPositionUpdate obsoleto - ignorando: {positionData}");
+    }
+    
+    /// <summary>
+    /// Procesa una posición bloqueada por las barreras del chunk
+    /// </summary>
+    private void ProcessBlockedPosition(string blockedData, PlayerInfo playerInfo)
+    {
+        // Formato: "blockedX:blockedY:blockedZ|correctedX:correctedY:correctedZ"
+        var parts = blockedData.Split('|');
+        if (parts.Length != 2) return;
+        
+        try
+        {
+            // Parsear posición bloqueada
+            var blockedParts = parts[0].Split(':');
+            if (blockedParts.Length != 3) return;
+            
+            Vector3 blockedPos = new Vector3(
+                float.Parse(blockedParts[0], CultureInfo.InvariantCulture),
+                float.Parse(blockedParts[1], CultureInfo.InvariantCulture),
+                float.Parse(blockedParts[2], CultureInfo.InvariantCulture)
+            );
+            
+            // Parsear posición corregida
+            var correctedParts = parts[1].Split(':');
+            if (correctedParts.Length != 3) return;
+            
+            Vector3 correctedPos = new Vector3(
+                float.Parse(correctedParts[0], CultureInfo.InvariantCulture),
+                float.Parse(correctedParts[1], CultureInfo.InvariantCulture),
+                float.Parse(correctedParts[2], CultureInfo.InvariantCulture)
+            );
+            
+            // Actualizar la posición del jugador a la corregida
+            playerInfo.Position = correctedPos;
+            
+            Logger.Log($"GameServer: Posición bloqueada procesada para {playerInfo.PlayerId} - Bloqueada: {blockedPos}, Corregida: {correctedPos}");
+            
+            // No broadcastear este cambio, ya que el cliente ya manejó la corrección
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"GameServer: Error procesando posición bloqueada: {ex.Message}");
+        }
     }
     
     private void ApplyInputImmediate(Vector3 direction, Vector3 rotation, PlayerInfo playerInfo)

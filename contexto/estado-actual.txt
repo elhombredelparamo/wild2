@@ -3,9 +3,9 @@ ESTADO ACTUAL DEL PROYECTO WILD
 
 🎮 VERSIÓN ACTUAL
 -----------------
-Versión: 0.1.3-ALPHA
-Fecha: 2026-03-01
-Estado: Alpha estable con sistema de personajes implementado
+Versión: 0.2.0-ALPHA
+Fecha: 2026-03-02 (actualizado)
+Estado: Alpha estable - Bug de chunk inicial solucionado
 
 🏗️ ARQUITECTURA DEL SISTEMA
 ----------------------------
@@ -41,6 +41,54 @@ SISTEMA DE UI
 - PauseMenu: Menú de pausa durante el juego
 - Navegación fluida entre menús sin cerrar ventanas
 
+🏗️ ARQUITECTURA DEL SISTEMA DE BARRERAS
+---------------------------------------------
+✅ **Barreras físicas implementadas** - StaticBody3D con 4 paredes invisibles
+✅ **Altura completa** - 1200m para cubrir rango (-100 a 1000m)
+✅ **Grosor optimizado** - 1m efectivo pero minimalista
+✅ **Capas correctas** - Barreras en capa 2, jugador con CollisionMask = 2
+✅ **Eliminación dinámica** - Barreras eliminadas al cargar chunks adyacentes
+
+🎯 DETECCIÓN Y TELETRANSPORTE
+------------------------------------
+✅ **Detección centralizada** - GameWorld.cs detecta colisiones con barreras
+✅ **Teletransporte automático** - 2 metros hacia atrás al tocar barrera
+✅ **Notificación al servidor** - Mensajes BLOCKED_POS para sincronización
+✅ **Dirección inteligente** - Hacia centro del chunk si jugador está quieto
+✅ **Logging completo** - Registro de todas las interacciones con barreras
+
+🔧 IMPLEMENTACIÓN LIMPIA
+-------------------------
+✅ **Chunk.cs simplificado** - Solo barreras físicas, sin lógica duplicada
+✅ **Código limpio** - Sin métodos obsoletos ni variables sin usar
+✅ **Separación de responsabilidades** - Chunk: barreras físicas, GameWorld: detección y acción
+✅ **Errores corregidos** - `new void UpdateTerrainMesh()` y `new void Dispose()`
+
+🎮 FUNCIONALIDAD COMPLETA
+--------------------------
+🌍 **Bloqueo físico garantizado** - StaticBody3D impide cruce de barreras
+🌍 **Detección precisa** - GameWorld detecta contacto con ChunkBoundaries
+🌍 **Teletransporte suave** - Reposición automática sin interrupciones bruscas
+🌍 **Sincronización robusta** - Servidor mantiene posición correcta del jugador
+🌍 **Rendimiento optimizado** - Sin duplicación de sistemas de detección
+
+📋 CARACTERÍSTICAS TÉCNICAS
+-----------------------------
+🎯 **Dimensiones de chunk**: 100x100 metros (10,000 m²)
+🎯 **Rango de alturas**: -100 a 1000 metros sobre nivel del mar
+🎯 **Barreras por chunk**: 4 paredes (Norte, Sur, Este, Oeste)
+🎯 **Altura de barreras**: 1200 metros (sobre máximo terreno)
+🎯 **Grosor de barreras**: 1 metro (efectivo pero minimalista)
+🎯 **Material de barreras**: Invisible (sin renderizado)
+🎯 **Sistema de colisiones**: Capa 2 (barreras) + Capa 1 (jugador)
+
+🚀 ESTADO DE DESARROLLO
+-----------------------
+🔥 **Siguiente hito**: Sistema de gestión de múltiples chunks
+🔥 **Mejoras pendientes**: Vegetación procedural, estructuras, NPCs
+🔥 **Optimizaciones**: LOD para chunks distantes, streaming de terreno
+🔥 **Características avanzadas**: Sistema día/noche, clima, estaciones
+
 🎯 FUNCIONALIDADES PRINCIPALES
 --------------------------
 
@@ -52,7 +100,8 @@ SISTEMA DE UI
 - Posición global vs local manejada correctamente
 
 ✅ MUNDO PROCEDURAL
-- Generación de terreno plano con checkerboard
+- Generación de terreno con ruido Perlin y alturas variables (-100 a 1000 metros)
+- Sistema de chunks de 100x100 metros para optimización del terreno
 - Spawning aleatorio de árboles con colisiones
 - Textura de hierba seamless con UV escalados
 - Sistema de materiales y shaders
@@ -89,13 +138,24 @@ OPTIMIZACIONES:
 🐛 PROBLEMAS CONOCIDOS
 --------------------
 
-1. BUGS RESUELTOS:
+1. BUGS RESUELTOS HOY (2026-03-02):
+   - ✅ **BUG CRÍTICO: Posición no se guardaba al reiniciar juego** - SessionData.WorldName no se configuraba
+   - ✅ **CharacterManager desorganizado** - Código duplicado y métodos incompletos limpiados
+   - ✅ **Logging inconsistente** - Unificado a Logger.Log() en todo CharacterManager
+   - ✅ **Conversión de tipos** - worldInfo.Seed (string) → SessionData.WorldSeed (long)
+   - ✅ **Posición persistente** - Ahora el personaje aparece donde se quedó al salir
+   - ✅ **BUG DE CHUNK INICIAL: Generación duplicada** - GameWorld ahora verifica si chunk (0,0) existe antes de generarlo
+   - ✅ **Verificación de existencia de chunk** - Comprueba si chunk_0_0.dat existe en disco
+   - ✅ **Carga inteligente de chunk** - Carga desde disco si existe, solo genera si no existe
+   - ✅ **Propiedad ChunksDirectory** - Agregada en TerrainManager.cs para acceso a ruta de chunks
+
+2. BUGS ANTERIORES RESUELTOS:
    - Posición del jugador siempre en (0,0,0) → CORREGIDO
    - IDs inconsistentes entre guardado/carga → CORREGIDO
    - Pérdida de posición al salir del juego → CORREGIDO
    - Archivos de guardado no encontrados → CORREGIDO
 
-2. MEJORAS PENDIENTES:
+3. MEJORAS PENDIENTES:
    - Implementar menú de selección de personajes
    - Añadir estadísticas avanzadas por personaje
    - Sistema de inventario persistente
@@ -255,9 +315,9 @@ El proyecto se encuentra en estado estable y funcional para continuar desarrollo
 7. **Manejo de múltiples clientes** (base multijugador)
 8. **Más modelos 3D** usando el sistema SpawnModel implementado
 
-## 🎮 Estado Actual: ALPHA 0.1.3 - GESTIÓN DE MUNDOS
+## 🎮 Estado Actual: ALPHA 0.2.0 - TERRENO PROCEDURAL AVANZADO
 
-El proyecto ahora tiene un sistema completo de gestión de mundos independientes, cada uno con su propio directorio y metadatos. Los jugadores pueden crear múltiples mundos, cargarlos existentes y eliminarlos según necesiten. El servidor gestiona la persistencia continua sin intervención manual del usuario.
+El proyecto ahora cuenta con generación de terreno procedural avanzada mediante ruido Perlin, con alturas variables entre -100 y 1000 metros. El terreno está dividido en chunks de 100x100 metros para optimización, permitiendo un mundo más dinámico y realista. Esta característica marca el inicio de la versión 0.2.0-alpha.
 
 ## 📦 Último Backup
 - **Fecha:** 01/03/2026 (versión Alpha 0.1.3)

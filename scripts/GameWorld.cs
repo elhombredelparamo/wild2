@@ -2,7 +2,9 @@ using Godot;
 using System.Globalization;
 using System.Text.Json;
 using System.IO;
+using System.Threading.Tasks;
 using Wild.Network;
+using Wild.Scripts.Terrain;
 using FileAccess = Godot.FileAccess;
 
 namespace Wild;
@@ -15,10 +17,12 @@ public partial class GameWorld : Node3D
     private CharacterBody3D _player = null!;
     private Camera3D _camera = null!;
     private Label _labelCoords = null!;
-    // Lista para almacenar todos los árboles spawnados
-    private List<Node3D> _trees = new List<Node3D>(); 
     private bool _isFrozen = false;
     private bool _isCameraLocked = false;
+    
+    // Sistema de terreno
+    private TerrainManager _terrainManager = null!;
+    private bool _terrainInitialized = false;
     
     // Componente de red
     private GameClient _gameClient = null!;
@@ -41,8 +45,9 @@ public partial class GameWorld : Node3D
     private ulong _lastSaveTime = 0;
     private const ulong SaveIntervalMs = 5000; // Guardar cada 5 segundos
     
-    private const float MoveSpeed = 1.11f; // 4 km/h = 1.11 m/s exactos
-    private const float MouseSensitivity = 0.15f; // Aumentada para mejor control
+    // Constantes de movimiento (en metros por segundo)
+    private const float MoveSpeed = 5f;  // 5 metros por segundo = caminar normal
+    private const float MouseSensitivity = 0.2f; // Aumentada para mejor control
     private const float CameraHeight = 2f;
     private float _cameraYaw = 0f;   // grados, rotación horizontal
     private float _cameraPitch = 0f; // grados, rotación vertical (-90 a 90)
@@ -50,70 +55,55 @@ public partial class GameWorld : Node3D
     public override void _Ready()
     {
         Logger.Log("🎮 GameWorld: _Ready() INICIADO - ESCENA DEL MUNDO CARGÁNDOSE");
-        
-        // DEBUG: Verificar si existen las texturas antes de cargar
-        Logger.Log("GameWorld: DEBUG - Verificando existencia de texturas...");
-        string[] texturePaths = {
-            "res://assets/textures/Grass004_2K-JPG_Color.jpg",
-            "res://assets/textures/Grass004_2K-JPG_NormalGL.jpg",
-            "res://assets/textures/Grass004_2K-JPG_Roughness.jpg",
-            "res://assets/textures/Grass004_2K-JPG_AmbientOcclusion.jpg"
-        };
-        
-        foreach (string path in texturePaths)
-        {
-            bool exists = Godot.FileAccess.FileExists(path);
-            Logger.Log($"GameWorld: DEBUG - Textura {path}: {(exists ? "EXISTS" : "MISSING")}");
-        }
-        
+        InitializeGameWorld();
+    }
+    
+    /// <summary>
+    /// Inicializa el mundo del juego de forma asíncrona
+    /// </summary>
+    private async void InitializeGameWorld()
+    {
         try
         {
-            // Logger.Log("GameWorld: Obteniendo referencias de componentes");
+            // Logger.Log("GameWorld:// Obtener referencias a componentes importantes
             _player = GetNode<CharacterBody3D>("Player");
             _camera = GetNode<Camera3D>("Player/Camera3D");
             _labelCoords = GetNode<Label>("UI/LabelCoords");
             
-            // Cargar múltiples árboles en posiciones aleatorias
-            SpawnRandomTrees();
+            // Logging para depuración de colisiones
+            Logger.Log($"GameWorld: Jugador - CollisionLayer: {_player.CollisionLayer}, CollisionMask: {_player.CollisionMask}");
+            
+            // Configurar capas de colisión del jugador para interactuar con barreras
+            _player.CollisionLayer = 1;  // Jugador está en capa 1
+            _player.CollisionMask = 2;  // Jugador puede colisionar con capa 2 (barreras)
+            Logger.Log($"GameWorld: Jugador - Capas actualizadas - CollisionLayer: {_player.CollisionLayer}, CollisionMask: {_player.CollisionMask}");
+            
+            // Añadir Area3D para detección de colisiones
+            var collisionDetector = new Area3D();
+            collisionDetector.Name = "CollisionDetector";
+            collisionDetector.CollisionLayer = 1;  // Mismo layer que el jugador
+            collisionDetector.CollisionMask = 2;  // Detectar barreras (capa 2)
+            
+            // Añadir shape de colisión (un poco más grande que el jugador)
+            var detectorShape = new CollisionShape3D();
+            var capsuleShape = new CapsuleShape3D();
+            capsuleShape.Height = 2.0f;
+            capsuleShape.Radius = 0.5f;
+            detectorShape.Shape = capsuleShape;
+            collisionDetector.AddChild(detectorShape);
+            
+            _player.AddChild(collisionDetector);
+            
+            // Conectar señales de colisión del Area3D
+            collisionDetector.BodyEntered += OnBodyEntered;
+            collisionDetector.BodyExited += OnBodyExited;
+            // Logger.Log("GameWorld: Area3D de detección de colisiones añadido al jugador y señales conectadas");
+            
+            // Inicializar sistema de terreno
+            await InitializeTerrain();
             
             // Logger.Log($"GameWorld: ✅ Cámara obtenida: {_camera.Name}");
             // Logger.Log($"GameWorld: ✅ Label coordenadas obtenido: {_labelCoords.Name}");
-            
-            // Procesar árboles si se spawnearon
-            if (_trees.Count > 0)
-            {
-                // Logger.Log($"GameWorld: ✅ Árboles cargados: {_trees.Count} árboles");
-                
-                // Mostrar información del primer árbol como ejemplo
-                var firstTree = _trees[0];
-                // Logger.Log($"GameWorld: Primer árbol: {firstTree.Name} (tipo: {firstTree.GetType().Name})");
-                
-                // Verificar si el primer árbol es una instancia de PackedScene
-                var treeMesh = firstTree.GetChildren().FirstOrDefault() as MeshInstance3D;
-                if (treeMesh != null)
-                {
-                    // Logger.Log($"GameWorld: Mesh encontrado en el árbol: {treeMesh.Name}");
-                    // Logger.Log($"GameWorld: Mesh del árbol: {treeMesh.Mesh?.GetType().Name ?? "null"}");
-                    // Logger.Log($"GameWorld: Árbol visible: {treeMesh.Visible}");
-                    // Logger.Log($"GameWorld: Posición del árbol: {firstTree.GlobalPosition}");
-                    // Logger.Log($"GameWorld: Scale del árbol: {firstTree.Scale}");
-                }
-                else
-                {
-                    Logger.LogError("GameWorld: ❌ No se encontró MeshInstance3D dentro del árbol");
-                }
-                
-                // Añadir material temporal si no tiene
-                if (treeMesh != null && treeMesh.GetActiveMaterial(0) == null)
-                {
-                    // Logger.Log("GameWorld: Añadiendo material temporal al árbol");
-                    var material = new StandardMaterial3D();
-                    material.AlbedoColor = Colors.Brown;
-                    material.Metallic = 0.0f;
-                    material.Roughness = 1.0f;
-                    treeMesh.SetSurfaceOverrideMaterial(0, material);
-                }
-            }
             
             // Obtener referencia del cliente de red desde GameFlow
             Logger.Log("GameWorld: Obteniendo cliente de red desde GameFlow");
@@ -196,8 +186,25 @@ public partial class GameWorld : Node3D
             if (!hasLoadedPosition)
             {
                 Logger.Log("GameWorld: Configurando posición inicial de cámara");
-                // Posición inicial del jugador (ajustada para evitar colisión con suelo)
-                _player.GlobalPosition = new Vector3(0, 2f, 5);
+                
+                // Posición inicial en el centro del chunk (50, 50) y altura sobre el terreno
+                Vector3 initialPosition = new Vector3(50f, 2f, 50f);
+                
+                // Si el terreno está inicializado, obtener altura real del terreno
+                if (_terrainInitialized && _terrainManager != null)
+                {
+                    // Obtener altura del terreno en la posición inicial
+                    float terrainHeight = GetTerrainHeightAt(50f, 50f);
+                    initialPosition.Y = terrainHeight + 2f; // 2 metros sobre el terreno
+                    
+                    Logger.Log($"GameWorld: Altura del terreno en (50,50): {terrainHeight}");
+                }
+                else
+                {
+                    Logger.Log($"GameWorld: Terreno no inicializado, usando altura por defecto: 2");
+                }
+                
+                _player.GlobalPosition = initialPosition;
                 
                 Logger.Log("GameWorld: Configurando ángulos iniciales de cámara");
                 // Ángulos iniciales desde la rotación actual
@@ -205,6 +212,7 @@ public partial class GameWorld : Node3D
                 _cameraYaw = Mathf.RadToDeg(rot.Y);
                 _cameraPitch = Mathf.RadToDeg(rot.X);
                 
+                Logger.Log($"GameWorld: Posición inicial establecida: {initialPosition}");
                 Logger.Log($"GameWorld: Ángulos iniciales - Yaw: {_cameraYaw:F1}°, Pitch: {_cameraPitch:F1}°");
             }
             else
@@ -237,8 +245,111 @@ public partial class GameWorld : Node3D
         }
         catch (System.Exception ex)
         {
-            Logger.LogError($"GameWorld: ❌ ERROR CRÍTICO en _Ready(): {ex.Message}");
+            Logger.LogError($"GameWorld: ❌ ERROR CRÍTICO en InitializeGameWorld(): {ex.Message}");
             Logger.LogError($"GameWorld: Stack trace: {ex.StackTrace}");
+        }
+    }
+    
+    private float GetTerrainHeightAt(float worldX, float worldZ)
+    {
+        try
+        {
+            if (_terrainManager == null)
+                return 0f;
+            
+            // Obtener el generador de chunks del terrain manager
+            var chunkGenerator = _terrainManager.GetChunkGenerator();
+            if (chunkGenerator == null)
+                return 0f;
+            
+            // Obtener altura usando el generador de ruido
+            return chunkGenerator.GetHeightAt(worldX, worldZ);
+        }
+        catch (System.Exception ex)
+        {
+            Logger.LogError($"GameWorld: Error al obtener altura del terreno: {ex.Message}");
+            return 0f;
+        }
+    }
+    
+    /// <summary>
+    /// Obtiene el ChunkGenerator del TerrainManager
+    /// </summary>
+    private ChunkGenerator? GetChunkGenerator()
+    {
+        return _terrainManager?.GetNode<ChunkGenerator>("ChunkGenerator");
+    }
+
+    /// <summary>
+    /// Inicializa el sistema de terreno procedural
+    /// </summary>
+    private async Task InitializeTerrain()
+    {
+        try
+        {
+            Logger.Log("GameWorld: Inicializando sistema de terreno...");
+            
+            // Crear TerrainManager
+            _terrainManager = new TerrainManager();
+            _terrainManager.Name = "TerrainManager";
+            AddChild(_terrainManager);
+            
+            // Obtener el nombre del mundo actual desde WorldManager
+            string worldName = WorldManager.Instance.CurrentWorld ?? "test_world";
+            Logger.Log($"GameWorld: Usando mundo actual: {worldName}");
+            Logger.Log($"GameWorld: DEBUG - WorldManager.Instance.CurrentWorld es nulo: {WorldManager.Instance.CurrentWorld == null}");
+            
+            // Restaurar el estado del personaje actual al iniciar la escena
+            CharacterManager.RestoreCurrentCharacterState();
+            
+            // Obtener la semilla desde WorldManager
+            int seed = WorldManager.Instance.GetCurrentWorldSeed();
+            Logger.Log($"GameWorld: Usando semilla: {seed}");
+            
+            // Obtener ID del personaje actual para logging
+            string currentCharacterId = CharacterManager.Instance?.GetCurrentCharacterId() ?? "no_disponible";
+            Logger.Log($"GameWorld: Personaje actual al cargar: {currentCharacterId}");
+            
+            _terrainManager.InitializeWorld(worldName, seed);
+            
+            // Verificar si el chunk inicial existe antes de generarlo
+            Vector2I initialChunkPos = new Vector2I(0, 0);
+            string initialChunkPath = Path.Combine(_terrainManager.ChunksDirectory, $"chunk_0_0.dat");
+            
+            if (FileAccess.FileExists(initialChunkPath))
+            {
+                Logger.Log("GameWorld: Chunk inicial (0,0) ya existe, cargando desde disco...");
+                Chunk existingChunk = await _terrainManager.LoadChunk(initialChunkPos);
+                
+                if (existingChunk != null)
+                {
+                    _terrainInitialized = true;
+                    Logger.Log("GameWorld: ✅ Chunk inicial cargado correctamente desde disco");
+                }
+                else
+                {
+                    Logger.LogError("GameWorld: ❌ Error al cargar chunk inicial existente");
+                }
+            }
+            else
+            {
+                Logger.Log("GameWorld: Chunk inicial (0,0) no existe, generando nuevo...");
+                Chunk initialChunk = await _terrainManager.GenerateInitialChunk();
+                
+                if (initialChunk != null)
+                {
+                    _terrainInitialized = true;
+                    Logger.Log("GameWorld: ✅ Chunk inicial generado y cargado correctamente");
+                }
+                else
+                {
+                    Logger.LogError("GameWorld: ❌ Error al generar chunk inicial");
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Logger.LogError($"GameWorld: Error al inicializar terreno: {ex.Message}");
         }
     }
 
@@ -313,9 +424,20 @@ public partial class GameWorld : Node3D
             
             if (move.LengthSquared() > 0.001f)
             {
-                move = move.Normalized() * MoveSpeed;
-                _player.Velocity = move;
-                _player.MoveAndSlide();
+                move = move.Normalized() * MoveSpeed * (float)delta;
+                
+                // Calcular nueva posición
+                Vector3 newPosition = _player.Position + move;
+                
+                // Ajustar altura al terreno si está disponible
+                if (_terrainInitialized && _terrainManager != null)
+                {
+                    float terrainHeight = GetTerrainHeightAt(newPosition.X, newPosition.Z);
+                    newPosition.Y = terrainHeight + 2f; // 2 metros sobre el terreno
+                }
+                
+                _player.Position = newPosition;
+                _player.Velocity = Vector3.Zero;
             }
             else
             {
@@ -333,17 +455,33 @@ public partial class GameWorld : Node3D
             if (Input.IsActionPressed("move_left")) move -= GetCameraRightXZ();
             if (Input.IsActionPressed("move_right")) move += GetCameraRightXZ();
             
-            // En modo red, SÍ aplicamos movimiento localmente para respuesta inmediata
-            // pero el servidor es la autoridad final
             if (move.LengthSquared() > 0.001f)
             {
-                move = move.Normalized() * MoveSpeed;
-                _player.Velocity = move;
-                _player.MoveAndSlide();
+                move = move.Normalized() * MoveSpeed * (float)delta;
+                
+                // Calcular nueva posición
+                Vector3 newPosition = _player.Position + move;
+                
+                // Ajustar altura al terreno si está disponible
+                if (_terrainInitialized && _terrainManager != null)
+                {
+                    float terrainHeight = GetTerrainHeightAt(newPosition.X, newPosition.Z);
+                    newPosition.Y = terrainHeight + 2f; // 2 metros sobre el terreno
+                }
+                
+                _player.Position = newPosition;
+                _player.Velocity = Vector3.Zero;
             }
             else
             {
                 _player.Velocity = Vector3.Zero;
+            }
+            
+            // En modo red, ajustar altura al terreno periódicamente
+            if (_terrainInitialized && _terrainManager != null)
+            {
+                float terrainHeight = GetTerrainHeightAt(_player.Position.X, _player.Position.Z);
+                _player.Position = new Vector3(_player.Position.X, terrainHeight + 2f, _player.Position.Z);
             }
             
             // Enviar inputs al servidor en lugar de posición
@@ -426,7 +564,11 @@ public partial class GameWorld : Node3D
     private void UpdateCoordsLabel()
     {
         var pos = _player.GlobalPosition;
-        _labelCoords.Text = $"Pos: ({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1}) | Cámara: pitch {_cameraPitch:F0}° yaw {_cameraYaw:F0}°";
+        
+        // Añadir información del terreno si está inicializado
+        string terrainInfo = _terrainInitialized ? " | Terreno: PROCEDURAL" : " | Terreno: PLANO";
+        
+        _labelCoords.Text = $"Pos: ({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1}) | Cámara: pitch {_cameraPitch:F0}° yaw {_cameraYaw:F0}°{terrainInfo}";
     }
 
     /// <summary>Congela el movimiento del jugador y cámara.</summary>
@@ -519,55 +661,6 @@ public partial class GameWorld : Node3D
         await _gameClient.SendPlayerInput(direction, rotation);
     }
     
-    /// <summary>Spawnea árboles en posiciones aleatorias dentro del área del suelo.</summary>
-    private void SpawnRandomTrees()
-    {
-        Logger.Log("GameWorld: SpawnRandomTrees() - INICIADO");
-        
-        // Definir el área del suelo (10x10 metros, centrado en 0,0)
-        const float floorSize = 10f;
-        const float halfFloorSize = floorSize / 2f;
-        const int treeCount = 3;
-        
-        // Generar posiciones aleatorias
-        var random = new Random();
-        var positions = new List<Vector3>();
-        
-        for (int i = 0; i < treeCount; i++)
-        {
-            // Coordenadas aleatorias dentro del cuadrado del suelo
-            float x = (float)(random.NextDouble() * floorSize - halfFloorSize);
-            float z = (float)(random.NextDouble() * floorSize - halfFloorSize);
-            float y = 0f; // Altura del suelo
-            
-            var position = new Vector3(x, y, z);
-            positions.Add(position);
-            
-            // Logger.Log($"GameWorld: Posición árbol {i + 1}: ({x:F2}, {y:F2}, {z:F2})");
-        }
-        
-        // Spawnear cada árbol
-        int spawnedCount = 0;
-        foreach (var position in positions)
-        {
-            var treeName = $"Tree_{spawnedCount + 1}";
-            var tree = SpawnModel("res://assets/models/realistic_tree.glb", position, treeName);
-            
-            if (tree != null)
-            {
-                _trees.Add(tree);
-                spawnedCount++;
-                Logger.Log($"GameWorld: ✅ Árbol {treeName} spawnado en {position}");
-            }
-            else
-            {
-                Logger.LogError($"GameWorld: ❌ No se pudo spawnear árbol en {position}");
-            }
-        }
-        
-        Logger.Log($"GameWorld: ✅ SpawnRandomTrees completado: {spawnedCount}/{treeCount} árboles spawnados");
-    }
-    
     /// <summary>Muestra un modelo 3D en coordenadas específicas.</summary>
     /// <param name="modelPath">Ruta al archivo del modelo (ej: "res://assets/models/realistic_tree.glb")</param>
     /// <param name="position">Posición donde mostrar el modelo</param>
@@ -612,12 +705,6 @@ public partial class GameWorld : Node3D
                 
                 AddChild(modelNode);
                 Logger.Log($"GameWorld: ✅ Modelo instanciado: {modelNode.Name}");
-                
-                // Añadir colisiones para árboles
-                if (modelPath.Contains("tree"))
-                {
-                    AddTreeCollision(modelNode);
-                }
             }
             // Si es un mesh directo, crear MeshInstance3D
             else if (modelResource is Mesh mesh)
@@ -631,16 +718,6 @@ public partial class GameWorld : Node3D
                 AddChild(meshInstance);
                 modelNode = meshInstance;
                 Logger.Log($"GameWorld: ✅ MeshInstance3D creado: {modelNode.Name}");
-                
-                // Añadir colisiones para árboles
-                if (modelPath.Contains("tree"))
-                {
-                    AddTreeCollision(modelNode);
-                }
-            }
-            else
-            {
-                Logger.LogError($"GameWorld: ❌ Tipo de modelo no soportado: {modelResource.GetType().Name}");
             }
             
             return modelNode;
@@ -652,32 +729,65 @@ public partial class GameWorld : Node3D
         }
     }
     
-    /// <summary>Añade colisiones a un árbol.</summary>
-    /// <param name="treeNode">Nodo del árbol al que añadir colisiones</param>
-    private void AddTreeCollision(Node3D treeNode)
+    /// <summary>
+    /// Se llama cuando el jugador colisiona con otro cuerpo
+    /// </summary>
+    private void OnBodyEntered(Node body)
     {
-        try
+        // Logger.Log($"GameWorld: ¡COLISIÓN DETECTADA! Jugador entró en contacto con: {body.Name} (Tipo: {body.GetType().Name})");
+        
+        // Verificar si es una barrera (convertir StringName a string)
+        string bodyName = body.Name;
+        string parentName = body.GetParent()?.Name ?? "";
+        
+        if (bodyName.Contains("ChunkBoundaries") || parentName == "ChunkBoundaries")
         {
-            Logger.Log($"GameWorld: Añadiendo colisiones al árbol: {treeNode.Name}");
+            // Logger.Log($"GameWorld: ¡COLISIÓN CON BARRERA! Teletransportando jugador hacia atrás");
             
-            // Crear StaticBody3D para el árbol
-            var staticBody = new StaticBody3D();
-            staticBody.Name = "CollisionBody";
-            treeNode.AddChild(staticBody);
+            // Teletransportar al jugador hacia atrás
+            Vector3 currentPosition = _player.GlobalPosition;
+            Vector3 currentVelocity = _player.Velocity;
             
-            // Crear shape de colisión (caja simple para el tronco)
-            var collisionShape = new CollisionShape3D();
-            var boxShape = new BoxShape3D();
-            boxShape.Size = new Vector3(1, 4, 1); // Ancho, alto, profundidad
-            collisionShape.Shape = boxShape;
-            collisionShape.Position = new Vector3(0, 2, 0); // Centrar en el tronco
-            staticBody.AddChild(collisionShape);
+            // Calcular dirección opuesta al movimiento
+            Vector3 pushDirection = -currentVelocity.Normalized();
+            if (pushDirection == Vector3.Zero)
+            {
+                // Si está quieto, empujar hacia el centro del chunk (0,0 a 100,100)
+                Vector3 chunkCenter = new Vector3(50f, currentPosition.Y, 50f);
+                pushDirection = (chunkCenter - currentPosition).Normalized();
+            }
             
-            Logger.Log($"GameWorld: ✅ Colisiones añadidas al árbol: {treeNode.Name}");
+            // Teletransportar una pequeña distancia hacia atrás
+            Vector3 newPosition = currentPosition + pushDirection * 2.0f;
+            _player.GlobalPosition = newPosition;
+            
+            // Detener el movimiento
+            _player.Velocity = Vector3.Zero;
+            
+            // Logger.Log($"GameWorld: Jugador teletransportado de {currentPosition} a {newPosition}");
+            
+            // Notificar al servidor para que ignore esta posición
+            NotifyServerBlockedPosition(currentPosition, newPosition);
         }
-        catch (System.Exception ex)
+        else
         {
-            Logger.LogError($"GameWorld: ❌ Error añadiendo colisiones al árbol: {ex.Message}");
+            // Logging normal para otras colisiones (comentado para flujo normal del juego)
+            // Logger.Log($"GameWorld: Colisión normal con: {body.Name} (Tipo: {body.GetType().Name})");
+        }
+    } /// <summary>
+    /// Se llama cuando el jugador deja de colisionar con otro cuerpo
+    /// </summary>
+    private void OnBodyExited(Node body)
+    {
+        //Logger.Log($"GameWorld: Jugador dejó de colisionar con: {body.Name} (Tipo: {body.GetType().Name})");
+        
+        // Verificar si es una barrera (convertir StringName a string)
+        string bodyName = body.Name;
+        string parentName = body.GetParent()?.Name ?? "";
+        
+        if (bodyName.Contains("Boundary") || parentName == "ChunkBoundaries")
+        {
+            //Logger.Log($"GameWorld: Jugador dejó de colisionar con barrera: {bodyName}");
         }
     }
     
@@ -969,6 +1079,32 @@ public partial class GameWorld : Node3D
         {
             Logger.LogError($"GameWorld: Error al obtener ID de personaje: {ex.Message}");
             return "jugador";
+        }
+    }
+    
+    /// <summary>
+    /// Notifica al servidor que una posición fue bloqueada por las barreras
+    /// </summary>
+    private async void NotifyServerBlockedPosition(Vector3 blockedPosition, Vector3 correctedPosition)
+    {
+        try
+        {
+            var client = GetNode<GameFlow>("/root/GameFlow")?.GetGameClient();
+            if (client != null)
+            {
+                // Enviar mensaje especial al servidor indicando posición bloqueada
+                string blockMessage = $"BLOCKED_POS:{blockedPosition.X}:{blockedPosition.Y}:{blockedPosition.Z}|{correctedPosition.X}:{correctedPosition.Y}:{correctedPosition.Z}";
+                await client.SendPositionUpdate(blockMessage);
+                Logger.Log($"GameWorld: Notificado al servidor - Posición bloqueada: {blockedPosition}, Corregida: {correctedPosition}");
+            }
+            else
+            {
+                Logger.Log("GameWorld: No se pudo obtener el cliente de red para notificar posición bloqueada");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Logger.LogError($"GameWorld: Error al notificar posición bloqueada: {ex.Message}");
         }
     }
 }

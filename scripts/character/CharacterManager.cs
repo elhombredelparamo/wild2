@@ -7,8 +7,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-// Alias para evitar ambigüedad con System.IO.FileAccess
+// Alias para evitar ambigüedad con System.IO.FileAccess y Godot.Logger
 using FileAccess = Godot.FileAccess;
+using Logger = Wild.Logger;
 
 /// <summary>Manager global de personajes del juego.</summary>
 public partial class CharacterManager : Node
@@ -21,7 +22,16 @@ public partial class CharacterManager : Node
     private const string CHARACTERS_FOLDER = "user://characters/";
     private const string PROFILES_FOLDER = "user://characters/profiles/";
     private const string STATS_FOLDER = "user://characters/stats/";
+    private const string CURRENT_CHARACTER_FILE = "user://current_character.json";
     private const string DEFAULT_CHARACTER_ID = "jugador";
+    
+    private static string _persistentCharacterId = string.Empty;
+    private readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() }
+    };
     
     public override void _Ready()
     {
@@ -41,7 +51,7 @@ public partial class CharacterManager : Node
     {
         try
         {
-            GD.Print("CharacterManager: Inicializando sistema de personajes");
+            Logger.Log("CharacterManager: Inicializando sistema de personajes");
             
             // Crear directorios necesarios
             EnsureDirectoriesExist();
@@ -52,21 +62,24 @@ public partial class CharacterManager : Node
             // Si no hay personajes, crear el personaje por defecto
             if (AllCharacters.Count == 0)
             {
-                GD.Print("CharacterManager: No hay personajes, creando perfil por defecto");
+                Logger.Log("CharacterManager: No hay personajes, creando perfil por defecto");
                 CreateDefaultCharacter();
             }
             
-            // Seleccionar el primer personaje como actual
-            if (AllCharacters.Count > 0)
+            // Cargar personaje guardado permanentemente si existe
+            LoadPersistentCharacter();
+            
+            // Si no hay personaje seleccionado, usar el primero disponible
+            if (CurrentCharacter == null && AllCharacters.Count > 0)
             {
                 SelectCharacter(AllCharacters[0].CharacterId);
             }
             
-            GD.Print($"CharacterManager: Sistema inicializado con {AllCharacters.Count} personajes");
+        Logger.Log($"CharacterManager: Sistema inicializado con {AllCharacters.Count} personajes");
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"CharacterManager: Error al inicializar: {ex.Message}");
+            Logger.LogError($"CharacterManager: Error al inicializar: {ex.Message}");
         }
     }
     
@@ -82,7 +95,7 @@ public partial class CharacterManager : Node
             {
                 string relativePath = dir.Replace("user://", "");
                 dirAccess.MakeDirRecursive(relativePath);
-                GD.Print($"CharacterManager: Directorio verificado/creado: {dir}");
+                Logger.Log($"CharacterManager: Directorio verificado/creado: {dir}");
             }
         }
     }
@@ -106,7 +119,7 @@ public partial class CharacterManager : Node
         };
         
         SaveCharacter(defaultCharacter);
-        GD.Print($"CharacterManager: Personaje por defecto creado: {DEFAULT_CHARACTER_ID}");
+        Logger.Log($"CharacterManager: Personaje por defecto creado: {DEFAULT_CHARACTER_ID}");
     }
     
     /// <summary>Carga todos los personajes existentes.</summary>
@@ -135,14 +148,14 @@ public partial class CharacterManager : Node
                 }
                 catch (Exception ex)
                 {
-                    GD.PrintErr($"CharacterManager: Error al cargar personaje {fileName}: {ex.Message}");
+                Logger.LogError($"CharacterManager: Error al cargar personaje {fileName}: {ex.Message}");
                 }
             }
             fileName = dir.GetNext();
         }
         
         dir.ListDirEnd();
-        GD.Print($"CharacterManager: {AllCharacters.Count} personajes cargados");
+        Logger.Log($"CharacterManager: {AllCharacters.Count} personajes cargados");
     }
     
     /// <summary>Guarda un personaje en disco.</summary>
@@ -167,16 +180,16 @@ public partial class CharacterManager : Node
                 file.StoreString(jsonString);
                 file.Close();
                 
-                GD.Print($"CharacterManager: Personaje guardado: {character.CharacterId}");
+                Logger.Log($"CharacterManager: Personaje guardado: {character.CharacterId}");
             }
             else
             {
-                GD.PrintErr($"CharacterManager: Error al guardar personaje en: {filePath}");
+                Logger.LogError($"CharacterManager: Error al guardar personaje en: {filePath}");
             }
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"CharacterManager: Error al guardar personaje {character.CharacterId}: {ex.Message}");
+            Logger.LogError($"CharacterManager: Error al guardar personaje {character.CharacterId}: {ex.Message}");
         }
     }
     
@@ -189,39 +202,32 @@ public partial class CharacterManager : Node
             
             if (!FileAccess.FileExists(filePath))
             {
-                GD.Print($"CharacterManager: No existe el personaje: {characterId}");
+                Logger.Log($"CharacterManager: No existe el personaje: {characterId}");
                 return null;
             }
             
             var file = FileAccess.Open(filePath, FileAccess.ModeFlags.Read);
             if (file == null)
             {
-                GD.PrintErr($"CharacterManager: Error al leer personaje: {filePath}");
+                Logger.LogError($"CharacterManager: Error al leer personaje: {filePath}");
                 return null;
             }
             
             string jsonString = file.GetAsText();
             file.Close();
             
-            var jsonOptions = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                Converters = { new JsonStringEnumConverter() }
-            };
-            
-            var character = JsonSerializer.Deserialize<CharacterProfile>(jsonString, jsonOptions);
+            var character = JsonSerializer.Deserialize<CharacterProfile>(jsonString, _jsonOptions);
             
             if (character != null)
             {
-                GD.Print($"CharacterManager: Personaje cargado: {character.CharacterId}");
+                Logger.Log($"CharacterManager: Personaje cargado: {character.CharacterId}");
             }
             
             return character;
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"CharacterManager: Error al cargar personaje {characterId}: {ex.Message}");
+            Logger.LogError($"CharacterManager: Error al cargar personaje {characterId}: {ex.Message}");
             return null;
         }
     }
@@ -229,19 +235,20 @@ public partial class CharacterManager : Node
     /// <summary>Selecciona un personaje como el actual.</summary>
     public void SelectCharacter(string characterId)
     {
-        var character = AllCharacters.Find(c => c.CharacterId == characterId);
+        var character = AllCharacters.FirstOrDefault(c => c.CharacterId == characterId);
         if (character != null)
         {
             CurrentCharacter = character;
-            GD.Print($"CharacterManager: Personaje seleccionado: {characterId}");
+            SavePersistentCharacter(characterId);
+            Logger.Log($"CharacterManager: Personaje seleccionado: {characterId} - {character.DisplayName}");
         }
         else
         {
-            GD.PrintErr($"CharacterManager: No se encontró el personaje: {characterId}");
+            Logger.LogError($"CharacterManager: No se encontró el personaje: {characterId}");
         }
     }
     
-    /// <summary>Crea un nuevo personaje.</summary>
+    /// <summary>Crea un nuevo personaje con el nombre especificado.</summary>
     public CharacterProfile CreateCharacter(string displayName)
     {
         // Generar ID único usando MD5 con sal
@@ -265,11 +272,9 @@ public partial class CharacterManager : Node
         SaveCharacter(newCharacter);
         AllCharacters.Add(newCharacter);
         
-        GD.Print($"CharacterManager: Nuevo personaje creado: {characterId}");
+        Logger.Log($"CharacterManager: Nuevo personaje creado: {characterId}");
         return newCharacter;
     }
-    
-    /// <summary>Actualiza las estadísticas del personaje actual.</summary>
     public void UpdateCharacterStats(TimeSpan playTime, string worldName)
     {
         if (CurrentCharacter == null) return;
@@ -285,10 +290,72 @@ public partial class CharacterManager : Node
         SaveCharacter(CurrentCharacter);
     }
     
-    /// <summary>Obtiene el ID del personaje actual.</summary>
+    /// <summary>Actualiza las estadísticas del personaje actual.</summary>
     public string GetCurrentCharacterId()
     {
         return CurrentCharacter?.CharacterId ?? DEFAULT_CHARACTER_ID;
+    }
+    
+    /// <summary>Guarda el personaje actual en un archivo permanente.</summary>
+    private void SavePersistentCharacter(string characterId)
+    {
+        try
+        {
+            var file = FileAccess.Open(CURRENT_CHARACTER_FILE, FileAccess.ModeFlags.Write);
+            if (file != null)
+            {
+                file.StoreString(characterId);
+                file.Close();
+                _persistentCharacterId = characterId;
+                Logger.Log($"CharacterManager: Personaje actual guardado permanentemente: {characterId}");
+            }
+            else
+            {
+                Logger.LogError($"CharacterManager: Error guardando personaje permanente en: {CURRENT_CHARACTER_FILE}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"CharacterManager: Error guardando personaje permanente: {ex.Message}");
+        }
+    }
+    
+    /// <summary>Carga el personaje guardado permanentemente.</summary>
+    private void LoadPersistentCharacter()
+    {
+        try
+        {
+            if (!FileAccess.FileExists(CURRENT_CHARACTER_FILE))
+            {
+                Logger.Log("CharacterManager: No hay personaje guardado permanentemente");
+                return;
+            }
+            
+            var file = FileAccess.Open(CURRENT_CHARACTER_FILE, FileAccess.ModeFlags.Read);
+            if (file != null)
+            {
+                _persistentCharacterId = file.GetAsText().Trim();
+                file.Close();
+                
+                if (!string.IsNullOrEmpty(_persistentCharacterId))
+                {
+                    var savedCharacter = AllCharacters.FirstOrDefault(c => c.CharacterId == _persistentCharacterId);
+                    if (savedCharacter != null)
+                    {
+                        CurrentCharacter = savedCharacter;
+                        Logger.Log($"CharacterManager: Personaje restaurado permanentemente: {_persistentCharacterId} - {savedCharacter.DisplayName}");
+                    }
+                    else
+                    {
+                        Logger.LogWarning($"CharacterManager: No se encontró personaje guardado: {_persistentCharacterId}");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"CharacterManager: Error cargando personaje permanente: {ex.Message}");
+        }
     }
     
     /// <summary>Genera un ID único basado en MD5 con sal para un personaje.</summary>
@@ -307,6 +374,25 @@ public partial class CharacterManager : Node
             
             // Usar primeros 16 caracteres para ID más manejable y única
             return hash.Substring(0, 16);
+        }
+    }
+    
+    /// <summary>Guarda el estado del personaje actual antes de cambiar de escena.</summary>
+    public static void SaveCurrentCharacterState()
+    {
+        if (Instance?.CurrentCharacter != null)
+        {
+            Instance.SavePersistentCharacter(Instance.CurrentCharacter.CharacterId);
+            Logger.Log($"CharacterManager: Guardando estado del personaje actual: {Instance.CurrentCharacter.CharacterId}");
+        }
+    }
+    
+    /// <summary>Restaura el estado del personaje actual al cambiar de escena.</summary>
+    public static void RestoreCurrentCharacterState()
+    {
+        if (Instance != null)
+        {
+            Instance.LoadPersistentCharacter();
         }
     }
     

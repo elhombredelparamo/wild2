@@ -181,12 +181,18 @@ public partial class GameFlow : Node
     }
     
     /// <summary>Carga una partida existente.</summary>
-    public async void LoadGame(string worldName)
+    public async void LoadGame(string worldName, string characterId = null)
     {
-        Logger.Log($"GameFlow: LoadGame() - cargando mundo: {worldName}");
+        Logger.Log($"GameFlow: LoadGame() - cargando mundo: {worldName}, personaje: {characterId ?? "usando actual"}");
         
         try
         {
+            // Si se proporciona un ID de personaje, establecerlo como actual
+            if (!string.IsNullOrEmpty(characterId))
+            {
+                CharacterManager.Instance.SelectCharacter(characterId);
+                Logger.Log($"GameFlow: Personaje seleccionado para carga: {characterId}");
+            }
             // Cargar información del mundo
             var worldInfo = WorldManager.Instance.LoadWorldInfo(worldName);
             if (worldInfo == null)
@@ -212,6 +218,32 @@ public partial class GameFlow : Node
         try
         {
             Logger.Log($"GameFlow: Iniciando partida con mundo: {worldInfo.Name}");
+            
+            // Establecer el mundo actual ANTES de cambiar de escena
+            WorldManager.Instance.SetCurrentWorld(worldInfo.Name);
+            Logger.Log($"GameFlow: Mundo actual establecido: {worldInfo.Name}");
+            
+            // Configurar SessionData para que GameWorld pueda acceder al nombre del mundo
+            var sessionData = GetNode<SessionData>("/root/SessionData");
+            if (sessionData != null)
+            {
+                sessionData.WorldName = worldInfo.Name;
+                // Convertir Seed de string a long
+                if (long.TryParse(worldInfo.Seed, out long seedValue))
+                {
+                    sessionData.WorldSeed = seedValue;
+                }
+                else
+                {
+                    sessionData.WorldSeed = 0; // Valor por defecto si no se puede convertir
+                    Logger.LogWarning($"GameFlow: No se pudo convertir la semilla '{worldInfo.Seed}' a long, usando 0");
+                }
+                Logger.Log($"GameFlow: SessionData configurado - WorldName: {worldInfo.Name}, Seed: {sessionData.WorldSeed}");
+            }
+            else
+            {
+                Logger.LogError("GameFlow: ERROR - No se encontró SessionData");
+            }
             
             // Actualizar botón para mostrar estado de carga
             UpdateCreateGameButton("Iniciando servidor...");
@@ -257,6 +289,9 @@ public partial class GameFlow : Node
             
             try
             {
+                // Guardar el estado del personaje actual antes de cambiar de escena
+                CharacterManager.SaveCurrentCharacterState();
+                
                 GetTree().CurrentScene.TreeExiting += OnCurrentSceneExiting;
                 GetTree().ChangeSceneToFile(SceneGameWorld);
                 Logger.Log($"GameFlow: ChangeSceneToFile llamado sin excepciones");

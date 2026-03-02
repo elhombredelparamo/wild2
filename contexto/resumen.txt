@@ -28,8 +28,10 @@ TECNOLOGÍAS
 • Lenguaje: C# (.NET 8.0, scripting en Godot).
 • Plataforma objetivo: PC (Windows como referencia; otras según se decida).
 
-ESTADO ACTUAL (v0.1.3-ALPHA)
+ESTADO ACTUAL (v0.2.0-ALPHA)
 ----------------------------
+• **Terreno procedural avanzado**: Generación con ruido Perlin y alturas (-100 a 1000m)
+• **Sistema de chunks**: Terreno dividido en chunks de 100x100 metros para optimización
 • **Terreno con texturas**: Suelo con textura de hierba seamless y colisiones
 • **Sistema de colisiones**: Jugador, suelo y árboles con física básica
 • **Menús funcionales**: Principal, nueva partida, pausa con navegación completa
@@ -43,7 +45,7 @@ REGLA IMPORTANTE DE VERSIONADO
 ------------------------------
 • **Solo el usuario puede cambiar de versión** - La IA no debe crear nuevas versiones
 • **Las mejoras se acumulan en la versión actual** hasta que el usuario indique lo contrario
-• **v0.1.3-ALPHA es la versión actual** hasta nueva orden explícita del usuario
+• **v0.2.0-ALPHA es la versión actual** hasta nueva orden explícita del usuario
 
 ESTRATEGIA DE DESARROLLO: DIVIDE Y VENCERÁS
 -------------------------------------------
@@ -90,12 +92,12 @@ para entender el proyecto de un vistazo.
 
 ESTADO ACTUAL DEL PROYECTO
 --------------------------
-• **Versión:** Alpha 0.1.3 (28/02/2026)
-• **Hitos recientes:** Sistema de gestión de mundos independientes implementado
+• **Versión:** Alpha 0.2.0 (02/03/2026)
+• **Hitos recientes:** Generación de terreno procedural con ruido Perlin y sistema de chunks
 • **Arquitectura:** Cliente-servidor completa y funcional.
-• **Mundos:** Creación, carga y eliminación de mundos con directorios propios.
-• **Sistemas:** Menús de mundos, movimiento FPS, logging optimizado, backups automatizados.
+• **Terreno:** Alturas variables entre -100 y 1000 metros con chunks de 100x100m
+• **Sistemas:** Menús de mundos, movimiento FPS, logging optimizado, gestión de mundos.
 
 ================================================================================
-  Última actualización conceptual: 2026-03-01 - Alpha 0.1.3 con gestión de mundos
+  Última actualización conceptual: 2026-03-02 - Alpha 0.2.0 con terreno procedural
 ================================================================================
