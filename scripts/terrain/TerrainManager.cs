@@ -393,6 +393,29 @@ namespace Wild.Scripts.Terrain
                 new Vector2I(chunkPos.X + 1, chunkPos.Y), // Este
                 new Vector2I(chunkPos.X - 1, chunkPos.Y)  // Oeste
             };
+        }
+        
+        /// <summary>
+        /// Obtiene la altura del terreno en una posición específica del mundo
+        /// </summary>
+        /// <param name="worldX">Coordenada X del mundo</param>
+        /// <param name="worldZ">Coordenada Z del mundo</param>
+        /// <returns>Altura del terreno en la posición especificada</returns>
+        public float GetTerrainHeightAt(float worldX, float worldZ)
+        {
+            try
+            {
+                if (_chunkGenerator == null)
+                    return 0f;
+                
+                // Obtener altura usando el generador de ruido
+                return _chunkGenerator.GetHeightAt(worldX, worldZ);
+            }
+            catch (System.Exception ex)
+            {
+                Logger.LogError($"TerrainManager: Error al obtener altura del terreno: {ex.Message}");
+                return 0f;
+            }
         }    
     }
 }

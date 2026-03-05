@@ -2,9 +2,39 @@
   GENERACIÓN PROCEDURAL DE TERRENO — Especificaciones Técnicas
 ================================================================================
 
-FECHA: 2026-03-02
-VERSIÓN: v0.1.3-ALPHA
-ESTADO: Especificación inicial
+FECHA: 2026-03-03
+VERSIÓN: v0.2.1-ALPHA
+ESTADO: Implementado con sistema de chunks modular
+
+================================================================================
+  SISTEMA DE CHUNKS MODULAR
+================================================================================
+
+ARQUITECTURA DE CHUNKS
+-----------------------
+• TerrainManager: Gestión centralizada de chunks (100x100 metros)
+• ChunkGenerator: Generación procedural de datos de chunk
+• ChunkData: Estructura de datos para alturas y metadatos
+• Chunk: Representación visual del chunk en el mundo
+• Carga dinámica: Chunks se cargan/descargan según posición del jugador
+• Cache en memoria: Hasta 50 chunks en memoria simultáneamente
+• Persistencia en disco: Chunks guardados como .dat en directorio del mundo
+
+CONFIGURACIÓN DE CHUNKS
+-----------------------
+• Tamaño: 100x100 metros por chunk (10,000 m²)
+• Radio de carga: 1 chunk alrededor del jugador (3x3 chunks visibles)
+• Sistema de coordenadas: Vector2I para posición de chunk
+• Directorio de chunks: user://worlds/{worldName}/chunks/
+• Formato de archivo: chunk_{x}_{y}.dat
+
+INTEGRACIÓN CON GAMEWORLD
+-------------------------
+• GameWorldInitializer configura TerrainManager durante inicialización
+• GetPlayerChunkPosition(): Determina chunk actual desde posición del jugador
+• Conversión coordenadas: Mundo→Chunk (divide por 100)
+• Chunk inicial dinámico: Basado en posición guardada, no siempre (0,0)
+• Fallback inteligente: Usa (0,0) solo si no hay posición guardada
 
 ================================================================================
   MAPA DE ALTURAS
@@ -40,7 +70,7 @@ INTERPOLACIÓN Y SUAVIZADO
 CONSIDERACIONES DE RENDIMIENTO
 ------------------------------
 • Cálculo por chunks (parcelas) para carga dinámica
-• Caché de valores de ruido calculados
+• Cache de valores de ruido calculados
 • Niveles de detalle (LOD) según distancia al jugador
 • Generación asíncrona para no bloquear el hilo principal
 
@@ -70,395 +100,68 @@ SISTEMA DE ALMACENAMIENTO DE CHUNKS
 • Coordenadas chunk: enteras que representan posición en la cuadrícula de chunks
 • Ubicación: carpeta "chunks/" dentro del directorio del mundo
 • Acceso: lectura/escritura directa por nombre de archivo
-• Caché: chunks cargados en memoria para acceso rápido
+• Cache: chunks cargados en memoria para acceso rápido
 • Persistencia: todos los chunks generados se guardan permanentemente
 
 ESTRUCTURA DE DATOS DEL CHUNK
 ------------------------------
 • Datos estáticos: mapa de alturas (100x100 floats) - solo se genera una vez
-• Datos dinámicos: estado de objetos modificables por el jugador
-  - Árboles talados (posición, tipo, timestamp)
-  - Recursos recolectados (setas, minerales, plantas)
-  - Objetos colocados por el jugador
-  - Modificaciones del terreno (excavaciones, construcciones)
-• Formato: cabecera + sección estática + sección dinámica
+• Formato: cabecera + sección estática
 • Actualización: solo se modifica la sección dinámica cuando hay cambios
-
-SISTEMA DE PERSISTENCIA DE OBJETOS
-----------------------------------
-• Identificación única: cada objeto tiene ID global (UUID o coordenadas+tipo)
-• Estado inicial: generado proceduralmente al crear el chunk
-• Estados posibles: intacto, recolectado_parcial, recolectado_total, destruido, modificado
-• Registro de cambios: timestamp y tipo de modificación
-• Sincronización: cambios se guardan inmediatamente en disco
-• Revertibilidad: posible restauración de estados anteriores (opcional)
-
-PROPIEDADES DETALLADAS DE OBJETOS
----------------------------------
-• Árbol:
-  - Unidades de madera: 10-50 (según tipo/tamaño)
-  - Número de ramas: 5-20
-  - Número de hojas: 100-1000 (estético)
-  - Número de frutos: 0-15 (según temporada/tipo)
-  - Estado de crecimiento: 0-100% (afecta recursos disponibles)
-  - Tipo de madera: roble, pino, abedul, etc.
-
-• Arbusto/planta:
-  - Unidades de fibra: 2-10
-  - Número de frutos/bayas: 0-8
-  - Estado de maduración: 0-100%
-  - Tipo medicinal/comestible
-
-• Roca/mineral:
-  - Unidades de mineral: 5-30
-  - Dureza: 1-10 (afecta tiempo de extracción)
-  - Tipo de mineral: hierro, cobre, piedra, oro, etc.
-  - Pureza: 50-100% (afecta calidad)
-
-• Setas/hongos:
-  - Unidades comestibles: 1-5
-  - Tipo: venenoso, comestible, medicinal
-  - Estado de frescura: 0-100%
-  - Propiedades medicinales (si aplica)
-
-SISTEMA DE RECOLECCIÓN PARCIAL
-------------------------------
-• Recolección progresiva: los objetos pueden perder propiedades gradualmente
-• Estados intermedios: intacto → parcialmente recolectado → completamente recolectado
-• Sin regeneración: los recursos no se regeneran una vez recolectados
-• Persistencia de estado: cada propiedad se guarda individualmente
-• Interacciones múltiples: diferentes herramientas pueden extraer diferentes recursos
-• Agotamiento definitivo: los recursos son finitos y permanentes
-
-SISTEMA DE CARGA DE CHUNKS
---------------------------
-• Chunks activos: 9 chunks totales (1 central + 8 circundantes)
-• Chunk central: donde se encuentra el jugador
-• Chunks periféricos: los 8 chunks que rodean al central
-• Radio de carga: 1 chunk en todas las direcciones
-• Carga/descarga dinámica según movimiento del jugador
-• Flujo: comprobar si existe → cargar desde disco → si no existe → generar → guardar
+• Compresión: datos comprimidos para optimizar espacio en disco
 
 ================================================================================
-  BIOMAS Y DISTRIBUCIÓN POR ALTITUD
+  SISTEMA DE BARRERAS
 ================================================================================
 
-CLASIFICACIÓN DE BIOMAS SEGÚN ALTITUD
-------------------------------------
-Basado en la zonificación altitudinal real y el sistema de Whittaker (temperatura + precipitación)
-
-NIVEL ACUÁTICO (-100m a 0m)
-----------------------------
-• Bioma: Aguas poco profundas/costeras
-• Características: terreno bajo el nivel del mar
-• Vegetación: algas, plantas acuáticas
-• Recursos: peces, mariscos, corales
-• Suelo: arenoso, fangoso
-
-NIVEL COLINO (0m a 300m)
-------------------------
-• Bioma: Praderas y bosques templados
-• Características: clima moderado, vegetación abundante
-• Vegetación: árboles caducifolios, hierbas densas
-• Recursos: madera variada, frutos, plantas medicinales
-• Suelo: fértil, rico en nutrientes
-
-NIVEL MONTANO BAJO (300m a 600m)
----------------------------------
-• Bioma: Bosques de coníferas y mixtos
-• Características: más fresco, mayor precipitación
-• Vegetación: pinos, robles, abetos, arbustos
-• Recursos: madera de conífera, resinas, bayas
-• Suelo: ácido, buen drenaje
-
-NIVEL MONTANO ALTO (600m a 900m)
----------------------------------
-• Bioma: Bosques subalpinos
-• Características: temperaturas frías, vientos fuertes
-• Vegetación: árboles enanos, coníferas resistentes
-• Recursos: madera dura, piñones, plantas medicinales de montaña
-• Suelo: delgado, rocoso
-
-NIVEL ALPINO (900m a 1000m)
-----------------------------
-• Bioma: Tundra alpina (límite de árboles)
-• Características: muy frío, vientos extremos, poca vegetación
-• Vegetación: musgos, líquenes, hierbas rastreras, plantas cushion
-• Recursos: plantas medicinales raras, minerales de alta montaña
-• Suelo: muy delgado, permafrost en algunas zonas
-
-FACTORES ADICIONALES DE BIOMAS
-------------------------------
-• Humedad: variación local basada en segundo mapa de ruido
-• Exposición: laderas soleadas vs sombreadas
-• Microclimas: valles protegidos, crestas expuestas
-• Cercanía al agua: ríos, lagos modifican biomas locales
-
-TIPOS DE BIOMAS ESPECÍFICOS
----------------------------
-1. Pradera templada (0-300m): hierba, flores silvestres, arbustos dispersos
-2. Bosque caducifolio (0-400m): robles, arces, hayas
-3. Bosque de coníferas (300-700m): pinos, abetos, píceas
-4. Bosque mixto (200-500m): combinación de caducifolios y coníferas
-5. Matorral montano (500-800m): arbustos densos, pequeños árboles
-6. Tundra alpina (800-1000m): musgos, líquenes, hierbas bajas
-7. Zona acuática (-100-0m): vegetación acuática, fondos arenosos
-
-DISTRIBUCIÓN DE RECURSOS POR BIOMA
-----------------------------------
-• Pradera: fibras vegetales, hierbas medicinales, pequeños animales
-• Bosque caducifolio: madera blanda, frutos, hojas comestibles
-• Bosque de coníferas: madera resinosa, piñas, resinas
-• Bosque mixto: recursos variados de ambos tipos de bosque
-• Matorral: bayas, plantas medicinales, madera dura
-• Tundra: plantas medicinales raras, minerales
-• Acuático: recursos pesqueros, plantas acuáticas
-
-================================================================================
-  SISTEMA DE RENDIMIENTO Y ADAPTABILIDAD
-================================================================================
-
-NIVELES DE CALIDAD GRÁFICA
----------------------------
-• Ultra (Real): modelos 3D high-poly, texturas 4K, sombras dinámicas completas
-• Alto: modelos 3D medium-poly, texturas 2K, sombras dinámicas parciales
-• Medio: modelos 3D low-poly, texturas 1K, sombras estáticas
-• Bajo (Tostadora): modelos 3D muy low-poly, texturas 512px, sin sombras dinámicas
-• Mínimo: modelos 3D básicos, texturas 256px, iluminación básica
-
-SISTEMA DE MODELOS MÚLTIPLES POR OBJETO
----------------------------------------
-• Cada objeto tiene múltiples variantes 3D según calidad
-• Ejemplo árbol roble3:
-  - Ultra: 15,000 polígonos, texturas 4K, física detallada
-  - Alto: 8,000 polígonos, texturas 2K, física simplificada
-  - Medio: 3,000 polígonos, texturas 1K, colisiones básicas
-  - Bajo: 800 polígonos, texturas 512px, caja de colisión
-  - Mínimo: 200 polígonos, texturas 256px, punto de colisión
-
-DETECCIÓN AUTOMÁTICA DE HARDWARE
----------------------------------
-• Detección al iniciar: VRAM, RAM, CPU, GPU
-• Benchmark rápido: prueba de rendimiento 5 segundos
-• Asignación automática según capacidad detectada
-• Posibilidad de ajuste manual por el usuario
-
-INDEPENDENCIA DE GENERACIÓN DE TERRENO
---------------------------------------
-• El terreno siempre genera los mismos objetos en las mismas coordenadas
-• La calidad solo afecta al modelo 3D renderizado, no a la lógica
-• Ejemplo: coordenada (150, 75) siempre contiene "roble3"
-• El sistema de renderizado elige qué variante de "roble3" mostrar
-
-OPTIMIZACIONES DE RENDERIZADO
-------------------------------
-• LOD (Level of Detail): modelos más simples a distancia
-• Culling: no renderizar objetos fuera del campo de visión
-• Occlusion culling: no renderizar objetos ocultos
-• Batch rendering: agrupar objetos similares para reducir draw calls
-• Instancing: renderizar múltiples copias del mismo objeto eficientemente
-
-SISTEMA DE ADAPTACIÓN DINÁMICA
--------------------------------
-• Monitorización de FPS en tiempo real
-• Reducción automática de calidad si FPS < 30
-• Aumento automático si hardware lo permite
-• Prioridad: jugabilidad estable sobre calidad visual
-
-GESTIÓN DE MEMORIA
-------------------
-• Streaming de texturas según calidad
-• Pool de objetos para reutilizar modelos
-• Descarga automática de recursos no usados
-• Cache inteligente de modelos por calidad
-
-CONFIGURACIÓN DE CALIDAD
--------------------------
-• Menú de opciones con preajustes (Tostadora, Bajo, Medio, Alto, Ultra)
-• Configuración avanzada: ajuste individual de cada parámetro
-• Vista previa en tiempo real de cambios
-• Detección de configuración óptima automática
-
-================================================================================
-  CATÁLOGO DE OBJETOS POR BIOMA
-================================================================================
-
-BIOMA: PRADERA TEMPLADA (0-300m)
----------------------------------
-ÁRBOLES (3 modelos por tipo):
-• Roble: roble1, roble2, roble3
-• Arce: arce1, arce2, arce3
-• Fresno: fresno1, fresno2, fresno3
-
-ARBUSTOS (5 modelos):
-• Espino: espino1, espino2
-• Zarzamora: zarzamora1, zarzamora2
-• Rosa silvestre: rosa1
-
-FLORES (8 modelos):
-• Margarita: margarita1, margarita2
-• Diente de león: diente_leon1, diente_leon2
-• Amapola: amapola1, amapola2
-• Lavanda: lavanda1, lavanda2
-• Girasol silvestre: girasol1
-
-HIERBAS (6 modelos):
-• Hierba alta: hierba_alta1, hierba_alta2
-• Hierba corta: hierba_corta1, hierba_corta2
-• Juncos: junco1, junco2
-
-SETAS (4 modelos):
-• Champiñón común: champinon1, champinon2
-• Seta de prado: seta_prado1, seta_prado2
-
-BIOMA: BOSQUE CADUCIFOLIO (0-400m)
-----------------------------------
-ÁRBOLES (4 modelos por tipo):
-• Roble: roble_grande1, roble_grande2, roble_grande3, roble_grande4
-• Haya: haya1, haya2, haya3, haya4
-• Castaño: castano1, castano2, castano3
-• Nogal: nogal1, nogal2, nogal3
-
-ARBUSTOS (6 modelos):
-• Avellano: avellano1, avellano2
-• Cornizuelo: cornizuelo1
-• Madreselva: madreselva1, madreselva2
-• Espino blanco: espino_blanco1
-
-FLORES (6 modelos):
-• Campanilla: campanilla1, campanilla2
-• Primavera: primavera1
-• Violeta: violeta1, violeta2
-• Anémona: anemona1
-
-SETAS (5 modelos):
-• Seta de cardo: seta_cardo1, seta_cardo2
-• Níscalo: niscalo1, niscalo2
-• Boletus: boletus1
-
-BIOMA: BOSQUE DE CONÍFERAS (300-700m)
-------------------------------------
-ÁRBOLES (5 modelos por tipo):
-• Pino: pino1, pino2, pino3, pino4, pino5
-• Abeto: abeto1, abeto2, abeto3, abeto4
-• Pícea: picea1, picea2, picea3
-• Ciprés: cipres1, cipres2
-
-ARBUSTOS (4 modelos):
-• Enebro: enebro1, enebro2
-• Rododendro: rododendro1, rododendro2
-
-FLORES (5 modelos):
-• Gentiana: gentiana1, gentiana2
-• Edelweiss: edelweiss1
-• Azucena: azucena1, azucena2
-
-SETAS (6 modelos):
-• Trufa: trufa1, trufa2
-• Seta de pino: seta_pino1, seta_pino2, seta_pino3
-• Rebozuelo: rebozuelo1
-
-BIOMA: BOSQUE MIXTO (200-500m)
-------------------------------
-ÁRBOLES (3 modelos por tipo de cada bioma anterior)
-• Combinación de árboles caducifolios y coníferas
-• Roble, pino, haya, abeto, arce, pícea
-
-ARBUSTOS (4 modelos):
-• Sauco: sauco1, sauco2
-• Espino: espino_mixto1
-• Madreselva: madreselva_mixta1
-
-FLORES (7 modelos):
-• Mezcla de flores de pradera y bosque
-• Margarita, campanilla, lavanda, violeta
-
-SETAS (5 modelos):
-• Combinación de setas de ambos biomas
-• Champiñón, niscalo, seta_pino
-
-BIOMA: MATORRAL MONTANO (500-800m)
-----------------------------------
-ÁRBOLES ENANOS (4 modelos):
-• Pino enano: pino_enano1, pino_enano2
-• Roble enano: roble_enano1, roble_enano2
-• Abedul enano: abedul_enano1, abedul_enano2
-
-ARBUSTOS (8 modelos):
-• Aromo: aromo1, aromo2
-• Brezo: brezo1, brezo2, brezo3
-• Retama: retama1, retama2
-• Enebro rastrero: enebro_rastrero1
-
-FLORES ALPINAS (6 modelos):
-• Flor de nieve: flor_nieve1, flor_nieve2
-• Primula alpina: primula_alpina1
-• Aster alpino: aster_alpino1, aster_alpino2
-
-SETAS DE MONTAÑA (4 modelos):
-• Seta de roca: seta_roca1, seta_roca2
-• Lactario: lactario1, lactario2
-
-BIOMA: TUNDRA ALPINA (800-1000m)
+BARRERAS FÍSICAS IMPLEMENTADAS
 --------------------------------
-MUSGOS Y LÍQUENES (6 modelos):
-• Musgo verde: musgo_verde1, musgo_verde2
-• Musgo blanco: musgo_blanco1
-• Liquen naranja: liquen_naranja1, liquen_naranja2
-• Liquen gris: liquen_gris1
+• StaticBody3D con 4 paredes invisibles
+• Altura completa: 1200m para cubrir rango (-100 a 1000m)
+• Grosor optimizado: 1m efectivo pero minimalista
+• Capas correctas: Barreras en capa 2, jugador con CollisionMask = 2
+• Eliminación dinámica: Barreras eliminadas al cargar chunks adyacentes
 
-PLANTAS RASTRERAS (5 modelos):
-• Hierba alpina: hierba_alpina1, hierba_alpina2
-• Cushion plant: cushion1, cushion2
-• Selaginella: selaginella1
-
-FLORES ALPINAS (4 modelos):
-• Edelweiss raro: edelweiss_raro1
-• Ranunculus alpino: ranunculus1
-• Gentiana azul: gentiana_azul1
-
-SETAS RARAS (3 modelos):
-• Seta medicinal: seta_medicinal1
-• Seta luminiscente: seta_luminiscente1
-• Seta de permafrost: seta_permafrost1
-
-BIOMA: ZONA ACUÁTICA (-100-0m)
+DETECCIÓN Y TELETRANSPORTE
 ------------------------------
-PLANTAS ACUÁTICAS (5 modelos):
-• Alga verde: alga_verde1, alga_verde2
-• Alga marrón: alga_marron1
-• Lirio acuático: lirio_acuatico1
-• Nenúfar: nenufar1, nenufar2
-• Carrizo: carrizo1
-
-ELEMENTOS ACUÁTICOS (4 modelos):
-• Coral blando: coral_blando1
-• Coral duro: coral_duro1
-• Roca acuática: roca_acuatica1, roca_acuatica2
-• Concha: concha1
+• Detección centralizada: GameWorld.cs detecta colisiones con barreras
+• Teletransporte automático: 2 metros hacia atrás al tocar barrera
+• Notificación al servidor: Mensajes BLOCKED_POS para sincronización
+• Dirección inteligente: Hacia centro del chunk si jugador está quieto
+• Logging completo: Registro de todas las interacciones con barreras
 
 ================================================================================
-  RESUMEN DE MODELOS REQUERIDOS
+  CARACTERÍSTICAS TÉCNICAS
 ================================================================================
 
-TOTAL DE MODELOS 3D NECESARIOS:
-• Árboles: ~60 modelos diferentes
-• Arbustos: ~35 modelos
-• Flores: ~40 modelos
-• Setas: ~25 modelos
-• Plantas especiales: ~20 modelos
-• Elementos acuáticos: ~9 modelos
-• Grand Total: ~189 modelos 3D base
+DIMENSIONES DE CHUNK
+--------------------
+• 100x100 metros (10,000 m²)
+• Rango de alturas: -100 a 1000 metros sobre nivel del mar
+• Barreras por chunk: 4 paredes (Norte, Sur, Este, Oeste)
+• Altura de barreras: 1200 metros (sobre máximo terreno)
+• Grosor de barreras: 1 metro (efectivo pero minimalista)
+• Material de barreras: Invisible (sin renderizado)
+• Sistema de colisiones: Capa 2 (barreras) + Capa 1 (jugador)
 
-CADA MODELO NECESITA 5 VARIANTES DE CALIDAD:
-• Modelos totales renderizados: ~945 (189 × 5)
+================================================================================
+  ESTADO DE IMPLEMENTACIÓN
+================================================================================
 
-PRIORIDAD DE DESARROLLO:
-1. Árboles básicos (roble, pino, abeto)
-2. Arbustos y hierbas
-3. Flores y setas comunes
-4. Plantas de montaña y tundra
-5. Elementos acuáticos
+FUNCIONALIDAD COMPLETA
+-----------------------
+• Bloqueo físico garantizado: StaticBody3D impide cruce de barreras
+• Detección precisa: GameWorld detecta contacto con ChunkBoundaries
+• Teletransporte suave: Reposición automática sin interrupciones bruscas
+• Sincronización robusta: Servidor mantiene posición correcta del jugador
+• Rendimiento optimizado: Sin duplicación de sistemas de detección
+
+IMPLEMENTACIÓN LIMPIA
+---------------------
+• Chunk.cs simplificado: Solo barreras físicas, sin lógica duplicada
+• Código limpio: Sin métodos obsoletos ni variables sin usar
+• Separación de responsabilidades: Chunk: barreras físicas, GameWorld: detección y acción
+• Errores corregidos: Métodos obsoletos eliminados
 
 ================================================================================
   NOTAS DE IMPLEMENTACIÓN
@@ -468,7 +171,8 @@ PRIORIDAD DE DESARROLLO:
 • Los valores negativos (-100 a 0) generarán terreno bajo el agua
 • Los valores positivos (0 a 1000) generarán terreno emergido
 • Transiciones suaves entre diferentes rangos de altitud
+• Generación asíncrona para mejor rendimiento
 
 ================================================================================
-  Última actualización: 2026-03-02 - Especificación completa de generación procedural
+Última actualización: 2026-03-03
 ================================================================================

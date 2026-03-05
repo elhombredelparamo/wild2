@@ -3,91 +3,298 @@ ESTADO ACTUAL DEL PROYECTO WILD
 
 🎮 VERSIÓN ACTUAL
 -----------------
-Versión: 0.2.0-ALPHA
-Fecha: 2026-03-02 (actualizado)
-Estado: Alpha estable - Bug de chunk inicial solucionado
+Versión: 0.2.1-ALPHA
+Fecha: 2026-03-03 (inicio desarrollo)
+Estado: Alpha estable - Iniciando desarrollo de nuevas características
 
 🏗️ ARQUITECTURA DEL SISTEMA
 ----------------------------
 
 SISTEMA DE PERSONAJES
 - CharacterManager: Singleton global para gestión de personajes
-- IDs únicas de 16 caracteres basadas en MD5 con sal (ej: "a1b2c3d4e5f6g7h8")
+- IDs únicas de 16 caracteres basadas en MD5 con sal
 - Perfiles guardados en user://characters/profiles/
 - Personaje por defecto "jugador" creado automáticamente
 - IDs consistentes entre guardado y carga
 - Soporte multi-mundo y multi-jugador
-- Sistema de IDs: MD5(nombre + timestamp + random) → primeros 16 chars
-- Menús completos: CharacterSelectMenu, CharacterCreateMenu
+- Menús completos: CharacterSelectMenu (317 líneas), CharacterCreateMenu (161 líneas)
+- CharacterSelectMenu: Menú de selección de personajes con lista interactiva (317 líneas)
+- SetupUI(): Configuración inicial de interfaz y eventos de botones
+- LoadCharacters(): Carga dinámica de personajes desde CharacterManager
+- CreateCharacterItem(): Elementos visuales con checkboxes, nombre, ID, tiempo y mundos
+- OnCharacterSelected(): Gestión de selección con checkboxes exclusivos
+- OnCreateNewPressed(): Navegación a menú de creación
+- OnSelectPressed(): Selección de personaje y vuelta a menú principal
+- OnDeletePressed(): Eliminación inteligente (siempre queda al menos 1 personaje)
+- OnBackPressed(): Vuelta a menú principal
+- UpdateUI(): Estado dinámico de botones según selección y total
+- FormatTime(): Formato legible de tiempo de juego (horas, minutos, segundos)
 - Eliminación inteligente: siempre queda al menos 1 personaje
-- "jugador" eliminable si hay otros personajes disponibles
+- CharacterCreateMenu: Menú de creación de personajes con validación completa (161 líneas)
+- SetupUI(): Configuración inicial de interfaz y eventos
+- OnNameTextChanged(): Validación en tiempo real de nombres de personajes
+- OnCreatePressed(): Creación de personajes con CharacterManager y selección automática
+- OnCancelPressed(): Navegación a menú de selección
+- ValidateCharacterName(): Validación de caracteres permitidos (letras, números, espacios, guiones)
+- UpdateUI(): Actualización dinámica de colores de feedback y estado de botones
+- _Input(): Manejo de teclas Enter (crear) y Escape (cancelar)
+- Integración completa con CharacterManager para IDs únicas MD5
+- Feedback visual con colores: rojo para errores, verde para nombres válidos
+- Eliminación inteligente: siempre queda al menos 1 personaje
 
 SISTEMA DE MUNDOS
-- WorldManager: Gestión de mundos independientes
+- WorldManager: Gestión de mundos independientes (445 líneas)
+- _Ready(): Configuración inicial con singleton y opciones JSON
+- EnsureWorldsFolderExists(): Creación automática de carpeta de mundos
+- SetCurrentWorld(): Establecimiento del mundo actual
+- GetCurrentWorldSeed(): Obtención de semilla del mundo actual con conversión
+- CreateWorld(): Creación completa de mundos con estructura y metadatos
+- LoadWorldInfo(): Carga robusta de información de mundos desde JSON
+- DeleteWorld(): Eliminación recursiva segura de mundos completos
+- GetAllWorlds(): Listado de todos los mundos con ordenamiento por última fecha
+- WorldExists(): Verificación de existencia de mundos
+- UpdateWorldInfo(): Actualización dinámica de información de mundos
+- GetWorldPath(): Obtención de rutas de directorios de mundos
+- GetWorldInfoPath(): Obtención de rutas de archivos de información
+- GenerateRandomSeed(): Generación de semillas aleatorias (6 dígitos)
+- CreateWorldStructure(): Creación de subdirectorios (player, world, entities, chunks)
+- RemoveDirectoryRecursive(): Eliminación recursiva segura de directorios
+- Sistema singleton con patrón Instance
+- Configuración JSON con JsonSerializerOptions y CamelCase
+- Gestión completa de directorios con DirAccess
+- Estructura de mundos: player/, world/, entities/, chunks/
+- WorldInfo: Clase con metadatos y métodos de formato
+- Logging completo con Logger.Log() para depuración
+- Manejo robusto de errores con try-catch
 - Cada mundo en directorio propio: user://worlds/{nombre}/
 - Datos de jugadores por mundo: user://worlds/{nombre}/player/{playerId}.json
 - Sistema de guardado automático cada 5 segundos
 
 SISTEMA DE RED
+- NetworkManager: Componente modular para gestión de red cliente-servidor
 - GameServer: Servidor TCP para multi-jugador
 - GameClient: Cliente TCP con sincronización
-- IDs únicos: player_1, player_2, etc.
+- Logger: Sistema de logging centralizado (movido a scripts/systems/) (75 líneas)
+- ClearLog(): Limpieza de archivo con timestamp al iniciar
+- Log(): Logging dual (consola Godot + archivo latest.log)
+- LogError(): Manejo especializado de errores con GD.PrintErr()
+- LogWarning(): Wrapper para mensajes de advertencia
+- Timestamps con milisegundos: HH:mm:ss.fff
+- Manejo robusto de excepciones con try-catch
+- Archivo de salida: latest.log en raíz del proyecto
 - Posición y rotación sincronizadas
+- Eventos para comunicación: NetworkModeChanged, ServerPositionUpdated, etc.
 
 SISTEMA DE UI
-- MainMenu: Menú principal con imagen de fondo
-- NewGameMenu: Creación de nuevos mundos
-- WorldSelectMenu: Selección y gestión de mundos
-- PauseMenu: Menú de pausa durante el juego
+- MainMenu: Menú principal con imagen de fondo (156 líneas)
+- _Ready(): Configuración inicial con carga de imagen de fondo y eventos de botones
+- Sistema de importación: Carga dinámica de "res://assets/ui/fondomenuprincipal.png"
+- TextureRect dinámico: Reemplaza ColorRect con TextureRect para imagen de fondo
+- OnNewGamePressed(): Navegación a menú de nueva partida
+- OnLoadGamePressed(): Navegación a menú de selección de mundos
+- OnCharacterSelectPressed(): Navegación a menú de selección de personajes
+- OnOptionsPressed(): Navegación a menú de opciones
+- OnQuitPressed(): Salida del juego
+- Logging completo con Logger.Log() para depuración
+- Manejo robusto de errores con try-catch en configuración de UI
+- SplashScreen: Splash screen inicial con fade automático (156 líneas)
+- _Ready(): Configuración inicial con pantalla completa y carga de imagen
+- _Input(): Detección de teclas y clics para saltar el splash
+- CreateFallbackImage(): Creación de imagen de respaldo si no encuentra splash.png
+- OnDisplayTimerTimeout(): Gestión automática del timer de display
+- SkipSplash(): Opción de saltar con cualquier tecla o clic
+- TransitionToMainMenu(): Transición con fade-out al menú principal
+- Configuración de pantalla completa con anchors
+- Carga directa de imagen desde archivo (sin importación)
+- Sistema de fade-in/fade-out con Tween
+- Timer configurable: FadeDuration (1.0s), DisplayDuration (3.0s)
+- Imagen de respaldo: DarkGreen si no encuentra splash.png
+- Transición automática a main_menu.tscn
+- Logging completo con Logger.Log() para depuración
+- Manejo robusto de errores con try-catch
+- OptionsMenu: Menú de opciones de gráficos y controles (69 líneas)
+- _Ready(): Configuración inicial de interfaz y eventos
+- ShowSubmenu(): Navegación entre paneles de controles y gráficos
+- OnRenderDistanceChanged(): Actualización de distancia de renderizado
+- UpdateRenderDistanceLabel(): Actualización dinámica de etiqueta de valor
+- OnBackPressed(): Vuelta al menú principal
+- Panel lateral: Botones para Controles y Gráficos
+- Panel de gráficos: SpinBox para distancia de renderizado (25-500 metros, step 5)
+- Integración completa con GameSettings para configuraciones
+- Actualización dinámica de etiquetas con formato "X m"
+- Guardado automático de configuraciones al cambiar valores
+- NewGameMenu: Creación de nuevos mundos (113 líneas)
+- _Ready(): Configuración inicial de interfaz y eventos
+- SetRandomSeedInEdit(): Generación y configuración de semillas aleatorias
+- OnRandomSeedPressed(): Botón para generar nueva semilla aleatoria
+- OnChangeCharacterPressed(): Navegación a menú de selección de personajes
+- UpdateCharacterInfo(): Actualización dinámica de información del personaje actual
+- OnCreatePressed(): Creación de mundo con validación de personaje y configuración
+- OnBackPressed(): Vuelta al menú principal
+- Validación automática: redirige a selección si no hay personaje seleccionado
+- Configuración de semilla: permite valor personalizado o aleatorio
+- Configuración de nombre: permite valor personalizado o generación automática con timestamp
+- Integración completa con CharacterManager y SessionData
+- Logging completo con Wild.Logger para depuración
+- PauseMenu: Menú de pausa durante el juego (133 líneas)
+- _Ready(): Configuración inicial con ocultado automático y conexión de botón SALIR
+- _Process(): Procesamiento continuo (sin detección manual de clics)
+- _GuiInput(): Entrada GUI (sin detección manual de clics)
+- _Input(): Detección de teclas ESC y pause para mostrar/ocultar menú
+- TogglePause(): Alternar estado de pausa
+- ShowPause(): Mostrar menú, congelar jugador y cámara, mostrar cursor
+- HidePause(): Ocultar menú, descongelar jugador y cámara, ocultar cursor
+- OnQuitPressed(): Volver al menú principal con manejo de errores
+- IsPaused(): Verificación de estado de pausa
+- Integración completa con GameWorld para congelación/descongelación
+- Gestión de cursor: Visible/Captured según estado
+- Logging completo con Logger.Log() para depuración
+- Manejo robusto de errores con try-catch
+- WorldSelectMenu: Selección y gestión de mundos (261 líneas)
+- _Ready(): Configuración inicial con referencias a controles y eventos
+- UpdateCharacterInfo(): Actualización dinámica de información del personaje actual
+- RefreshWorldList(): Actualización dinámica de lista de mundos disponibles
+- OnWorldSelected(): Gestión de selección con ToggleMode y resaltado visual
+- HighlightSelectedWorld(): Resaltado visual con estilos personalizados y bordes
+- GetWorldButton(): Obtención de botón correspondiente a un mundo
+- UpdateButtonStates(): Estado dinámico de botones según selección
+- _on_button_back_pressed(): Vuelta al menú principal
+- _on_button_delete_pressed(): Eliminación con confirmación AcceptDialog
+- OnDeleteConfirmed(): Eliminación segura con WorldManager y actualización
+- _on_button_load_pressed(): Carga de mundo con GameFlow y personaje actual
+- Lista dinámica de mundos con botones ToggleMode
+- Resaltado visual con StyleBoxFlat y colores personalizados
+- Confirmación de eliminación con diálogo modal
+- Integración completa con WorldManager y CharacterManager
+- Logging completo con Logger.Log() para depuración
+- Manejo robusto de errores con try-catch
+- GameHUD: Sistema modular de HUD para coordenadas y estado del juego (76 líneas)
+- Initialize(): Configuración inicial con Label, PlayerController y TerrainManager
+- UpdateCoordinatesDisplay(): Actualización dinámica de posición, cámara y estado del terreno
+- IsInitialized(): Verificación de estado de inicialización
+- Cleanup(): Limpieza de referencias para gestión de memoria
+- Visualización: Posición (X,Y,Z), cámara (pitch/yaw), estado del terreno (PROCEDURAL/PLANO)
+- Integración completa con PlayerController y TerrainManager
+- Logging completo con Logger.Log() y Logger.LogWarning()
 - Navegación fluida entre menús sin cerrar ventanas
 
-🏗️ ARQUITECTURA DEL SISTEMA DE BARRERAS
----------------------------------------------
-✅ **Barreras físicas implementadas** - StaticBody3D con 4 paredes invisibles
-✅ **Altura completa** - 1200m para cubrir rango (-100 a 1000m)
-✅ **Grosor optimizado** - 1m efectivo pero minimalista
-✅ **Capas correctas** - Barreras en capa 2, jugador con CollisionMask = 2
-✅ **Eliminación dinámica** - Barreras eliminadas al cargar chunks adyacentes
+SISTEMA DE COLISIONES MODULAR
+- CollisionHandler: Sistema modular para gestión de colisiones del jugador (164 líneas)
+- Initialize(): Configuración inicial con Player, PlayerController y NetworkManager
+- SetupCollisionDetection(): Configuración de Area3D para detección de barreras
+- Sistema de capas: Jugador en capa 1, barreras en capa 2
+- Area3D con CapsuleShape3D: Detector de colisiones más grande que el jugador
+- OnBodyEntered()/OnBodyExited(): Manejo de eventos de colisión
+- HandleBarrierCollision(): Teletransporte automático al detectar barreras de chunk
+- Integración con NetworkManager para sincronización de colisiones
+- Teletransporte automático al detectar límites de chunk
+- Logging completo de eventos de colisión
 
-🎯 DETECCIÓN Y TELETRANSPORTE
-------------------------------------
-✅ **Detección centralizada** - GameWorld.cs detecta colisiones con barreras
-✅ **Teletransporte automático** - 2 metros hacia atrás al tocar barrera
-✅ **Notificación al servidor** - Mensajes BLOCKED_POS para sincronización
-✅ **Dirección inteligente** - Hacia centro del chunk si jugador está quieto
-✅ **Logging completo** - Registro de todas las interacciones con barreras
+SISTEMA DE CLIENTE LOCAL
+- GameClient: Cliente local que conecta con el servidor local
+- RemotePlayer: Información de jugadores remotos (PlayerId, Position, Rotation)
+- TCP Client: Envía inputs del jugador y recibe estados del mundo
+- Sincronización: Comunicación bidireccional con servidor
+- Gestión de conexión: Manejo automático de conexión y desconexión
+- Integración: Sistema modular para gestión de red cliente
+- Configuración: Host 127.0.0.1, Puerto 7778
+- Métodos de comunicación: SendPlayerInput(), SendPositionUpdate(), RequestWorldState()
+- Procesamiento de mensajes: STATE_INIT, STATE_UPDATE, PLAYER_STATE, PLAYER_JOINED, PLAYER_LEFT
+- Formato de mensajes: "INPUT:movimiento:x,y,z|rotacion:pitch,yaw"
+- Sistema de señales: OnPositionUpdated, OnRotationUpdated, OnLocalPlayerIdAssigned, etc.
+- Logging con CultureInvariant para parsing numérico robusto
 
-🔧 IMPLEMENTACIÓN LIMPIA
--------------------------
-✅ **Chunk.cs simplificado** - Solo barreras físicas, sin lógica duplicada
-✅ **Código limpio** - Sin métodos obsoletos ni variables sin usar
-✅ **Separación de responsabilidades** - Chunk: barreras físicas, GameWorld: detección y acción
-✅ **Errores corregidos** - `new void UpdateTerrainMesh()` y `new void Dispose()`
+SISTEMA DE SERVIDOR LOCAL
+- GameServer: Servidor local que gestiona toda la lógica del juego (475 líneas)
+- PlayerInfo: Información de jugadores conectados (PlayerId, Client, Stream, Position, Rotation, LastActivity)
+- TCP Server: Escucha conexiones de clientes y maneja estado del mundo
+- Multijugador: Base para futuro multijugador con arquitectura cliente-servidor
+- Gestión de conexiones: Manejo automático de conexiones y desconexiones
+- Configuración: Host 127.0.0.1, Puerto 7778 con fallback automático
+- Sistema de ticks: 60Hz para procesamiento de servidor
+- IDs automáticos: player_1, player_2, etc. con incremento
+- Procesamiento de posiciones bloqueadas: ProcessBlockedPosition()
+- Integración: Sistema modular para gestión de red
 
-🎮 FUNCIONALIDAD COMPLETA
---------------------------
-🌍 **Bloqueo físico garantizado** - StaticBody3D impide cruce de barreras
-🌍 **Detección precisa** - GameWorld detecta contacto con ChunkBoundaries
-🌍 **Teletransporte suave** - Reposición automática sin interrupciones bruscas
-🌍 **Sincronización robusta** - Servidor mantiene posición correcta del jugador
-🌍 **Rendimiento optimizado** - Sin duplicación de sistemas de detección
+SISTEMA DE GESTIÓN DE PERSONAJES
+- CharacterManager: Manager global de personajes del juego
+- CurrentCharacter: Personaje actualmente seleccionado
+- AllCharacters: Lista de todos los personajes disponibles
+- IDs únicas: Sistema de identificación único para cada personaje
+- Carpetas: characters/, profiles/, stats/ para organización de datos
+- Persistencia: Guardado automático de perfiles y estadísticas
+- Integración: Sistema singleton para acceso global
 
-📋 CARACTERÍSTICAS TÉCNICAS
------------------------------
-🎯 **Dimensiones de chunk**: 100x100 metros (10,000 m²)
-🎯 **Rango de alturas**: -100 a 1000 metros sobre nivel del mar
-🎯 **Barreras por chunk**: 4 paredes (Norte, Sur, Este, Oeste)
-🎯 **Altura de barreras**: 1200 metros (sobre máximo terreno)
-🎯 **Grosor de barreras**: 1 metro (efectivo pero minimalista)
-🎯 **Material de barreras**: Invisible (sin renderizado)
-🎯 **Sistema de colisiones**: Capa 2 (barreras) + Capa 1 (jugador)
+SISTEMA DE DATOS DE SESIÓN
+- SessionData: Autoload para datos de la partida actual (nueva o cargada)
+- WorldSeed: Semilla para generación procedural del terreno
+- CharacterName: Nombre del personaje del jugador
+- Gender: Género ("Hombre" o "Mujer")
+- WorldName: Nombre del mundo/partida
+- IsMale: Propiedad booleana para verificar género masculino
+- RandomSeed(): Método estático para generar semillas aleatorias
+- Integración: Rellenado desde menú "Nueva partida", leído por GameWorld y otros sistemas
 
-🚀 ESTADO DE DESARROLLO
------------------------
-🔥 **Siguiente hito**: Sistema de gestión de múltiples chunks
-🔥 **Mejoras pendientes**: Vegetación procedural, estructuras, NPCs
-🔥 **Optimizaciones**: LOD para chunks distantes, streaming de terreno
-🔥 **Características avanzadas**: Sistema día/noche, clima, estaciones
+SISTEMA DE CONFIGURACIÓN DEL JUEGO
+- GameSettings: Autoload para opciones del juego (gráficos, controles, etc.)
+- RenderDistanceMetres: Distancia de renderizado configurable (25-500 metros, default 150m)
+- Propiedades: MinRenderDistance (25m), MaxRenderDistance (500m)
+- Persistencia: Pendiente implementación (user://settings.cfg)
+- Integración: Sistema modular para configuraciones globales del juego
+
+SISTEMA DE FLUJO DE JUEGO
+- GameFlow: Autoload central para gestión de flujo del juego (389 líneas)
+- UpdateNewGameButton(): Actualiza texto del botón en menú principal
+- UpdateCreateGameButton(): Actualiza texto del botón en menú de nueva partida
+- OpenWorldSelectMenu(): Abre menú de selección de mundos
+- OpenOptions(): Abre menú de opciones
+- OpenCharacterSelectMenu(): Abre menú de selección de personajes
+- OpenCharacterCreateMenu(): Abre menú de creación de personajes
+- OpenMainMenu(): Abre menú principal
+- OpenNewGameMenu(): Abre menú de nueva partida
+- StartNewGame(): Inicia partida nueva con protección contra múltiples clics
+- LoadGame(): Carga partida existente
+- StartGameWithWorld(): Inicia juego con mundo específico
+- ReturnToMainMenu(): Vuelve al menú principal deteniendo servidor
+- GetGameClient(): Obtiene cliente de red de forma segura
+- Protección contra clics duplicados con flags _isStartingGame y _isGameStarting
+- Integración completa con WorldManager, CharacterManager y SessionData
+
+SISTEMA DE EXTENSIONES DE GAMEFLOW
+- GameFlowExtensions: Clase estática para acceso a campos privados de GameFlow
+- GetPrivateField<T>: Método genérico para obtener campos privados mediante reflexión
+- Propósito: Permitir que GameWorld acceda al cliente de red de GameFlow
+- Integración: Esencial para la arquitectura cliente-servidor modular
+
+SISTEMA DE INICIALIZACIÓN DEL MUNDO
+- GameWorldInitializer: Sistema modular para configuración centralizada de todos los sistemas (434 líneas)
+- InitializeGameWorld(): Método asíncrono principal que orquesta toda la inicialización
+- GetWorldReferences(): Obtención de referencias a componentes del mundo
+- SetupCollisionSystem(): Configuración del sistema de colisiones
+- SetupTerrainSystem(): Inicialización asíncrona del sistema de terreno
+- SetupNetworkSystem(): Configuración del sistema de red cliente-servidor
+- SetupPlayerSystem(): Configuración del controlador del jugador
+- SetupPlayerPersistence(): Configuración del sistema de persistencia
+- ConnectSystems(): Interconexión entre todos los sistemas
+- SetupInitialPlayerPosition(): Configuración de posición inicial del jugador
+- SetupControls(): Configuración de controles y entrada
+- StartAutomaticSystems(): Inicio de sistemas automáticos (guardado, logging, etc.)
+- GetPlayerChunkPosition(): Determina chunk dinámico desde posición guardada
+- LoadOrGenerateInitialChunk(): Carga o genera chunk inicial según existencia
+- GetTerrainHeightAt(): Obtiene altura del terreno en posición específica
+- OnPlayerMoved()/OnCameraRotated(): Eventos para ajuste dinámico
+- GetSystems(): Acceso a referencias de sistemas inicializados
+- Manejo completo de errores y logging detallado
+
+SISTEMA DE SPAWN DE MODELOS
+- ModelSpawner: Sistema modular para carga e instanciación de modelos 3D
+- SpawnModel(): Método principal para instanciar modelos en coordenadas específicas
+- GameWorld.SpawnModel(): Interfaz pública delegada al ModelSpawner
+- Soporte para PackedScene y Mesh directos
+- Verificación de existencia de archivos y manejo de errores
+- Integración con GameWorld para spawn dinámico de objetos
+- Logging completo para debugging de modelos
+- _modelSpawner: Campo privado para sistema de spawn en GameWorld
 
 🎯 FUNCIONALIDADES PRINCIPALES
 --------------------------
@@ -102,15 +309,81 @@ SISTEMA DE UI
 ✅ MUNDO PROCEDURAL
 - Generación de terreno con ruido Perlin y alturas variables (-100 a 1000 metros)
 - Sistema de chunks de 100x100 metros para optimización del terreno
+- Chunk inicial dinámico basado en posición del jugador (no siempre 0,0)
+- GetPlayerChunkPosition() determina chunk desde posición guardada
+- Conversión coordenadas mundo→chunk (divide por 100)
+- Fallback inteligente: usa (0,0) solo si no hay posición guardada
 - Spawning aleatorio de árboles con colisiones
 - Textura de hierba seamless con UV escalados
 - Sistema de materiales y shaders
+- Chunk: Sistema de chunks de terreno (231 líneas)
+- Initialize(): Configuración inicial con ChunkData
+- CreateTerrainMesh(): Creación de mesh y colisiones del terreno
+- CreateChunkBoundaries(): Barreras físicas alrededor del chunk
+- UpdateTerrainMesh(): Actualización dinámica del mesh con alturas
+- GenerateTerrainVertices(): Generación procedural de vértices y triángulos
+- CreateCollisionShape(): Colisiones trimesh para terreno
+- RemoveBoundary()/RemoveAllBoundaries(): Gestión de límites entre chunks
+- Dispose(): Liberación de recursos del chunk
+- Sistema de capas: Barreras en capa 2, terreno con colisiones trimesh
+- ChunkData: Sistema de datos para chunks (70 líneas)
+- Constructor: Inicialización con coordenadas y tamaño (default 100)
+- HeightMap: Array 2D de alturas para almacenamiento de terreno
+- GetHeight()/SetHeight(): Acceso y modificación de alturas con validación
+- LocalToWorld()/WorldToLocal(): Conversión entre coordenadas locales y mundiales
+- Propiedades: ChunkX, ChunkZ, Size para metadatos del chunk
+- ChunkGenerator: Sistema de generación procedural de terreno (86 líneas)
+- InitializeNoise(): Configuración inicial de FastNoiseLite con ruido Perlin
+- SetSeed(): Establecimiento de semilla para generación reproducible
+- GenerateChunk(): Generación completa de chunk con alturas normalizadas
+- GetHeightAt(): Obtención de altura para punto específico del mundo
+- FastNoiseLite: Motor de ruido Perlin con parámetros configurables
+- Parámetros: Frecuencia 0.001f, 4 octavas, ganancia 0.5f, lacunaridad 2.0f
+- Normalización: Conversión de [-1,1] a [0,1] y mapeo a [-100,1000] metros
+- TerrainManager: Sistema de gestión de terreno (422 líneas)
+- InitializeWorld(): Configuración inicial de directorios y semilla para mundos
+- GenerateInitialChunk(): Generación asíncrona del chunk inicial (0,0)
+- LoadChunk(): Carga de chunks desde disco o generación si no existen
+- SaveChunkData()/LoadChunkData(): Persistencia binaria de datos de chunks
+- UnloadChunk(): Liberación de recursos de chunks descargados
+- GetLoadedChunksAround(): Obtención de chunks en radio de carga
+- UpdateChunkBoundaries(): Gestión inteligente de barreras entre chunks
+- GetTerrainHeightAt(): Consulta directa de alturas del terreno
+- Sistema de caché: Hasta 50 chunks en memoria con _chunkDataCache
+- Directorios: user://worlds/{worldName}/chunks/ para almacenamiento
+- Formato de archivos: chunk_{x}_{y}.dat para persistencia
+- Gestión de barreras: Eliminación automática entre chunks adyacentes
+- Constantes: CHUNK_SIZE=100, LOAD_RADIUS=1, CHUNK_CACHE_SIZE=50
 
-✅ MOVIMIENTO Y CÁMARA
-- Movimiento WASD en plano XZ
-- Cámara FPS con rotación mouse
-- Captura de cursor para inmersión
-- Congelación de jugador/cámara en menú de pausa
+🎮 MOVIMIENTO Y CÁMARA
+- PlayerController: Componente modular para movimiento y cámara (250 líneas)
+- Movimiento WASD en plano XZ delegado a PlayerController
+- Rotación de cámara con mouse en PlayerController
+- Sistema de eventos: PlayerMoved y CameraRotated
+- Congelación/Descongelación en PlayerController
+- Logger propio integrado (reemplazados GD.Print())
+- Modo de red: _isNetworkMode para respuesta inmediata
+- Sistema de señales Godot: OnPlayerMoved, OnCameraRotated
+- Métodos: Freeze(), Unfreeze(), SetPlayerHeight(), AdjustToTerrain()
+- Integración: Sistema modular para control de jugador
+
+💾 SISTEMA DE PERSISTENCIA MODULAR
+- PlayerPersistence: Componente modular para gestión de persistencia (399 líneas)
+- SavePlayerData(): Guardado de posición y rotación del jugador en JSON
+- LoadPlayerData(): Carga robusta con validación de datos y fallback
+- HasSavedData(): Verificación eficiente de existencia de datos
+- GetWorldPath() y GetPlayerId(): Lógica de rutas e IDs encapsulada
+- Auto-save: Sistema automático cada 5 segundos (SaveIntervalMs = 5000)
+- Métodos de conveniencia: LoadPlayerPosition(), SaveOnExit() para GameWorld
+- Validación completa: IDs de jugador, posición global vs local, timestamp
+- Manejo de errores robusto con try-catch y logging detallado
+- JSON serializado con JsonSerializerOptions y CamelCase
+- Integración con CharacterManager para IDs consistentes
+- GetPlayerChunkPosition(): Ahora usa PlayerPersistence
+- GameWorld.cs reducido: ~900 → ~840 líneas (eliminadas ~200 líneas de persistencia)
+- Namespace corregido: Eliminada ambigüedad Wild.Scripts.Character
+- FileAccess alias: Resuelto conflicto Godot.FileAccess vs System.IO.FileAccess
+- Compilación: 0 errores, 28 advertencias (preexistentes)
 
 ✅ COLISIONES
 - Jugador: CharacterBody3D + CollisionShape3D
@@ -126,7 +399,7 @@ LENGUAJE: C# (.NET 8.0)
 PLATAFORMA: Windows
 RENDERIZADO: OpenGL Compatibility
 
-COMPILACIÓN: Correcta con 13 advertencias
+COMPILACIÓN: Correcta con 28 advertencias
 ADVERTENCIAS: Posibles valores nulos (no críticas)
 
 OPTIMIZACIONES:
@@ -138,7 +411,7 @@ OPTIMIZACIONES:
 🐛 PROBLEMAS CONOCIDOS
 --------------------
 
-1. BUGS RESUELTOS HOY (2026-03-02):
+1. BUGS RESUELTOS RECIENTEMENTE:
    - ✅ **BUG CRÍTICO: Posición no se guardaba al reiniciar juego** - SessionData.WorldName no se configuraba
    - ✅ **CharacterManager desorganizado** - Código duplicado y métodos incompletos limpiados
    - ✅ **Logging inconsistente** - Unificado a Logger.Log() en todo CharacterManager
@@ -161,174 +434,31 @@ OPTIMIZACIONES:
    - Sistema de inventario persistente
    - Mejorar rendimiento de generación procedural
 
-📋 ESTRUCTURA DE ARCHIVOS
+🚀 ESTADO DE DESARROLLO
 -----------------------
 
-/user://
-├── characters/
-│   ├── profiles/
-│   │   ├── jugador.json (perfil por defecto)
-│   │   └── {playerId}.json (otros personajes)
-│   └── stats/
-│       └── {playerId}_stats.json
-├── worlds/
-│   ├── {worldName}/
-│   │   ├── world_info.json
-│   │   └── player/
-│   │       ├── jugador.json (posición guardada)
-│   │       └── {playerId}.json
-└── latest.log (log del juego)
+🔥 **Siguiente hito**: Sistema de gestión de múltiples chunks
+🔥 **Mejoras pendientes**: Vegetación procedural, estructuras, NPCs
+🔥 **Optimizaciones**: LOD para chunks distantes, streaming de terreno
+🔥 **Características avanzadas**: Sistema día/noche, clima, estaciones
 
-/assets/
-├── models/
-│   └── realistic_tree.glb
-├── textures/
-│   ├── Grass004.png (hierba seamless)
-│   └── Grass004_2K-JPG_*.jpg (optimizadas)
-├── materials/
-│   └── grass_material.tres
-└── ui/
-    └── fondos de menús
+## 🎮 Estado Actual: ALPHA 0.2.1 - INICIO DE DESARROLLO
 
-/scenes/
-├── splash_screen.tscn
-├── main_menu.tscn
-├── new_game_menu.tscn
-├── world_select_menu.tscn
-├── options_menu.tscn
-├── game_world.tscn
-└── pause_menu.tscn
+El proyecto entra en la versión 0.2.1-alpha con base sólida de terreno procedural avanzado mediante ruido Perlin. Se mantiene la estabilidad de la generación de terreno con alturas variables entre -100 y 1000 metros, dividido en chunks de 100x100 metros para optimización. 
 
-/scripts/
-├── autoload/ (GameFlow, SessionData, GameSettings, WorldManager, CharacterManager)
-├── character/ (CharacterManager.cs)
-├── network/ (GameServer.cs, GameClient.cs)
-├── ui/ (menús de la interfaz)
-└── GameWorld.cs (lógica principal del juego)
+### 🧠 Modularización Reciente
+- **PlayerController**: Componente modular para movimiento y cámara
+- **PlayerPersistence**: Componente modular para persistencia del jugador
+- **NetworkManager**: Componente modular para gestión de red cliente-servidor
+- **GameHUD**: Componente modular para gestión de HUD y coordenadas
+- **ModelSpawner**: Sistema modular para spawn de modelos 3D
+- **GameWorldInitializer**: Sistema modular para inicialización del mundo
+- **CollisionHandler**: Sistema modular para gestión de colisiones
+- GameWorld.cs: 222 líneas (estado actual tras refactorización)
+- **Arquitectura limpia**: Separación de responsabilidades y reutilización
 
-🚀 PRÓXIMOS PASOS
-------------------
+Listo para nuevas características y mejoras con arquitectura modular y mantenible.
 
-1. CORTO PLAZO:
-   - Limpiar advertencias menores de compilación
-   - Mejorar documentación del código
-   - Optimizar rendimiento de generación procedural
-
-2. MEDIO PLAZO:
-   - Implementar menú de selección de personajes
-   - Añadir sistema de inventario básico
-   - Mejorar generación de terreno (variación)
-
-3. LARGO PLAZO:
-   - Sistema de misiones o quests
-   - Multi-jugador avanzado (chat, equipos)
-   - Guardado en la nube o sistema de perfiles
-
-📊 ESTADÍSTICAS DE DESARROLLO
---------------------------
-
-- Líneas de código: ~3000+
-- Archivos modificados: 25+
-- Bugs resueltos: 15+
-- Características implementadas: 30+
-- Tiempo de desarrollo: 2+ semanas
-
-El proyecto se encuentra en estado estable y funcional para continuar desarrollo de nuevas características.
-- **WorldManager.cs** completamente implementado con creación, carga y eliminación de mundos
-- **Estructura de directorios** automática para cada mundo (user://worlds/Mundo_Nombre/)
-- **world_info.json** con metadatos (nombre, semilla, versión, tiempo de juego)
-- **Menú de selección de mundos** con lista interactiva y botones de acción
-- **Integración completa** con GameFlow para iniciar partidas con mundos específicos
-- **Eliminación recursiva segura** de mundos completos
-- **Sin guardados manuales** - el servidor gestiona persistencia continua
-
-### Renderizado 3D de Árboles (Alpha 0.1.2)
-- **Modelo GLB importado** tree_default.glb con configuración correcta
-- **Sistema de spawn procedural** de 10 árboles en posiciones aleatorias (área 10x10m)
-- **Escalado optimizado** con nodes/root_scale=5.0 para tamaño visualmente aceptable
-- **Función SpawnModel** reutilizable para cualquier modelo 3D futuro
-- **SpawnRandomTrees** implementado para generación automática de árboles
-- **Sistema de importación GLB** con Godot CLI para procesamiento correcto
-- **Gestión de cache de importación** para evitar problemas de escala
-
-### Limpieza y Optimización
-- **Logging optimizado** en GameWorld.cs - solo logs esenciales activos
-- **Logs de depuración comentados** para uso futuro sin eliminar código
-- **Código temporal eliminado** (DAE, FBX, árboles de prueba cilindro)
-- **Assets no utilizados removidos** para mantener proyecto limpio
-- **Código refactorizado** con funciones reutilizables
-
-### Optimización de Logging (Alpha 0.1.3)
-- **Mensajes de input comentados** en GameClient.cs y GameServer.cs
-- **Reducción drástica de tamaño de log** al eliminar mensajes de movimiento constante
-- **Logs de input disponibles** para futuro debugging si es necesario
-- **Mejora en análisis de logs** al reducir ruido de mensajes repetitivos
-
-### Arquitectura Cliente-Servidor (Alpha 0.1.1)
-- **GameServer.cs** completamente implementado con sistema servidor local
-- **GameClient.cs** funcional con conexión a servidor local
-- **Comunicación red básica** entre cliente y servidor establecida
-- **Gestión automática de conexiones** y desconexiones implementada
-- **Flujo servidor local + cliente local** integrado en el juego
-- **Base para multijugador cooperativo** establecida y funcionando
-
-### Menús y Navegación
-- **Menú principal funcional** con botones Nueva Partida y Cargar Mundo
-- **Menú de selección de mundos** completo con lista y acciones
-- **Menú de creación de mundos** integrado con GameFlow
-- **Menú de pausa simplificado** con solo opción SALIR
-- **Botón SALIR funcional** que vuelve al menú principal
-- **Bloqueo de cámara y movimiento** durante el menú de pausa
-- **Flujo de juego centralizado** en GameFlow autoload
-- **El juego NO se pausa** (continúa ejecutándose) - diseño intencional
-
-### Escena de Juego Funcional
-- **GameWorld.cs** implementado con movimiento FPS completo
-- **Controles WASD + Mouse** funcionando correctamente
-- **UI de coordenadas** activa y mostrando posición/ángulos
-- **Suelo verde básico** con cámara y luz direccional
-- **Sistema de congelación/descongelación** del jugador y cámara
-- **3 árboles GLB renderizados** con escala correcta en el mundo
-
-### Sistema de Backups Automatizado
-- **backup.ps1** completamente funcional
-- **Backups con timestamp y motivo** personalizado
-- **Restauración automática** del backup más reciente
-- **Integración con latest.log** para registro de acciones
-
-### Estado Técnico
-- **Godot 4.6.1** configurado y funcionando
-- **C# .NET 8.0** compilando correctamente
-- **Sistema de logging** con Logger.cs y latest.log
-- **Sin bucles infinitos** ni bloqueos en el menú de pausa
-- **Scripts principales** sin errores de compilación
-- **Arquitectura cliente-servidor** estable y funcional
-- **Importación GLB** con escala correcta funcionando
-
-### Próximos Pasos
-1. **Integración servidor-mundo** (usar worldInfo.Seed para generación)
-2. **Persistencia del servidor** (guardar datos en directorio del mundo)
-3. **Carga real de datos** (restaurar estado del mundo al cargar)
-4. **Menú de Opciones** (gráficos, audio, controles)
-5. **Terreno procedural** usando algoritmos y semillas de mundos
-6. **Mecánicas básicas** (salud, estamina, inventario)
-7. **Manejo de múltiples clientes** (base multijugador)
-8. **Más modelos 3D** usando el sistema SpawnModel implementado
-
-## 🎮 Estado Actual: ALPHA 0.2.0 - TERRENO PROCEDURAL AVANZADO
-
-El proyecto ahora cuenta con generación de terreno procedural avanzada mediante ruido Perlin, con alturas variables entre -100 y 1000 metros. El terreno está dividido en chunks de 100x100 metros para optimización, permitiendo un mundo más dinámico y realista. Esta característica marca el inicio de la versión 0.2.0-alpha.
-
-## 📦 Último Backup
-- **Fecha:** 01/03/2026 (versión Alpha 0.1.3)
-- **Motivo:** sistema de gestion de mundos
-- **Archivos:** Gestión de mundos + contexto actualizado
-- **Formato:** ZIP comprimido
-
-## 📋 Sistema de Backups
-- **Control total:** Solo tú decides cuándo hacer backup
-- **Comandos disponibles:**
-  - `powershell -ExecutionPolicy Bypass -File backup.ps1 create "motivo"` - Crear backup
-  - `powershell -ExecutionPolicy Bypass -File backup.ps1 restore` - Restaurar último backup
-- **Sin automatización:** No más backups automáticos
-- **Sin conflictos:** Formato ZIP evita duplicados de Godot
+================================================================================
+Última actualización: 2026-03-05 - Actualizado con PlayerController.cs (250 líneas, sistema de señales)
+================================================================================

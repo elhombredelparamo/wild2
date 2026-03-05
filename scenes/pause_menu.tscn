@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://pause_menu"]
 
-[ext_resource type="Script" path="res://scripts/PauseMenu.cs" id="1_pm"]
+[ext_resource type="Script" path="res://scripts/ui/PauseMenu.cs" id="1_pm"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.12, 0.14, 0.18, 0.95)

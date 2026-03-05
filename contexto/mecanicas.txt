@@ -4,19 +4,22 @@ MECÁNICAS DEL JUEGO WILD
 🎮 MOVIMIENTO DEL JUGADOR
 --------------------------
 
-CONTROLES:
+CONTROLES
+---------
 - WASD: Movimiento en plano XZ (adelante/atrás, izquierda/derecha)
 - Mouse: Rotación de cámara FPS (horizontal y vertical)
 - ESC: Abrir/cerrar menú de pausa
 - Shift: (Reservado para correr en futuro)
 
-FÍSICA:
+FÍSICA
+------
 - CharacterBody3D: Cuerpo del jugador con gravedad
 - CollisionShape3D: Colisión esférica para el jugador
 - StaticBody3D: Suelo estático con colisión de caja
 - BoxShape3D: Colisiones para árboles (1x4x1m)
 
-CÁMARA:
+CÁMARA
+------
 - Cámara hija del jugador (se mueve con él)
 - Rotación libre en 3D con mouse
 - Límites de rotación: -90° a +90° (pitch)
@@ -25,288 +28,53 @@ CÁMARA:
 🌍 MUNDO PROCEDURAL
 --------------------
 
-GENERACIÓN:
-- Terreno plano base de 100x100 unidades
-- Textura de checkerboard 2x2 repetida
-- Spawning aleatorio de 3-10 árboles por mundo
-- Árboles con colisiones y modelo 3D realista
+GENERACIÓN
+---------
+- Terreno procedural con ruido Perlin y alturas variables (-100 a 1000 metros)
+- Sistema de chunks de 100x100 metros para optimización
+- Chunk inicial dinámico basado en posición del jugador
+- Spawning procedural de árboles con colisiones
+- Textura de hierba seamless con UV escalados
 
-MATERIALES:
-- StandardMaterial3D para suelo con textura de hierba
-- Shader personalizado para patrón checkerboard
-- Sistema de importación automática de texturas
+SISTEMA DE COLISIONES MODULAR
+----------------------------
+- CollisionHandler: Sistema modular para gestión de colisiones del jugador (164 líneas)
+- Initialize(): Configuración inicial con Player, PlayerController y NetworkManager
+- SetupCollisionDetection(): Configuración de Area3D para detección de barreras
+- Sistema de capas: Jugador en capa 1, barreras en capa 2
+- Area3D con CapsuleShape3D: Detector de colisiones más grande que el jugador
+- OnBodyEntered()/OnBodyExited(): Manejo de eventos de colisión
+- HandleBarrierCollision(): Teletransporte automático al detectar barreras de chunk
+- Integración con NetworkManager para sincronización de colisiones
+- Teletransporte automático al detectar límites de chunk
 
-ILUMINACIÓN:
-- Luz direccional principal (sol)
-- Luz ambiental para iluminación base
-- Sombras dinámicas configuradas
+MOVIMIENTO MODULAR
+------------------
+- PlayerController: Sistema modular para movimiento WASD y cámara (250 líneas)
+- Rotación de cámara con mouse y límites configurables (-89° a +89°)
+- Sistema de eventos: PlayerMoved y CameraRotated para comunicación
+- Modo red: _isNetworkMode para respuesta inmediata en multijugador
+- Congelación/Descongelación: Freeze(), Unfreeze(), FreezePlayer(), UnfreezePlayer()
+- Posición: GetPlayerPosition(), SetPlayerPosition(), GetPlayerGlobalPosition(), SetPlayerGlobalPosition()
+- Cámara: GetCameraAngles(), SetCameraAngles(), ApplyCameraRotation()
+- Terreno: AdjustToTerrain(), SetPlayerHeight() para adaptación al terreno
+- Integración completa con Logger y NetworkManager
+- Velocidad configurable: 5 m/s (caminar normal) con MouseSensitivity ajustable
 
-🎯 SISTEMA DE GUARDADO
------------------------
-
-AUTOMÁTICO:
-- Intervalo: Cada 5 segundos durante el juego
-- Datos: Posición local, global, rotación de cámara
-- Formato: JSON estructurado con timestamp
-
-MANUAL:
-- Al salir del juego: Guardado antes de detener servidor
-- Al pausar: Guardado de estado actual
-- Al cambiar de mundo: Guardado automático de progreso
-
-CARGA:
-- Verificación de integridad de archivos
-- Fallback inteligente: Posición local si global es (0,0,0)
-- IDs consistentes: Mismo ID para guardar y cargar
-
-ESTRUCTURA:
-- user://worlds/{worldName}/player/{playerId}.json
-- user://characters/profiles/{playerId}.json (perfil del personaje)
-- user://characters/stats/{playerId}_stats.json (estadísticas)
-
-🌐 SISTEMA DE RED
+PERSISTENCIA MODULAR
 --------------------
-
-ARQUITECTURA:
-- Servidor TCP central (GameServer)
-- Clientes TCP conectados (GameClient)
-- Comunicación bidireccional con mensajes JSON
-
-IDENTIFICACIÓN:
-- IDs únicos: player_1, player_2, player_3...
-- IDs persistentes por sesión de juego
-- Asignación automática al conectar
-
-SINCRONIZACIÓN:
-- Posición y rotación broadcasteadas a todos los jugadores
-- Input de clientes replicado en servidor
-- Estados de jugadores mantenidos en servidor
-
-MENSAJES:
-- PLAYER_JOINED: Nuevo jugador conectado
-- PLAYER_LEFT: Jugador desconectado
-- PLAYER_STATE: Actualización de posición/rotación
-- INPUT: Movimiento y rotación del cliente
-
-🎨 INTERFAZ DE USUARIO
---------------------
-
-MENÚS:
-- MainMenu: Menú principal con imagen de fondo
-- NewGameMenu: Creación de nuevos mundos
-- WorldSelectMenu: Selección y gestión de mundos
-- OptionsMenu: Configuración del juego
-- PauseMenu: Pausa durante el juego
-
-NAVEGACIÓN:
-- Sistema CardLayout para transiciones fluidas
-- Sin cerrar ventanas al cambiar entre menús
-- Botones interactivos con feedback visual
-
-RESALTADO VISUAL:
-- Mundo seleccionado con borde verde y tamaño aumentado
-- Botones con estados hover y activo
-- Colores consistentes y accesibles
-
-PERSONAJES:
-- CharacterManager: Sistema global de gestión
-- Perfiles con nombre, ID y estadísticas
-- Soporte multi-mundo para mismo personaje
-- Apariencia personalizable (futuro)
-
-🔧 SISTEMA TÉCNICO
--------------------
-
-MOTOR: Godot 4.6.1
-LENGUAJE: C# (.NET 8.0)
-RENDERIZADO: OpenGL Compatibility
-PLATAFORMA: Windows
-
-ARQUITECTURA:
-- Escenas separadas por funcionalidad
-- Autoload para sistemas globales
-- Sistema de eventos y señales de Godot
-- Inyección de dependencias via GetNode()
-
-OPTIMIZACIONES:
-- Texturas en formato PNG optimizado
-- Sistema de importación con caché
-- Logging reducido para producción
-- Assets limpios y organizados
-
-DEPURACIÓN:
-- Sistema de logging con niveles (Log, LogError, LogWarning)
-- Logs de debugging comentados para producción
-- GD.Print para mensajes críticos en consola
-
-EXTENSIBILIDAD:
-- Sistema de mods preparado (futuro)
-- Configuración por archivos JSON
-- API modular para nuevas características
-- Soporte para localización (futuro)
-
-📈 FLUJO DEL JUEGO
--------------------
-
-1. INICIO:
-   - Splash screen con logo
-   - Carga de recursos principales
-   - Inicialización de sistemas autoload
-
-2. MENÚ PRINCIPAL:
-   - Selección de partida nueva o cargar existente
-   - Acceso a opciones y configuración
-   - Salida del juego
-
-3. CREACIÓN/SELECCIÓN DE MUNDO:
-   - Nombre automático con timestamp
-   - Selección de semilla procedural
-   - Confirmación de acciones
-
-4. MUNDO ACTIVO:
-   - Generación procedural de terreno
-   - Spawning de objetos del mundo
-   - Sistema de física y colisiones
-   - Movimiento libre del jugador
-
-5. PAUSA:
-   - Congelación de jugador y cámara
-   - Menú de opciones (continuar, salir, configuración)
-   - Guardado automático de estado
-
-6. SALIDA:
-   - Guardado de posición final
-   - Cierre ordenado de conexiones
-   - Limpieza de recursos temporales
-
-El sistema está diseñado para ser robusto, extensible y mantenible, con una clara separación de responsabilidades y una arquitectura modular que facilita el desarrollo futuro.
-1. RECOLECCIÓN DE RECURSOS
---------------------------------------------------------------------------------
-• El jugador puede recoger recursos del mundo (madera, piedra, minerales,
-  plantas, agua, etc.).
-• La recolección puede ser por interacción directa (recoger del suelo),
-  por herramientas (talar, picar, cosechar) o por actividades (pesca, caza).
-• Los recursos obtenidos pasan al inventario (véase Inventario).
-• Detalles a definir: tipos de recursos, nodos/zonas de recolección,
-  tiempo por acción, herramientas necesarias, cantidad por recolección.
-
---------------------------------------------------------------------------------
-2. CRAFTEO (CRAFTERO)
---------------------------------------------------------------------------------
-• El jugador puede fabricar objetos a partir de recetas que consumen
-  recursos del inventario.
-• Las recetas definen: ingredientes (tipo y cantidad), resultado,
-  requisitos opcionales (herramienta, estructura, habilidad).
-• El crafteo puede ser desde el inventario (recetas portátiles) o desde
-  estructuras (mesa de trabajo, fogata, etc.).
-• Detalles a definir: lista de recetas, categorías, interfaz de crafteo,
-  tiempo de fabricación si aplica.
-
---------------------------------------------------------------------------------
-3. CONSTRUCCIÓN DE ESTRUCTURAS BÁSICAS
---------------------------------------------------------------------------------
-• El jugador puede colocar y construir estructuras en el mundo (refugios,
-  cercas, almacenes, fogatas, etc.).
-• Las estructuras consumen recursos del inventario en el momento de
-  colocación o durante fases de construcción.
-• Puede existir un "modo construcción" o sistema de colocación con
-  previsualización (ghost) y condiciones de validez (suelo plano, sin
-  obstáculos, etc.).
-• Detalles a definir: lista de estructuras, coste por estructura,
-  colocación (grid/snap o libre), durabilidad, deterioro.
-
---------------------------------------------------------------------------------
-4. INVENTARIO
---------------------------------------------------------------------------------
-• El jugador dispone de un inventario con capacidad limitada (slots,
-  peso, o ambos).
-• En el inventario se almacenan: recursos, objetos crafteados, herramientas,
-  consumibles.
-• Las operaciones típicas: añadir, quitar, apilar, dividir pilas, ordenar,
-  equipar (si aplica).
-• Puede haber inventarios adicionales: estructuras (cofres, almacenes),
-  vehículos, etc.
-• Detalles a definir: número de slots, sistema de peso, categorías,
-  interfaz (grid, lista), persistencia.
-
---------------------------------------------------------------------------------
-5. SALUD
---------------------------------------------------------------------------------
-• El jugador tiene una barra o valor de salud (vida).
-• La salud puede disminuir por: daño (caídas, enemigos, trampas),
-  hambre/hidratación extremas, temperatura extrema, enfermedades, etc.
-• La salud puede recuperarse por: descanso, consumibles, estructuras
-  (cama), condiciones favorables.
-• Si la salud llega a cero (o umbral definido), consecuencia definida
-  (muerte, incapacidad, respawn, etc.).
-• Detalles a definir: valor máximo, tasa de daño/curación, fuentes de
-  daño/curación, penalizaciones por salud baja.
-
---------------------------------------------------------------------------------
-6. ESTAMINA
---------------------------------------------------------------------------------
-• El jugador tiene estamina (energía para acciones físicas).
-• Se consume al correr, saltar, atacar, talar, picar, nadar, etc.
-• Se recupera con el tiempo en reposo o al caminar sin acciones exigentes.
-• Si la estamina se agota, puede limitar acciones (no correr, no atacar)
-  o aplicar penalizaciones hasta que se recupere.
-• Detalles a definir: valor máximo, tasas de consumo por acción,
-  tasa de regeneración, efectos al quedarse sin estamina.
-
---------------------------------------------------------------------------------
-7. SISTEMA DE NUTRICIÓN
---------------------------------------------------------------------------------
-• El jugador tiene un indicador de hambre o de nutrición (puede ser
-  barra única o macronutrientes simplificados).
-• Comer alimentos (obtenidos por crafteo, recolección, caza, etc.)
-  aumenta la nutrición y puede dar beneficios temporales.
-• Si la nutrición es muy baja, puede reducir salud, estamina o
-  regeneración hasta que se coma.
-• Detalles a definir: una o varias barras (hambre/proteína/etc.),
-  efectos de cada alimento, degradación de comida en inventario,
-  necesidad de cocinar para algunos alimentos.
-
---------------------------------------------------------------------------------
-8. HIDRATACIÓN
---------------------------------------------------------------------------------
-• El jugador tiene un indicador de hidratación (sed).
-• Beber agua (o líquidos) aumenta la hidratación. El agua puede
-  obtenerse de fuentes naturales, recipientes, crafteo.
-• La hidratación baja puede reducir salud, estamina o regeneración,
-  y acentuar efectos de temperatura.
-• Detalles a definir: valor máximo, tasa de disminución en el tiempo,
-  fuentes de agua, necesidad de purificar agua, efectos por nivel bajo.
-
---------------------------------------------------------------------------------
-9. TEMPERATURA CORPORAL
---------------------------------------------------------------------------------
-• El jugador tiene un indicador de temperatura corporal (o sensación
-  térmica) que reacciona al clima y al entorno.
-• Fuentes de frío: ambiente frío, agua, noche, viento.
-• Fuentes de calor: ambiente cálido, sol, fogatas, estructuras,
-  ropa/equipo.
-• Temperatura extrema (muy frío o muy caliente) puede reducir salud,
-  estamina o movilidad hasta que se regule (refugio, fuego, sombra,
-  ropa, consumibles).
-• Detalles a definir: rango de temperatura (frío/neutro/caliente),
-  zonas climáticas, objetos que afectan temperatura, ritmo de cambio,
-  efectos por nivel.
-
---------------------------------------------------------------------------------
-RELACIÓN ENTRE MECÁNICAS
---------------------------------------------------------------------------------
-• Inventario es el almacén de recursos, objetos y consumibles; la
-  recolección y el crafteo lo alimentan; la construcción y el consumo
-  (comida, agua) lo gastan.
-• Salud, estamina, nutrición, hidratación y temperatura son "estados
-  del personaje" que pueden influirse entre sí (ej.: baja nutrición
-  reduce regeneración de salud; baja hidratación empeora efectos de
-  temperatura).
-• Recolección y construcción consumen estamina; la nutrición e
-  hidratación afectan la eficiencia o regeneración de estamina y salud.
+- PlayerPersistence: Sistema modular para gestión de persistencia (399 líneas)
+- SavePlayerData(): Guardado de posición y rotación del jugador en JSON
+- LoadPlayerData(): Carga robusta con validación de datos y fallback
+- HasSavedData(): Verificación eficiente de existencia de datos
+- GetWorldPath() y GetPlayerId(): Lógica de rutas e IDs encapsulada
+- Auto-save: Sistema automático cada 5 segundos (SaveIntervalMs = 5000)
+- Métodos de conveniencia: LoadPlayerPosition(), SaveOnExit() para GameWorld
+- Validación completa: IDs de jugador, posición global vs local, timestamp
+- Manejo de errores robusto con try-catch y logging detallado
+- JSON serializado con JsonSerializerOptions y CamelCase
+- Integración con CharacterManager para IDs consistentes
 
 ================================================================================
-  Para implementación: descomponer cada mecánica en tareas pequeñas y
-  describir en pseudocódigo antes de codificar. Ver resumen.txt (estrategia
-  divide y vencerás).
+Última actualización: 2026-03-05 - Actualizado con PlayerController.cs (250 líneas, modo red y señales)
 ================================================================================

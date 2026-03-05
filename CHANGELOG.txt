@@ -1,339 +1,561 @@
-# CHANGELOG - Wild - Videojuego 3D de Simulación Realista
+﻿# CHANGELOG - Wild - Videojuego 3D de SimulaciÃ³n Realista
 
-## Versión 0.2.0-ALPHA
+âš ï¸  **ARCHIVO GENERADO AUTOMATICAMENTE** - No editar manualmente
+Para aÃ±adir cambios, crea nuevos archivos de versiÃ³n en la carpeta changelog/
+y ejecuta este script: .\changelog\build_changelog.ps1
+
+---
+# VersiÃ³n 0.2.1-ALPHA
+**Fecha:** 2026-03-03  
+**Estado:** Inicio de desarrollo - Base estable de terreno procedural y sistema de chunks
+
+### ðŸŒ MODULARIZACIÃ“N DE NETWORKMANAGER
+- âœ… **NetworkManager.cs creado** - Componente modular para gestiÃ³n de red cliente-servidor
+- âœ… **GameWorld.cs refactorizado** - Reducido de 807 a ~750 lÃ­neas eliminando cÃ³digo de red
+- âœ… **Variables de red externalizadas** - _gameClient, _isNetworkMode, _localPlayerId, etc.
+- âœ… **MÃ©todos de red externalizados** - ProcessNetworkMovement(), SendInputToServer(), NotifyBlockedPosition()
+- âœ… **Sistema de eventos implementado** - NetworkModeChanged, ServerPositionUpdated, etc.
+- âœ… **ConexiÃ³n por eventos** - GameWorld se suscribe a eventos de NetworkManager
+- âœ… **Procesamiento delegado** - _networkManager.ProcessNetworkMovement() en _Process()
+- âœ… **CompilaciÃ³n exitosa** - 0 errores, 28 advertencias (preexistentes)
+- âœ… **Arquitectura mejorada** - SeparaciÃ³n clara de responsabilidades de red
+
+### ðŸ§  MODULARIZACIÃ“N DE PLAYERCONTROLLER
+- âœ… **PlayerController.cs creado** - Componente modular independiente para movimiento y cÃ¡mara
+- âœ… **GameWorld.cs refactorizado** - Reducido de 1114 a ~900 lÃ­neas eliminando cÃ³digo duplicado
+- âœ… **Movimiento WASD externalizado** - LÃ³gica de movimiento delegada a PlayerController
+- âœ… **RotaciÃ³n de cÃ¡mara externalizada** - Control de mouse y sensibilidad en PlayerController
+- âœ… **Estados de congelaciÃ³n externalizados** - Freeze/Unfreeze en PlayerController
+- âœ… **Sistema de eventos implementado** - PlayerMoved y CameraRotated para comunicaciÃ³n
+- âœ… **Logger propio integrado** - Reemplazados GD.Print() por Logger.Log() en PlayerController
+- âœ… **CompilaciÃ³n exitosa** - Proyecto compila sin errores tras refactorizaciÃ³n
+- âœ… **Backup creado** - 20260303_102429_PlayerController implementado - refactorizaciÃ³n completa
+
+### ï¿½ INTEGRACIÃ“N DE RED EN NETWORKMANAGER
+- âœ… **LÃ³gica de red integrada** - Handlers de red movidos desde GameWorld a NetworkManager
+- âœ… **SetPlayerController() aÃ±adido** - NetworkManager puede aplicar cambios directamente al PlayerController
+- âœ… **OnServerPositionUpdated() mejorado** - Aplica posiciÃ³n y notifica al jugador
+- âœ… **OnServerRotationUpdated() mejorado** - Aplica rotaciÃ³n y notifica al jugador
+- âœ… **ConexiÃ³n simplificada** - GameWorld solo establece referencia, NetworkManager maneja eventos
+- âœ… **GameWorld.cs reducido** - Eliminados ~70 lÃ­neas de cÃ³digo de red duplicado
+- âœ… **CentralizaciÃ³n completa** - Toda la lÃ³gica de red en NetworkManager
+- âœ… **Backup creado** - 20260303_133209_integracion_red_networkManager
+
+### ðŸ’¾ MODULARIZACIÃ“N DE SISTEMA DE PERSISTENCIA
+- âœ… **Auto-save integrado en PlayerPersistence** - Sistema completo de guardado automÃ¡tico
+- âœ… **Initialize() implementado** - Establece referencia al PlayerController
+- âœ… **StartAutoSave() y StopAutoSave()** - Control del sistema de guardado cada 5 segundos
+- âœ… **ProcessAutoSave() implementado** - Procesamiento de temporizaciÃ³n delegado
+- âœ… **LoadPlayerPosition() y SaveOnExit()** - MÃ©todos de conveniencia para GameWorld
+- âœ… **GameWorld.cs simplificado** - Eliminadas variables y lÃ³gica de auto-save (~24 lÃ­neas)
+- âœ… **_ExitTree() mejorado** - PlayerPersistence maneja guardado al salir
+- âœ… **CentralizaciÃ³n completa** - Toda la persistencia en PlayerPersistence
+- âœ… **Backup creado** - 20260303_134202_sistema_persistencia_modularizado
+
+### ðŸ›¡ï¸ SISTEMA DE COLISIONES MODULAR (CollisionHandler)
+- âœ… **CollisionHandler.cs creado** - Sistema completo de manejo de colisiones (~130 lÃ­neas)
+- âœ… **ConfiguraciÃ³n automÃ¡tica** - Area3D y CollisionShape3D creados programÃ¡ticamente
+- âœ… **OnBodyEntered() y OnBodyExited() implementados** - DetecciÃ³n de barreras de chunk
+- âœ… **HandleBarrierCollision()** - LÃ³gica de teletransporte con cÃ¡lculo de direcciÃ³n
+- âœ… **IntegraciÃ³n NetworkManager** - Notifica posiciones bloqueadas al servidor
+- âœ… **GameWorld.cs reducido** - Eliminados ~80 lÃ­neas de cÃ³digo de colisiones
+- âœ… **Sistema autÃ³nomo** - Maneja toda la lÃ³gica de colisiones internamente
+- âœ… **Limpieza automÃ¡tica** - DesconexiÃ³n de seÃ±ales en _ExitTree()
+- âœ… **Namespace Wild.Systems** - Nueva estructura para sistemas modulares
+
+### ðŸ§¹ LIMPIEZA DE CÃ“DIGO ZOMBIE
+- âœ… **CÃ³digo DEBUG eliminado** - Bloque de verificaciÃ³n de material del suelo (33 lÃ­neas)
+- âœ… **Referencia a "Floor" eliminada** - Nodo que no existe en la escena actual
+- âœ… **GameWorld.cs simplificado** - Reducido a 543 lÃ­neas (total -206 lÃ­neas desde inicio)
+- âœ… **CÃ³digo mÃ¡s limpio** - Sin restos de etapas previas de desarrollo
+- âœ… **ReducciÃ³n total acumulada** - 27.5% menos lÃ­neas en GameWorld.cs
+
+### ï¿½ðŸ”§ MODULARIZACIÃ“N DE PLAYERPERSISTENCE
+- âœ… **PlayerPersistence.cs creado** - Componente modular para gestiÃ³n de persistencia del jugador
+- âœ… **GameWorld.cs reducido** - Eliminadas ~200 lÃ­neas de cÃ³digo de persistencia
+- âœ… **SavePlayerData() implementado** - Guardado de posiciÃ³n y rotaciÃ³n del jugador
+- âœ… **LoadPlayerData() implementado** - Carga robusta con validaciÃ³n de datos
+- âœ… **HasSavedData() implementado** - VerificaciÃ³n eficiente de existencia de datos
+- âœ… **GetWorldPath() y GetPlayerId() externalizados** - LÃ³gica de rutas e IDs encapsulada
+- âœ… **GetPlayerChunkPosition() refactorizado** - Ahora usa PlayerPersistence
+- âœ… **Namespace corregido** - Eliminada ambigÃ¼edad Wild.Scripts.Character
+- âœ… **FileAccess alias agregado** - Resuelto conflicto Godot.FileAccess vs System.IO.FileAccess
+- âœ… **GameWorld simplificado** - Solo orchestration, delegaciÃ³n a componentes especializados
+- âœ… **CompilaciÃ³n exitosa** - 0 errores, 28 advertencias (preexistentes)
+
+### ðŸ”§ CORRECCIÃ“N DE CHUNK INICIAL DINÃMICO
+- âœ… **Chunk inicial basado en posiciÃ³n del jugador** - Ya no siempre carga (0,0)
+- âœ… **GetPlayerChunkPosition() implementado** - Determina chunk desde posiciÃ³n guardada
+- âœ… **ConversiÃ³n coordenadas mundoâ†’chunk** - Divide por 100 para obtener coordenadas de chunk
+- âœ… **PosiciÃ³n guardada prioritaria** - Usa globalPosition, fallback a position local
+- âœ… **Fallback inteligente** - Si no hay posiciÃ³n guardada, usa (0,0) como fallback
+- âœ… **Logging detallado** - Muestra conversiÃ³n de coordenadas para depuraciÃ³n
+- âœ… **Escalabilidad preparada** - FuncionarÃ¡ con mÃºltiples chunks en el futuro
+- âœ… **CompilaciÃ³n exitosa** - Proyecto compila sin errores tras correcciÃ³n
+
+### ðŸš€ INICIO DE VERSIÃ“N 0.2.1
+- âœ… **VersiÃ³n actualizada** a 0.2.1-alpha
+- âœ… **Contexto actualizado** - resumen.txt y estado-actual.txt con nueva versiÃ³n
+- âœ… **Base sÃ³lida mantenida** - Terreno procedural con ruido Perlin y chunks de 100x100m
+- âœ… **Sistema de barreras funcional** - Bloqueo fÃ­sico y teletransporte en lÃ­mites de chunks
+- âœ… **Arquitectura estable** - Cliente-servidor, gestiÃ³n de mundos y personajes operativos
+- âœ… **CorrecciÃ³n de teletransporte** - CÃ¡lculo dinÃ¡mico del centro del chunk donde estÃ¡ el jugador
+- ðŸ”„ **Nuevas caracterÃ­sticas por definir** para esta versiÃ³n
+
+### ðŸ“‹ SISTEMA DE CHANGELOG MODULAR
+- âœ… **Sistema modular implementado** - Archivos individuales por versiÃ³n en carpeta changelog/
+- âœ… **Script de compilaciÃ³n creado** - build_changelog_simple.ps1 para generar CHANGELOG.txt
+- âœ… **CHANGELOG.txt regenerado** - Archivo generado automÃ¡ticamente (NO EDITAR MANUALMENTE)
+- âœ… **6 versiones migradas** - v0.1.0 a v0.2.1-ALPHA con contenido completo
+- âœ… **DocumentaciÃ³n completa** - contexto/sistema-changelog.md y contexto/como-usar-changelog.md
+- âœ… **Referencias actualizadas** - resumen.txt y estado-actual.txt con nuevo sistema
+- âœ… **Flujo de trabajo establecido** - Crear archivo versiÃ³n â†’ Ejecutar script â†’ Changelog actualizado
+- âœ… **Ventajas logradas** - Sistema escalable, mantenible, organizado y automatizado
+
+### ðŸ—ï¸ MODULARIZACIÃ“N DE GAMEWORLD (GameWorldInitializer)
+- âœ… **GameWorldInitializer.cs creado** - Sistema completo de inicializaciÃ³n del mundo (540 lÃ­neas)
+- âœ… **GameWorld.cs reducido 50%** - De 541 a 270 lÃ­neas eliminando cÃ³digo de inicializaciÃ³n
+- âœ… **InitializeGameWorld() externalizado** - Toda la lÃ³gica de configuraciÃ³n inicial movida
+- âœ… **Sistema de terreno externalizado** - InitializeTerrain() y mÃ©todos relacionados (130 lÃ­neas)
+- âœ… **Eventos del jugador externalizados** - OnPlayerMoved() y OnCameraRotated() (30 lÃ­neas)
+- âœ… **LoadPlayerPosition() externalizado** - Sistema de carga de posiciÃ³n guardada
+- âœ… **GetPlayerChunkPosition() externalizado** - LÃ³gica de determinaciÃ³n de chunk inicial
+- âœ… **GetTerrainHeightAt() externalizado** - ObtenciÃ³n de altura del terreno
+- âœ… **ConexiÃ³n de sistemas centralizada** - GameWorldInitializer orquesta todas las conexiones
+- âœ… **Referencias devueltas a GameWorld** - GetSystems() proporciona acceso a componentes
+- âœ… **Manejo de errores completo** - Try-catch en todos los mÃ©todos de inicializaciÃ³n
+- âœ… **Logging detallado** - Toda la inicializaciÃ³n con trazas completas
+- âœ… **GameWorld como coordinador** - Ahora solo orquesta, no implementa
+- âœ… **Eventos reconectados** - OnPlayerMoved y OnCameraRotated restaurados para actualizar UI
+- âœ… **Coordenadas funcionales** - UI de coordenadas actualiza correctamente tras refactorizaciÃ³n
+- âœ… **Arquitectura limpia** - SeparaciÃ³n clara entre inicializaciÃ³n y operaciÃ³n
+- âœ… **CompilaciÃ³n exitosa** - 0 errores, 44 advertencias (preexistentes)
+
+### ðŸ“ REORGANIZACIÃ“N DE ARCHIVOS DE UI
+- âœ… **MainMenu.cs movido** - De scripts/ a scripts/ui/ para mejor organizaciÃ³n
+- âœ… **MainMenu.cs.uid movido** - Archivo UID correspondiente trasladado
+- âœ… **scenes/main_menu.tscn actualizado** - Ruta de script cambiada a res://scripts/ui/MainMenu.cs
+- âœ… **SplashScreen.cs movido** - De scripts/ a scripts/ui/ para mejor organizaciÃ³n
+- âœ… **SplashScreen.cs.uid movido** - Archivo UID correspondiente trasladado
+- âœ… **scenes/splash_screen.tscn actualizado** - Ruta de script cambiada a res://scripts/ui/SplashScreen.cs
+- âœ… **OptionsMenu.cs movido** - De scripts/ a scripts/ui/ para mejor organizaciÃ³n
+- âœ… **OptionsMenu.cs.uid movido** - Archivo UID correspondiente trasladado
+- âœ… **scenes/options_menu.tscn actualizado** - Ruta de script cambiada a res://scripts/ui/OptionsMenu.cs
+- âœ… **NewGameMenu.cs movido** - De scripts/ a scripts/ui/ para mejor organizaciÃ³n
+- âœ… **NewGameMenu.cs.uid movido** - Archivo UID correspondiente trasladado
+- âœ… **scenes/new_game_menu.tscn actualizado** - Ruta de script cambiada a res://scripts/ui/NewGameMenu.cs
+- âœ… **PauseMenu.cs movido** - De scripts/ a scripts/ui/ para mejor organizaciÃ³n
+- âœ… **PauseMenu.cs.uid movido** - Archivo UID correspondiente trasladado
+- âœ… **scenes/pause_menu.tscn actualizado** - Ruta de script cambiada a res://scripts/ui/PauseMenu.cs
+- âœ… **CompilaciÃ³n exitosa** - 0 errores, 44 advertencias (preexistentes)
+- âœ… **ReorganizaciÃ³n completa** - Todos los menÃºs de UI centralizados en scripts/ui/
+- âœ… **Funcionalidad mantenida** - Todos los menÃºs funcionan correctamente tras reorganizaciÃ³n
+
+### ðŸ”§ REORGANIZACIÃ“N DE SISTEMAS
+- âœ… **Logger.cs movido** - De scripts/ a scripts/systems/ para mejor organizaciÃ³n
+- âœ… **Logger.cs.uid movido** - Archivo UID correspondiente trasladado
+- âœ… **Sin cambios de referencias** - Logger usa namespace Wild, accesible desde todo el proyecto
+- âœ… **WorldManager.cs movido** - De scripts/ a scripts/world/ para organizaciÃ³n por dominio
+- âœ… **scripts/world/ creada** - Nueva carpeta para componentes de mundos
+- âœ… **BUG CRÃTICO CORREGIDO** - WorldManager no inicializaba al mover de carpeta
+- âœ… **project.godot actualizado** - Ruta de autoload corregida a res://scripts/world/WorldManager.cs
+- âœ… **Funcionalidad restaurada** - CreaciÃ³n y carga de mundos funcionan correctamente
+- âœ… **Sin cambios de referencias** - WorldManager.Instance sigue funcionando
+- âœ… **CompilaciÃ³n exitosa** - 0 errores, 44 advertencias (preexistentes)
+- âœ… **Sistemas centralizados** - Logger en systems/, WorldManager en world/
+
+### ï¿½ðŸ–¥ï¸ MODULARIZACIÃ“N DE SISTEMA DE HUD (GameHUD)
+- âœ… **GameHUD.cs creado** - Componente modular para gestiÃ³n del HUD del juego en scripts/ui/
+- âœ… **UpdateCoordinatesDisplay() implementado** - MÃ©todo centralizado para actualizaciÃ³n de coordenadas
+- âœ… **Referencias UI externalizadas** - _labelCoords y lÃ³gica de UI movidas a GameHUD
+- âœ… **GameWorld.cs reducido** - Eliminadas ~10 lÃ­neas de cÃ³digo de gestiÃ³n de UI
+- âœ… **Initialize() implementado** - ConfiguraciÃ³n de HUD con referencias a sistemas
+- âœ… **Seguridad de nulos** - Manejo robusto de referencias nulas en GameHUD
+- âœ… **Eventos delegados** - OnPlayerMoved() y OnCameraRotated() usan GameHUD
+- âœ… **Arquitectura mejorada** - SeparaciÃ³n clara entre UI y lÃ³gica de juego
+- âœ… **Namespace Wild.Scripts.UI** - Nueva estructura para componentes de UI
+- âœ… **CompilaciÃ³n exitosa** - 0 errores, 44 advertencias (preexistentes)
+- âœ… **HUD funcional** - Coordenadas actualizan correctamente tras modularizaciÃ³n
+
+### ðŸŒ MEJORAS DE TERRAIN MANAGER
+- âœ… **GetTerrainHeightAt() movido a TerrainManager** - LÃ³gica de altura centralizada (20 lÃ­neas)
+- âœ… **GameWorld.cs actualizado** - 2 referencias cambiadas a _terrainManager.GetTerrainHeightAt()
+- âœ… **Acceso directo mejorado** - Sin intermediarios, acceso directo a _chunkGenerator
+- âœ… **CÃ³digo duplicado eliminado** - MÃ©todo removido de GameWorld.cs
+- âœ… **CohesiÃ³n mejorada** - Toda la lÃ³gica de terreno en TerrainManager
+- âœ… **GameWorld.cs reducido** - De 284 a 276 lÃ­neas
+
+### ðŸŽ® ESTADOS DEL JUGADOR EN PLAYERCONTROLLER
+- âœ… **FreezePlayer() agregado** - MÃ©todo pÃºblico para congelar jugador
+- âœ… **UnfreezePlayer() agregado** - MÃ©todo pÃºblico para descongelar jugador
+- âœ… **GameWorld.cs simplificado** - MÃ©todos delegados a PlayerController
+- âœ… **Responsabilidad correcta** - Estados del jugador en PlayerController
+- âœ… **Sin GameWorldStateManager** - Evitado crear archivo innecesario
+- âœ… **CohesiÃ³n perfecta** - Toda la lÃ³gica del jugador en un solo lugar
+- âœ… **Logging centralizado** - Logs desde PlayerController con contexto adecuado
+- âœ… **GameWorld.cs mÃ¡s limpio** - MÃ©todos reducidos de 3 a 1 lÃ­nea cada uno
+
+### ðŸŽ¯ MODULARIZACIÃ“N DE SPAWNMODEL (ModelSpawner)
+- âœ… **ModelSpawner.cs creado** - Componente modular para carga de modelos 3D en scripts/systems/
+- âœ… **SpawnModel() externalizado** - 66 lÃ­neas de cÃ³digo movidas de GameWorld.cs
+- âœ… **ValidaciÃ³n de archivos implementada** - VerificaciÃ³n de existencia de modelos
+- âœ… **Carga de recursos implementada** - Soporte para PackedScene y Mesh
+- âœ… **Manejo de errores completo** - Try-catch con logging detallado
+- âœ… **GameWorld.cs reducido** - MÃ©todo SpawnModel() ahora delega a ModelSpawner
+- âœ… **InicializaciÃ³n automÃ¡tica** - ModelSpawner creado y aÃ±adido como hijo en _Ready()
+- âœ… **Namespace Wild.Systems** - Nueva estructura para componentes modulares
+- âœ… **CÃ³digo reutilizable** - Sistema puede usarse desde otros componentes
+- âœ… **CompilaciÃ³n exitosa** - 0 errores, 45 advertencias (preexistentes)
+
+### ðŸ§¹ LIMPIEZA Y REFACTORIZACIÃ“N DE GAMEWORLD.CS
+- âœ… **CÃ³digo redundante eliminado** - Limpieza de mÃ©todos y variables obsoletas
+- âœ… **Estructura optimizada** - ReorganizaciÃ³n de cÃ³digo para mejor mantenibilidad
+- âœ… **Comentarios actualizados** - DocumentaciÃ³n alineada con arquitectura actual
+- âœ… **Imports simplificados** - EliminaciÃ³n de using innecesarios
+- âœ… **MÃ©todos duplicados removidos** - ConsolidaciÃ³n de funcionalidades repetitivas
+- âœ… **Variables privadas limpiadas** - EliminaciÃ³n de campos no utilizados
+- âœ… **CÃ³digo mÃ¡s legible** - Formato consistente y estructura clara
+- âœ… **GameWorld.cs optimizado** - CÃ³digo limpio y preparado para futuras mejoras
+
+### ðŸ“š SINCRONIZACIÃ“N DE ARCHIVOS DE CONTEXTO
+- âœ… **Contexto actualizado** - Archivos de contexto alineados con avances de programaciÃ³n
+- âœ… **resumen.txt sincronizado** - Reflejada arquitectura modular actual
+- âœ… **estado-actual.txt actualizado** - Hitos recientes documentados
+- âœ… **DocumentaciÃ³n tÃ©cnica alineada** - Especificaciones coinciden con implementaciÃ³n
+- âœ… **Progreso documentado** - Nuevos sistemas y componentes registrados
+- âœ… **Contexto coherente** - Todos los archivos de contexto reflejan estado real del proyecto
+- âœ… **Mantenimiento de documentaciÃ³n** - Sistema de contexto actualizado y sincronizado
+
+
+---
+
+# VersiÃ³n 0.2.0-ALPHA
 **Fecha:** 2026-03-02  
-**Estado:** Alpha con generación de terreno procedural y sistema de chunks optimizado
+**Estado:** Alpha con generaciÃ³n de terreno procedural y sistema de chunks optimizado
+
+### ðŸ”§ CORRECCIÃ“N DE BUG DE CHUNK INICIAL
+- âœ… **Bug de generaciÃ³n duplicada solucionado** - GameWorld.cs ahora verifica si chunk (0,0) existe antes de generarlo
+- âœ… **VerificaciÃ³n de existencia** - Comprueba si chunk_0_0.dat existe en disco antes de generar nuevo chunk
+- âœ… **Carga desde disco si existe** - Si el chunk ya existe, lo carga usando LoadChunk() en lugar de generarlo
+- âœ… **GeneraciÃ³n solo si no existe** - Solo genera nuevo chunk cuando no existe archivo en disco
+- âœ… **Logging actualizado** - Mensajes especÃ­ficos para carga desde disco vs generaciÃ³n nueva
+- âœ… **Propiedad pÃºblica ChunksDirectory** - Agregada en TerrainManager.cs para acceso a ruta de chunks
+- âœ… **CompilaciÃ³n exitosa** - Proyecto compila sin errores tras correcciÃ³n
+
+### ðŸ”§ SISTEMA DE BARRERAS DE CHUNKS
+- âœ… **Barreras fÃ­sicas implementadas** - StaticBody3D con 4 paredes invisibles de 1200m de altura
+- âœ… **DetecciÃ³n de colisiones centralizada** - GameWorld.cs detecta colisiones con barreras
+- âœ… **Teletransporte automÃ¡tico** - Jugador teletransportado 2 metros hacia atrÃ¡s al tocar barrera
+- âœ… **NotificaciÃ³n al servidor** - Mensajes BLOCKED_POS para sincronizaciÃ³n cliente-servidor
+- âœ… **EliminaciÃ³n dinÃ¡mica de barreras** - Barreras eliminadas al cargar chunks adyacentes
+- âœ… **CÃ³digo limpio y optimizado** - Chunk.cs simplificado sin lÃ³gica duplicada
+- âœ… **Bug de SessionData.WorldName no configurado** - Causaba que GameWorld no pudiera guardar posiciÃ³n
+- âœ… **SessionData.WorldName ahora se configura** en StartGameWithWorld() al cargar mundos
+- âœ… **ConversiÃ³n segura de semilla** - worldInfo.Seed (string) â†’ SessionData.WorldSeed (long)
+- âœ… **GameWorld.GetWorldPath() funcional** - Ahora devuelve ruta correcta: user://worlds/{mundo}/
+- âœ… **SavePlayerPosition() operativo** - Guarda posiciÃ³n en user://worlds/{mundo}/player/{playerId}.json
+- âœ… **PosiciÃ³n persistente al reiniciar juego** - El personaje aparece donde se quedÃ³ al salir
+
+### ðŸ§¹ LIMPIEZA DE CHARACTERMANAGER
+- âœ… **CÃ³digo duplicado eliminado** - Removidas lÃ­neas repetitivas en LoadCharacter()
+- âœ… **MÃ©todos incompletos corregidos** - LoadCharacter() ahora funcional y completo
+- âœ… **Variables faltantes aÃ±adidas** - _persistentCharacterId y _jsonOptions declaradas
+- âœ… **CÃ³digo fuera de clase eliminado** - Estructura limpia y organizada
+- âœ… **Sistema de logging unificado** - Reemplazados GD.Print() por Logger.Log()
+- âœ… **AmbigÃ¼edad resuelta** - using Logger = Wild.Logger para evitar conflicto con Godot.Logger
+
+### ðŸ”„ SISTEMA DE PERSONAJES PERMANENTE
+- âœ… **Guardado permanente de personaje actual** - Archivo user://current_character.json
+- âœ… **Carga automÃ¡tica al iniciar** - RestauraciÃ³n automÃ¡tica del Ãºltimo personaje seleccionado
+- âœ… **SelectCharacter() con persistencia** - Guarda inmediatamente el personaje seleccionado
+- âœ… **IntegraciÃ³n mantenida** - MÃ©todos SaveCurrentCharacterState() y RestoreCurrentCharacterState() compatibles
+
+### ðŸš… INICIO DE DESARROLLO
+- âœ… **VersiÃ³n actualizada** a 0.2.0-alpha
+- âœ… **Autoloads configurados** para WorldManager y CharacterManager
+- âœ… **Base sÃ³lida** con sistema de personajes y mundos implementado
+- âœ… **GeneraciÃ³n de altura con ruido Perlin** - Terreno procedural con alturas entre -100 y 1000 metros
+- âœ… **Sistema de chunks** - Terreno dividido en chunks de 100x100 metros para optimizaciÃ³n
+- ðŸ”„ **PrÃ³ximas caracterÃ­sticas** por definir
+
 
 ---
 
-### 🔧 CORRECCIÓN DE BUG DE CHUNK INICIAL
-- ✅ **Bug de generación duplicada solucionado** - GameWorld.cs ahora verifica si chunk (0,0) existe antes de generarlo
-- ✅ **Verificación de existencia** - Comprueba si chunk_0_0.dat existe en disco antes de generar nuevo chunk
-- ✅ **Carga desde disco si existe** - Si el chunk ya existe, lo carga usando LoadChunk() en lugar de generarlo
-- ✅ **Generación solo si no existe** - Solo genera nuevo chunk cuando no existe archivo en disco
-- ✅ **Logging actualizado** - Mensajes específicos para carga desde disco vs generación nueva
-- ✅ **Propiedad pública ChunksDirectory** - Agregada en TerrainManager.cs para acceso a ruta de chunks
-- ✅ **Compilación exitosa** - Proyecto compila sin errores tras corrección
-
----
-
-### 🔧 SISTEMA DE BARRERAS DE CHUNKS
-- ✅ **Barreras físicas implementadas** - StaticBody3D con 4 paredes invisibles de 1200m de altura
-- ✅ **Detección de colisiones centralizada** - GameWorld.cs detecta colisiones con barreras
-- ✅ **Teletransporte automático** - Jugador teletransportado 2 metros hacia atrás al tocar barrera
-- ✅ **Notificación al servidor** - Mensajes BLOCKED_POS para sincronización cliente-servidor
-- ✅ **Eliminación dinámica de barreras** - Barreras eliminadas al cargar chunks adyacentes
-- ✅ **Código limpio y optimizado** - Chunk.cs simplificado sin lógica duplicada
-- ✅ **Bug de SessionData.WorldName no configurado** - Causaba que GameWorld no pudiera guardar posición
-- ✅ **SessionData.WorldName ahora se configura** en StartGameWithWorld() al cargar mundos
-- ✅ **Conversión segura de semilla** - worldInfo.Seed (string) → SessionData.WorldSeed (long)
-- ✅ **GameWorld.GetWorldPath() funcional** - Ahora devuelve ruta correcta: user://worlds/{mundo}/
-- ✅ **SavePlayerPosition() operativo** - Guarda posición en user://worlds/{mundo}/player/{playerId}.json
-- ✅ **Posición persistente al reiniciar juego** - El personaje aparece donde se quedó al salir
-
-### 🧹 LIMPIEZA DE CHARACTERMANAGER
-- ✅ **Código duplicado eliminado** - Removidas líneas repetitivas en LoadCharacter()
-- ✅ **Métodos incompletos corregidos** - LoadCharacter() ahora funcional y completo
-- ✅ **Variables faltantes añadidas** - _persistentCharacterId y _jsonOptions declaradas
-- ✅ **Código fuera de clase eliminado** - Estructura limpia y organizada
-- ✅ **Sistema de logging unificado** - Reemplazados GD.Print() por Logger.Log()
-- ✅ **Ambigüedad resuelta** - using Logger = Wild.Logger para evitar conflicto con Godot.Logger
-
-### 🔄 SISTEMA DE PERSONAJES PERMANENTE
-- ✅ **Guardado permanente de personaje actual** - Archivo user://current_character.json
-- ✅ **Carga automática al iniciar** - Restauración automática del último personaje seleccionado
-- ✅ **SelectCharacter() con persistencia** - Guarda inmediatamente el personaje seleccionado
-- ✅ **Integración mantenida** - Métodos SaveCurrentCharacterState() y RestoreCurrentCharacterState() compatibles
-
----
-
-### 🚅 INICIO DE DESARROLLO
-- ✅ **Versión actualizada** a 0.2.0-alpha
-- ✅ **Autoloads configurados** para WorldManager y CharacterManager
-- ✅ **Base sólida** con sistema de personajes y mundos implementado
-- ✅ **Generación de altura con ruido Perlin** - Terreno procedural con alturas entre -100 y 1000 metros
-- ✅ **Sistema de chunks** - Terreno dividido en chunks de 100x100 metros para optimización
-- 🔄 **Próximas características** por definir
-
----
-
-## Versión 0.1.3-ALPHA
+# VersiÃ³n 0.1.3-ALPHA
 **Fecha:** 2026-02-28 (actualizado 2026-03-01)  
-**Estado:** Alpha con logging optimizado, menú principal con imagen de fondo, colisiones y texturas de terreno
+**Estado:** Alpha con logging optimizado, menÃº principal con imagen de fondo, colisiones y texturas de terreno
+
+### ðŸ” SISTEMA DE IDS MD5 PARA PERSONAJES
+- âœ… **IDs Ãºnicas de 16 caracteres** basadas en MD5 con sal aleatoria
+- âœ… **GeneraciÃ³n criptogrÃ¡fica** - MD5(nombre + timestamp + random) â†’ primeros 16 chars
+- âœ… **Sin duplicados garantizados** - Probabilidad de colisiÃ³n prÃ¡cticamente nula
+- âœ… **Independencia del formato** - No afecta mayÃºsculas, espacios o caracteres especiales
+- âœ… **IDs inmutables** - El ID se genera una vez y nunca cambia, aunque el nombre se modifique
+- âœ… **Ejemplos de IDs**: "a1b2c3d4e5f6g7h8", "z9y8x7w6v5u4t3s", "m1n2b3v4c5x6z7a"
+- âœ… **Sistema de sal** - Cada personaje tiene sal Ãºnica basada en timestamp + random
+- âœ… **ValidaciÃ³n simplificada** - Ya no se verifica duplicados de nombre (MD5 lo garantiza)
+- âœ… **Compatibilidad total** - Formato JSON persistente sin cambios
+
+### ðŸŽ® MENÃšS DE PERSONAJES COMPLETOS
+- âœ… **CharacterSelectMenu** - SelecciÃ³n de personajes con lista interactiva
+- âœ… **CharacterCreateMenu** - CreaciÃ³n de nuevos personajes sin lÃ­mite de longitud
+- âœ… **BotÃ³n "Seleccionar Personaje"** - AÃ±adido al menÃº principal
+- âœ… **EliminaciÃ³n inteligente** - ProtecciÃ³n: siempre queda al menos 1 personaje
+- âœ… **"jugador" eliminable** - Si hay otros personajes, el fallback puede borrarse
+- âœ… **UI intuitiva** - Feedback visual, selecciÃ³n con checkboxes, navegaciÃ³n fluida
+- âœ… **Logging completo** - Sistema Wild.Logger para depuraciÃ³n de menÃºs
+
+### ðŸ”„ MENÃšS SIMPLIFICADOS Y MEJORADOS
+- âœ… **NewGameMenu simplificado** - Eliminados campos de personaje, ahora solo muestra personaje actual
+- âœ… **WorldSelectMenu con info de personaje** - Muestra "Jugando como: [Nombre]" arriba de la lista de mundos
+- âœ… **BotÃ³n "Cambiar personaje"** - En NewGameMenu para acceder a CharacterSelectMenu
+- âœ… **ValidaciÃ³n automÃ¡tica** - Si no hay personaje, redirige a selecciÃ³n de personajes
+- âœ… **ActualizaciÃ³n automÃ¡tica** - La informaciÃ³n del personaje se actualiza al volver de otros menÃºs
+- âœ… **Flujo unificado** - MenÃºs conectados con informaciÃ³n consistente entre ellos
+
+### ðŸ–¼ï¸ MEJORAS VISUALES DEL MENÃš PRINCIPAL
+- âœ… **Imagen de fondo** fondomenuprincipal.png implementada en menÃº principal
+- âœ… **Sistema de importaciÃ³n** corregido tras eliminar archivos .import corruptos
+- âœ… **Carga dinÃ¡mica vs importaciÃ³n** - migraciÃ³n a sistema de importaciÃ³n optimizado
+- âœ… **TÃ­tulo "WILD" eliminado** de UI al estar implÃ­cito en imagen de fondo
+- âœ… **Renderizado correcto** de botones sobre imagen de fondo
+- âœ… **Fallback visual** con ColorRect azul para debugging
+
+### ðŸŒ TERRENO Y TEXTURAS
+- âœ… **Textura de hierba seamless** Grass004.png implementada en suelo
+- âœ… **Sistema de importaciÃ³n de texturas** corregido y optimizado
+- âœ… **Material StandardMaterial3D** configurado para suelo con hierba
+- âœ… **Escalado UV ajustado** (Vector3(5,5,1)) para repeticiÃ³n natural
+- âœ… **Filtrado de texturas** mejorado (texture_filter = 2)
+- âœ… **Limpieza de assets** eliminados 40MB+ de texturas JPG no utilizadas
+- âœ… **ReimportaciÃ³n automÃ¡tica** de texturas tras modificaciones
+
+### ðŸŽ¯ SISTEMA DE COLISIONES
+- âœ… **Colisiones del jugador** implementadas con CharacterBody3D + CollisionShape3D
+- âœ… **Colisiones del suelo** con StaticBody3D + BoxShape3D
+- âœ… **Colisiones de Ã¡rboles** preparadas con BoxShape3D (1x4x1m)
+- âœ… **Sistema de fÃ­sica** bÃ¡sico para interacciones con entorno
+- âœ… **Movimiento y colisiones** integradas en CharacterBody3D
+
+### ðŸ”§ CORRECCIONES CRÃTICAS
+- âœ… **Error de carga de escena GameWorld** resuelto (GD.Load devolvÃ­a null)
+- âœ… **Referencia GetPrivateField** reemplazada por GetGameClient() pÃºblico
+- âœ… **Fallback de puertos del servidor** corregido (no modificaba Port permanentemente)
+- âœ… **AmbigÃ¼edad FileAccess** resuelta (Godot.FileAccess vs System.IO.FileAccess)
+- âœ… **ResourceLoader.LoadThreadedRequest** implementado para debugging de carga
+- âœ… **UIDs de texturas** actualizados tras reimportaciones
+- âœ… **Error CantOpen** en ChangeSceneToFile resuelto
+- âœ… **Archivos .import regenerados** tras corrupciÃ³n por mÃºltiples instancias de Godot
+
+### ðŸ§¹ OPTIMIZACIÃ“N Y LIMPIEZA
+- âœ… **Texturas Grass004_2K-JPG eliminadas** (mÃ¡s de 40MB liberados)
+- âœ… **Archivos .import regenerados** para texturas optimizadas
+- âœ… **Logging mejorado** para debugging de carga de escenas
+- âœ… **DepuraciÃ³n de carga threaded** implementada en GameFlow
+- âœ… **Mensajes de input comentados** en GameClient.cs y GameServer.cs
+- âœ… **ReducciÃ³n drÃ¡stica de tamaÃ±o de log** al eliminar mensajes de movimiento constante
+
+### ðŸŽ® SISTEMA DE PERSONAJES Y POSICIÃ“N
+- âœ… **CharacterManager implementado** - Sistema global de gestiÃ³n de personajes
+- âœ… **Perfil por defecto automÃ¡tico** - "jugador" creado al iniciar el juego
+- âœ… **IDs consistentes** - Mismo ID para guardar y cargar entre sesiones
+- âœ… **PosiciÃ³n local vs global** - Sistema robusto que usa local si global es (0,0,0)
+- âœ… **Guardado antes de detener servidor** - Evita pÃ©rdida de posiciÃ³n al salir
+- âœ… **Estructura de datos persistente** - Perfiles guardados en user://characters/profiles/
+- âœ… **Soporte multi-mundo** - Mismo personaje puede jugar en mÃºltiples mundos
+- âœ… **EstadÃ­sticas bÃ¡sicas** - Tiempo de juego, mundos visitados, apariencia personalizable
+- âœ… **IntegraciÃ³n con GameWorld** - GetPlayerId() unificado usando CharacterManager
+
+### ðŸ”§ CORRECCIÃ“N DE BUGS DE POSICIÃ“N
+- âœ… **Bug de IDs inconsistentes** - player_1 vs "jugador" ahora unificados
+- âœ… **Bug de posiciÃ³n global (0,0,0)** - Sistema de fallback a posiciÃ³n local
+- âœ… **Bug de guardado al salir** - PosiciÃ³n guardada ANTES de detener servidor
+- âœ… **Bug de carga incorrecta** - Sistema verifica validez de posiciÃ³n global
+- âœ… **Bug de archivos no encontrados** - Sistema crea directorios automÃ¡ticamente
+- âœ… **Bug de inicializaciÃ³n** - CharacterManager inicializado como autoload
+
+### ðŸŽ¨ MENÃš DE SELECCIÃ“N DE MUNDOS
+- âœ… **WorldSelectMenu implementado** - UI para seleccionar mundos existentes
+- âœ… **Resaltado visual** - Mundo seleccionado destacado con color y borde
+- âœ… **EliminaciÃ³n de mundos** - Sistema para borrar mundos con confirmaciÃ³n
+- âœ… **CreaciÃ³n de nuevos mundos** - IntegraciÃ³n con NewGameMenu
+- âœ… **InformaciÃ³n de mundos** - Muestra fecha, tamaÃ±o y estadÃ­sticas bÃ¡sicas
+- âœ… **NavegaciÃ³n fluida** - Transiciones entre menÃºs sin cerrar ventanas
+
+### ðŸŒ SISTEMA DE RED
+- âœ… **GameServer y GameClient** - Arquitectura cliente-servidor funcional
+- âœ… **Multi-jugador bÃ¡sico** - Soporte para mÃºltiples jugadores en mismo mundo
+- âœ… **SincronizaciÃ³n de posiciÃ³n** - Estados de jugadores broadcasteados
+- âœ… **GestiÃ³n de conexiones** - ConexiÃ³n/desconexiÃ³n automÃ¡tica
+- âœ… **Input remoto** - Movimiento de jugadores replicado en red
+- âœ… **IdentificaciÃ³n Ãºnica** - Cada jugador tiene ID Ãºnico persistente
+
+### ðŸ“‹ SISTEMA DE GUARDADO
+- âœ… **Guardado automÃ¡tico** - Cada 5 segundos durante el juego
+- âœ… **Guardado al salir** - PosiciÃ³n guardada antes de cerrar
+- âœ… **Carga robusta** - VerificaciÃ³n de integridad de archivos
+- âœ… **Fallback inteligente** - Usa posiciÃ³n local si global es invÃ¡lida
+- âœ… **Estructura de directorios** - user://worlds/{mundo}/player/{playerId}.json
+- âœ… **JSON estructurado** - PosiciÃ³n, rotaciÃ³n, timestamp y metadatos
+
+### ðŸ” LOGGING Y DEBUGGING
+- âœ… **Logger.cs mejorado** - Sistema de logging con errores y warnings
+- âœ… **LogWarning implementado** - MÃ©todo para redirigir warnings a Log
+- âœ… **Logs de debugging comentados** - Listos para producciÃ³n sin spam
+- âœ… **InformaciÃ³n esencial mantenida** - Solo logs crÃ­ticos y errores
+- âœ… **Traza completa disponible** - Descomentar lÃ­neas para debugging detallado
+- âœ… **Rendimiento optimizado** - Sin logs constantes de posiciÃ³n/movimiento
+
+### ðŸ”„ MEJORAS TÃ‰CNICAS
+- âœ… **GetGameClient()** mÃ©todo pÃºblico aÃ±adido a GameFlow
+- âœ… **StartServerOnPort()** mÃ©todo para control especÃ­fico de puertos
+- âœ… **ValidaciÃ³n de escenas** antes de cambio de escena
+- âœ… **Manejo de errores** mejorado en carga de recursos
+- âœ… **Logging mejorado** en MainMenu.cs para debugging de carga de recursos
+- âœ… **Sistema de carga** migrado de ImageTexture directo a GD.Load<Texture2D>()
+- âœ… **Orden de renderizado** corregido para mostrar botones sobre fondo
+
 
 ---
 
-### � SISTEMA DE IDS MD5 PARA PERSONAJES
-- ✅ **IDs únicas de 16 caracteres** basadas en MD5 con sal aleatoria
-- ✅ **Generación criptográfica** - MD5(nombre + timestamp + random) → primeros 16 chars
-- ✅ **Sin duplicados garantizados** - Probabilidad de colisión prácticamente nula
-- ✅ **Independencia del formato** - No afecta mayúsculas, espacios o caracteres especiales
-- ✅ **IDs inmutables** - El ID se genera una vez y nunca cambia, aunque el nombre se modifique
-- ✅ **Ejemplos de IDs**: "a1b2c3d4e5f6g7h8", "z9y8x7w6v5u4t3s", "m1n2b3v4c5x6z7a"
-- ✅ **Sistema de sal** - Cada personaje tiene sal única basada en timestamp + random
-- ✅ **Validación simplificada** - Ya no se verifica duplicados de nombre (MD5 lo garantiza)
-- ✅ **Compatibilidad total** - Formato JSON persistente sin cambios
-
-### 🎮 MENÚS DE PERSONAJES COMPLETOS
-- ✅ **CharacterSelectMenu** - Selección de personajes con lista interactiva
-- ✅ **CharacterCreateMenu** - Creación de nuevos personajes sin límite de longitud
-- ✅ **Botón "Seleccionar Personaje"** - Añadido al menú principal
-- ✅ **Eliminación inteligente** - Protección: siempre queda al menos 1 personaje
-- ✅ **"jugador" eliminable** - Si hay otros personajes, el fallback puede borrarse
-- ✅ **UI intuitiva** - Feedback visual, selección con checkboxes, navegación fluida
-- ✅ **Logging completo** - Sistema Wild.Logger para depuración de menús
-
-### 🔄 MENÚS SIMPLIFICADOS Y MEJORADOS
-- ✅ **NewGameMenu simplificado** - Eliminados campos de personaje, ahora solo muestra personaje actual
-- ✅ **WorldSelectMenu con info de personaje** - Muestra "Jugando como: [Nombre]" arriba de la lista de mundos
-- ✅ **Botón "Cambiar personaje"** - En NewGameMenu para acceder a CharacterSelectMenu
-- ✅ **Validación automática** - Si no hay personaje, redirige a selección de personajes
-- ✅ **Actualización automática** - La información del personaje se actualiza al volver de otros menús
-- ✅ **Flujo unificado** - Menús conectados con información consistente entre ellos
-
-### �🖼️ MEJORAS VISUALES DEL MENÚ PRINCIPAL
-- ✅ **Imagen de fondo** fondomenuprincipal.png implementada en menú principal
-- ✅ **Sistema de importación** corregido tras eliminar archivos .import corruptos
-- ✅ **Carga dinámica vs importación** - migración a sistema de importación optimizado
-- ✅ **Título "WILD" eliminado** de UI al estar implícito en imagen de fondo
-- ✅ **Renderizado correcto** de botones sobre imagen de fondo
-- ✅ **Fallback visual** con ColorRect azul para debugging
-
-### 🌍 TERRENO Y TEXTURAS
-- ✅ **Textura de hierba seamless** Grass004.png implementada en suelo
-- ✅ **Sistema de importación de texturas** corregido y optimizado
-- ✅ **Material StandardMaterial3D** configurado para suelo con hierba
-- ✅ **Escalado UV ajustado** (Vector3(5,5,1)) para repetición natural
-- ✅ **Filtrado de texturas** mejorado (texture_filter = 2)
-- ✅ **Limpieza de assets** eliminados 40MB+ de texturas JPG no utilizadas
-- ✅ **Reimportación automática** de texturas tras modificaciones
-
-### 🎯 SISTEMA DE COLISIONES
-- ✅ **Colisiones del jugador** implementadas con CharacterBody3D + CollisionShape3D
-- ✅ **Colisiones del suelo** con StaticBody3D + BoxShape3D
-- ✅ **Colisiones de árboles** preparadas con BoxShape3D (1x4x1m)
-- ✅ **Sistema de física** básico para interacciones con entorno
-- ✅ **Movimiento y colisiones** integradas en CharacterBody3D
-
-### 🔧 CORRECCIONES CRÍTICAS
-- ✅ **Error de carga de escena GameWorld** resuelto (GD.Load devolvía null)
-- ✅ **Referencia GetPrivateField** reemplazada por GetGameClient() público
-- ✅ **Fallback de puertos del servidor** corregido (no modificaba Port permanentemente)
-- ✅ **Ambigüedad FileAccess** resuelta (Godot.FileAccess vs System.IO.FileAccess)
-- ✅ **ResourceLoader.LoadThreadedRequest** implementado para debugging de carga
-- ✅ **UIDs de texturas** actualizados tras reimportaciones
-- ✅ **Error CantOpen** en ChangeSceneToFile resuelto
-- ✅ **Archivos .import regenerados** tras corrupción por múltiples instancias de Godot
-
-### 🧹 OPTIMIZACIÓN Y LIMPIEZA
-- ✅ **Texturas Grass004_2K-JPG eliminadas** (más de 40MB liberados)
-- ✅ **Archivos .import regenerados** para texturas optimizadas
-- ✅ **Logging mejorado** para debugging de carga de escenas
-- ✅ **Depuración de carga threaded** implementada en GameFlow
-- ✅ **Mensajes de input comentados** en GameClient.cs y GameServer.cs
-- ✅ **Reducción drástica de tamaño de log** al eliminar mensajes de movimiento constante
-
-### 🎮 SISTEMA DE PERSONAJES Y POSICIÓN
-- ✅ **CharacterManager implementado** - Sistema global de gestión de personajes
-- ✅ **Perfil por defecto automático** - "jugador" creado al iniciar el juego
-- ✅ **IDs consistentes** - Mismo ID para guardar y cargar entre sesiones
-- ✅ **Posición local vs global** - Sistema robusto que usa local si global es (0,0,0)
-- ✅ **Guardado antes de detener servidor** - Evita pérdida de posición al salir
-- ✅ **Estructura de datos persistente** - Perfiles guardados en user://characters/profiles/
-- ✅ **Soporte multi-mundo** - Mismo personaje puede jugar en múltiples mundos
-- ✅ **Estadísticas básicas** - Tiempo de juego, mundos visitados, apariencia personalizable
-- ✅ **Integración con GameWorld** - GetPlayerId() unificado usando CharacterManager
-
-### 🔧 CORRECCIÓN DE BUGS DE POSICIÓN
-- ✅ **Bug de IDs inconsistentes** - player_1 vs "jugador" ahora unificados
-- ✅ **Bug de posición global (0,0,0)** - Sistema de fallback a posición local
-- ✅ **Bug de guardado al salir** - Posición guardada ANTES de detener servidor
-- ✅ **Bug de carga incorrecta** - Sistema verifica validez de posición global
-- ✅ **Bug de archivos no encontrados** - Sistema crea directorios automáticamente
-- ✅ **Bug de inicialización** - CharacterManager inicializado como autoload
-
-### 🎨 MENÚ DE SELECCIÓN DE MUNDOS
-- ✅ **WorldSelectMenu implementado** - UI para seleccionar mundos existentes
-- ✅ **Resaltado visual** - Mundo seleccionado destacado con color y borde
-- ✅ **Eliminación de mundos** - Sistema para borrar mundos con confirmación
-- ✅ **Creación de nuevos mundos** - Integración con NewGameMenu
-- ✅ **Información de mundos** - Muestra fecha, tamaño y estadísticas básicas
-- ✅ **Navegación fluida** - Transiciones entre menús sin cerrar ventanas
-
-### 🌐 SISTEMA DE RED
-- ✅ **GameServer y GameClient** - Arquitectura cliente-servidor funcional
-- ✅ **Multi-jugador básico** - Soporte para múltiples jugadores en mismo mundo
-- ✅ **Sincronización de posición** - Estados de jugadores broadcasteados
-- ✅ **Gestión de conexiones** - Conexión/desconexión automática
-- ✅ **Input remoto** - Movimiento de jugadores replicado en red
-- ✅ **Identificación única** - Cada jugador tiene ID único persistente
-
-### 📋 SISTEMA DE GUARDADO
-- ✅ **Guardado automático** - Cada 5 segundos durante el juego
-- ✅ **Guardado al salir** - Posición guardada antes de cerrar
-- ✅ **Carga robusta** - Verificación de integridad de archivos
-- ✅ **Fallback inteligente** - Usa posición local si global es inválida
-- ✅ **Estructura de directorios** - user://worlds/{mundo}/player/{playerId}.json
-- ✅ **JSON estructurado** - Posición, rotación, timestamp y metadatos
-
-### 🔍 LOGGING Y DEBUGGING
-- ✅ **Logger.cs mejorado** - Sistema de logging con errores y warnings
-- ✅ **LogWarning implementado** - Método para redirigir warnings a Log
-- ✅ **Logs de debugging comentados** - Listos para producción sin spam
-- ✅ **Información esencial mantenida** - Solo logs críticos y errores
-- ✅ **Traza completa disponible** - Descomentar líneas para debugging detallado
-- ✅ **Rendimiento optimizado** - Sin logs constantes de posición/movimiento
-
-### 🔄 MEJORAS TÉCNICAS
-- ✅ **GetGameClient()** método público añadido a GameFlow
-- ✅ **StartServerOnPort()** método para control específico de puertos
-- ✅ **Validación de escenas** antes de cambio de escena
-- ✅ **Manejo de errores** mejorado en carga de recursos
-- ✅ **Logging mejorado** en MainMenu.cs para debugging de carga de recursos
-- ✅ **Sistema de carga** migrado de ImageTexture directo a GD.Load<Texture2D>()
-- ✅ **Orden de renderizado** corregido para mostrar botones sobre fondo
-
----
-
-## Versión 0.1.2-ALPHA
+# VersiÃ³n 0.1.2-ALPHA
 **Fecha:** 2026-02-26  
-**Estado:** Alpha con renderizado 3D de árboles y logging optimizado
+**Estado:** Alpha con renderizado 3D de Ã¡rboles y logging optimizado
+
+### ðŸŒ³ RENDERIZADO 3D DE ÃRBOLES
+- âœ… **Modelo GLB importado** tree_default.glb con configuraciÃ³n correcta
+- âœ… **Sistema de spawn** de 10 Ã¡rboles en posiciones aleatorias (10x10m)
+- âœ… **Escalado correcto** con nodes/root_scale=5.0 para tamaÃ±o visualmente aceptable
+- âœ… **FunciÃ³n SpawnModel** reutilizable para cualquier modelo 3D
+- âœ… **SpawnRandomTrees** para generaciÃ³n procedural de Ã¡rboles
+- âœ… **Sistema de importaciÃ³n** Godot CLI para procesar GLB correctamente
+
+### ðŸ§¹ LIMPIEZA DE CÃ“DIGO
+- âœ… **Logging optimizado** en GameWorld.cs - solo logs esenciales activos
+- âœ… **Logs de depuraciÃ³n comentados** para uso futuro sin eliminar
+- âœ… **CÃ³digo temporal eliminado** (DAE, FBX, Ã¡rboles de prueba)
+- âœ… **Assets no utilizados removidos** para mantener proyecto limpio
+
+### ðŸ”§ MEJORAS TÃ‰CNICAS
+- âœ… **Sistema de backup** mejorado con motivo personalizado
+- âœ… **Proceso de reimportaciÃ³n** forzada para cambios de escala
+- âœ… **GestiÃ³n de cache** de importaciÃ³n para evitar problemas
+- âœ… **DocumentaciÃ³n actualizada** con estado actual del proyecto
+
 
 ---
 
-### 🌳 RENDERIZADO 3D DE ÁRBOLES
-- ✅ **Modelo GLB importado** tree_default.glb con configuración correcta
-- ✅ **Sistema de spawn** de 10 árboles en posiciones aleatorias (10x10m)
-- ✅ **Escalado correcto** con nodes/root_scale=5.0 para tamaño visualmente aceptable
-- ✅ **Función SpawnModel** reutilizable para cualquier modelo 3D
-- ✅ **SpawnRandomTrees** para generación procedural de árboles
-- ✅ **Sistema de importación** Godot CLI para procesar GLB correctamente
-
-### 🧹 LIMPIEZA DE CÓDIGO
-- ✅ **Logging optimizado** en GameWorld.cs - solo logs esenciales activos
-- ✅ **Logs de depuración comentados** para uso futuro sin eliminar
-- ✅ **Código temporal eliminado** (DAE, FBX, árboles de prueba)
-- ✅ **Assets no utilizados removidos** para mantener proyecto limpio
-
-### 🔧 MEJORAS TÉCNICAS
-- ✅ **Sistema de backup** mejorado con motivo personalizado
-- ✅ **Proceso de reimportación** forzada para cambios de escala
-- ✅ **Gestión de cache** de importación para evitar problemas
-- ✅ **Documentación actualizada** con estado actual del proyecto
-
----
-
-## Versión 0.1.1-ALPHA
+# VersiÃ³n 0.1.1-ALPHA
 **Fecha:** 2026-02-24  
 **Estado:** Alpha funcional con arquitectura cliente-servidor
 
+### ðŸŒ ARQUITECTURA CLIENTE-SERVIDOR
+- âœ… **Sistema servidor local** completo con GameServer.cs
+- âœ… **Sistema cliente** con GameClient.cs y conexiÃ³n a servidor local
+- âœ… **ComunicaciÃ³n red** bÃ¡sica entre cliente y servidor
+- âœ… **GestiÃ³n de conexiones** y desconexiones automÃ¡ticas
+- âœ… **Arquitectura preparada** para futuro multijugador cooperativo
+- âœ… **Flujo servidor local + cliente local** implementado
+
+### ðŸ”„ MEJORAS EN FLUJO DE JUEGO
+- âœ… **IntegraciÃ³n cliente-servidor** en el flujo de partida
+- âœ… **ConexiÃ³n automÃ¡tica** al iniciar nueva partida
+- âœ… **DesconexiÃ³n limpia** al volver al menÃº principal
+- âœ… **GestiÃ³n de estados** centralizada en servidor
+
+
 ---
 
-### 🌐 ARQUITECTURA CLIENTE-SERVIDOR
-- ✅ **Sistema servidor local** completo con GameServer.cs
-- ✅ **Sistema cliente** con GameClient.cs y conexión a servidor local
-- ✅ **Comunicación red** básica entre cliente y servidor
-- ✅ **Gestión de conexiones** y desconexiones automáticas
-- ✅ **Arquitectura preparada** para futuro multijugador cooperativo
-- ✅ **Flujo servidor local + cliente local** implementado
-
-### 🔄 MEJORAS EN FLUJO DE JUEGO
-- ✅ **Integración cliente-servidor** en el flujo de partida
-- ✅ **Conexión automática** al iniciar nueva partida
-- ✅ **Desconexión limpia** al volver al menú principal
-- ✅ **Gestión de estados** centralizada en servidor
-
----
-
-## Versión 0.1.0-ALPHA
+# VersiÃ³n 0.1.0-ALPHA
 **Fecha:** 2026-02-22  
 **Estado:** Alpha funcional
 
----
+### ðŸŽ® MENÃšS Y NAVEGACIÃ“N
+- âœ… **MenÃº principal** con botones "Nueva Partida" y "Salir"
+- âœ… **MenÃº de pausa** funcional con tecla ESC
+- âœ… **BotÃ³n SALIR** del menÃº de pausa que vuelve al menÃº principal
+- âœ… **Bloqueo de cÃ¡mara y movimiento** durante el menÃº de pausa
+- âœ… **Sistema de flujo** centralizado en GameFlow autoload
+- âœ… **Splash screen** personalizado con imagen y transiciones suaves
 
-### 🎮 MENÚS Y NAVEGACIÓN
-- ✅ **Menú principal** con botones "Nueva Partida" y "Salir"
-- ✅ **Menú de pausa** funcional con tecla ESC
-- ✅ **Botón SALIR** del menú de pausa que vuelve al menú principal
-- ✅ **Bloqueo de cámara y movimiento** durante el menú de pausa
-- ✅ **Sistema de flujo** centralizado en GameFlow autoload
-- ✅ **Splash screen** personalizado con imagen y transiciones suaves
+### ðŸŒ ESCENA DE JUEGO
+- âœ… **GameWorld** con movimiento FPS bÃ¡sico (WASD + mouse)
+- âœ… **UI de coordenadas** en pantalla mostrando posiciÃ³n y Ã¡ngulos
+- âœ… **Terreno bÃ¡sico** con suelo verde para referencia
+- âœ… **Sistema de congelaciÃ³n/descongelaciÃ³n** del jugador y cÃ¡mara
 
-### 🌍 ESCENA DE JUEGO
-- ✅ **GameWorld** con movimiento FPS básico (WASD + mouse)
-- ✅ **UI de coordenadas** en pantalla mostrando posición y ángulos
-- ✅ **Terreno básico** con suelo verde para referencia
-- ✅ **Sistema de congelación/descongelación** del jugador y cámara
+### ðŸ› ï¸ SISTEMAS TÃ‰CNICOS
+- âœ… **Sistema de logging** con Logger.cs y archivo latest.log
+- âœ… **Sistema de backup** completo y automatizado
+- âœ… **ConfiguraciÃ³n de proyecto** Godot 4.6.1 + C# .NET 8.0
+- âœ… **ResoluciÃ³n 1920x1080** con modo viewport
+- âœ… **Autoloads** configurados (GameFlow, SessionData, GameSettings)
 
-### 🛠️ SISTEMAS TÉCNICOS
-- ✅ **Sistema de logging** con Logger.cs y archivo latest.log
-- ✅ **Sistema de backup** completo y automatizado
-- ✅ **Configuración de proyecto** Godot 4.6.1 + C# .NET 8.0
-- ✅ **Resolución 1920x1080** con modo viewport
-- ✅ **Autoloads** configurados (GameFlow, SessionData, GameSettings)
-
-### 📁 ESTRUCTURA DE ARCHIVOS
+### ðŸ“ ESTRUCTURA DE ARCHIVOS
 ```
 wild/
-├── assets/ui/              # Imágenes de UI (splash.png)
-├── scenes/                # Escenas del juego
-│   ├── main_menu.tscn
-│   ├── game_world.tscn
-│   ├── pause_menu.tscn
-│   └── splash_screen.tscn
-├── scripts/               # Scripts C#
-│   ├── autoload/         # Scripts globales
-│   ├── GameWorld.cs
-│   ├── MainMenu.cs
-│   ├── PauseMenu.cs
-│   └── SplashScreen.cs
-├── contexto/              # Documentación del proyecto
-├── shaders/               # Shaders personalizados
-└── backups/               # Sistema de backups
+â”œâ”€â”€ assets/ui/              # ImÃ¡genes de UI (splash.png)
+â”œâ”€â”€ scenes/                # Escenas del juego
+â”‚   â”œâ”€â”€ main_menu.tscn
+â”‚   â”œâ”€â”€ game_world.tscn
+â”‚   â”œâ”€â”€ pause_menu.tscn
+â”‚   â””â”€â”€ splash_screen.tscn
+â”œâ”€â”€ scripts/               # Scripts C#
+â”‚   â”œâ”€â”€ autoload/         # Scripts globales
+â”‚   â”œâ”€â”€ GameWorld.cs
+â”‚   â”œâ”€â”€ MainMenu.cs
+â”‚   â”œâ”€â”€ PauseMenu.cs
+â”‚   â””â”€â”€ SplashScreen.cs
+â”œâ”€â”€ contexto/              # DocumentaciÃ³n del proyecto
+â”œâ”€â”€ shaders/               # Shaders personalizados
+â””â”€â”€ backups/               # Sistema de backups
 ```
 
-### 🎯 CARACTERÍSTICAS IMPLEMENTADAS
-- **Menú de pausa sin pausar el juego** (diseño intencional)
+### ðŸŽ¯ CARACTERÃSTICAS IMPLEMENTADAS
+- **MenÃº de pausa sin pausar el juego** (diseÃ±o intencional)
 - **Transiciones suaves** con fade-in/out de 1 segundo
-- **Opción de saltar splash screen** con cualquier tecla/clic
+- **OpciÃ³n de saltar splash screen** con cualquier tecla/clic
 - **Sistema de coordenadas** en tiempo real
-- **Control de cámara** con rotación restringida (-89° a 89°)
+- **Control de cÃ¡mara** con rotaciÃ³n restringida (-89Â° a 89Â°)
 - **Backup completo** excluyendo solo temporales
 
-### ⚙️ CONFIGURACIÓN
+### âš™ï¸ CONFIGURACIÃ“N
 - **Motor:** Godot 4.6.1
 - **Lenguaje:** C# (.NET 8.0)
-- **Resolución:** 1920x1080 (viewport stretch)
+- **ResoluciÃ³n:** 1920x1080 (viewport stretch)
 - **Plataforma:** Windows (extensible a otras)
 
-### 🐛 ERRORES CORREGIDOS
-- **Bucle infinito en menú de pausa** - Eliminada detección manual de clics
-- **Cámara no se bloqueaba** - Implementado sistema de congelación
+### ðŸ› ERRORES CORREGIDOS
+- **Bucle infinito en menÃº de pausa** - Eliminada detecciÃ³n manual de clics
+- **CÃ¡mara no se bloqueaba** - Implementado sistema de congelaciÃ³n
 - **Imagen de splash no escalaba** - Configurado modo viewport y stretch
-- **Importación de recursos** - Sistema de carga directa desde archivo
+- **ImportaciÃ³n de recursos** - Sistema de carga directa desde archivo
 
-### 🔄 PRÓXIMOS PASOS (v0.2.0)
-- [ ] Menú de Opciones (gráficos, audio, controles)
+### ðŸ”„ PRÃ“XIMOS PASOS (v0.2.0)
+- [ ] MenÃº de Opciones (grÃ¡ficos, audio, controles)
 - [ ] Sistema de guardado/carga de partidas
-- [ ] Menú de Cargar Partida con lista de slots
-- [ ] Terreno procedural básico
-- [ ] Mecánicas de supervivencia (salud, estamina)
-- [ ] Inventario básico
-- [ ] Sistema día/noche
-- [ ] Efectos de sonido básicos
-- [ ] Expansión de funcionalidades cliente-servidor
-- [ ] Sincronización de estado entre cliente y servidor
-- [ ] Manejo de múltiples clientes (base para multijugador)
+- [ ] MenÃº de Cargar Partida con lista de slots
+- [ ] Terreno procedural bÃ¡sico
+- [ ] MecÃ¡nicas de supervivencia (salud, estamina)
+- [ ] Inventario bÃ¡sico
+- [ ] Sistema dÃ­a/noche
+- [ ] Efectos de sonido bÃ¡sicos
+- [ ] ExpansiÃ³n de funcionalidades cliente-servidor
+- [ ] SincronizaciÃ³n de estado entre cliente y servidor
+- [ ] Manejo de mÃºltiples clientes (base para multijugador)
 
 ---
 
 ## NOTAS
-- Esta versión alpha 0.1.1 estable incluye arquitectura cliente-servidor completa
+- Esta versiÃ³n alpha 0.1.1 estable incluye arquitectura cliente-servidor completa
 - El sistema de backup preserva todo el proyecto excepto temporales
 - El splash screen personalizado reemplaza el logo de Godot
-- La arquitectura cliente-servidor está implementada y lista para expansión multijugador
-- El servidor local gestiona toda la lógica de juego, el cliente maneja input y renderizado
+- La arquitectura cliente-servidor estÃ¡ implementada y lista para expansiÃ³n multijugador
+- El servidor local gestiona toda la lÃ³gica de juego, el cliente maneja input y renderizado
 
 **Total de commits/features:** ~20 funcionalidades principales  
 **Tiempo de desarrollo:** ~6 horas  
 **Estado:** Estable para continuar desarrollo con base cliente-servidor
+
+
+

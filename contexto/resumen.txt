@@ -28,7 +28,7 @@ TECNOLOGÍAS
 • Lenguaje: C# (.NET 8.0, scripting en Godot).
 • Plataforma objetivo: PC (Windows como referencia; otras según se decida).
 
-ESTADO ACTUAL (v0.2.0-ALPHA)
+ESTADO ACTUAL (v0.2.2-ALPHA)
 ----------------------------
 • **Terreno procedural avanzado**: Generación con ruido Perlin y alturas (-100 a 1000m)
 • **Sistema de chunks**: Terreno dividido en chunks de 100x100 metros para optimización
@@ -36,16 +36,46 @@ ESTADO ACTUAL (v0.2.0-ALPHA)
 • **Sistema de colisiones**: Jugador, suelo y árboles con física básica
 • **Menús funcionales**: Principal, nueva partida, pausa con navegación completa
 • **Arquitectura cliente-servidor**: Servidor local + cliente para multijugador futuro
+  - GameServer.cs: Servidor TCP (Wild.Network, 475 líneas)
+  - PlayerInfo: Gestión de jugadores conectados (PlayerId, Client, Stream, Position, Rotation, LastActivity)
+  - StartServerWithPortFallback(): Inicio automático con fallback de puertos
+  - ProcessServerTick(): Sistema de ticks a 60Hz
+  - ProcessBlockedPosition(): Procesamiento de posiciones bloqueadas
+  - CultureInvariant: Parsing numérico robusto
+  - GameClient.cs: Cliente TCP (Wild.Network, 527 líneas)
+  - RemotePlayer: Gestión de jugadores remotos (PlayerId, Position, Rotation)
+  - Protocolo: Host 127.0.0.1, Puerto 7778
+  - Mensajes: STATE_INIT, STATE_UPDATE, PLAYER_STATE, PLAYER_JOINED, PLAYER_LEFT
+  - Señales: OnPositionUpdated, OnRotationUpdated, OnLocalPlayerIdAssigned
+  - CultureInvariant: Parsing numérico robusto
+  - Conexiones asíncronas con manejo de errores completo
+  - NetworkManager.cs: Gestión centralizada de red (235 líneas)
+  - Orquesta comunicación entre cliente y servidor
+  - Gestión automática de modo red/local
+  - Sincronización de posición y rotación con servidor
+  - Señales: NetworkModeChanged, LocalPlayerIdAssigned, ServerPositionUpdated, ServerRotationUpdated
+  - ProcessNetworkMovement(): Procesamiento de inputs en modo red
+  - NotifyBlockedPosition(): Notificación de posiciones bloqueadas al servidor
+  - Integración directa con PlayerController para aplicar cambios de red
 • **Movimiento FPS**: WASD + mouse con rotación restringida
+  - PlayerController: Sistema modular para movimiento y cámara (250 líneas)
+  - Señales: PlayerMoved, CameraRotated para comunicación
+  - Modo red: _isNetworkMode para respuesta inmediata
+  - Congelación: Freeze(), Unfreeze(), FreezePlayer(), UnfreezePlayer()
+  - Posición: GetPlayerPosition(), SetPlayerPosition(), GetPlayerGlobalPosition(), SetPlayerGlobalPosition()
+  - Cámara: GetCameraAngles(), SetCameraAngles(), ApplyCameraRotation()
+  - Terreno: AdjustToTerrain(), SetPlayerHeight() para adaptación
+  - Integración completa con Logger y NetworkManager
 • **Logging optimizado**: Sistema de depuración completo y archivos de log
 • **Sistema de importación**: Texturas y recursos con reimportación automática
 • **Gestión de mundos**: Creación, carga y eliminación de mundos independientes
+• **Sistema de changelog modular**: Archivos por versión con compilación automática
 
 REGLA IMPORTANTE DE VERSIONADO
 ------------------------------
 • **Solo el usuario puede cambiar de versión** - La IA no debe crear nuevas versiones
 • **Las mejoras se acumulan en la versión actual** hasta que el usuario indique lo contrario
-• **v0.2.0-ALPHA es la versión actual** hasta nueva orden explícita del usuario
+• **v0.2.2-ALPHA es la versión actual** hasta nueva orden explícita del usuario
 
 ESTRATEGIA DE DESARROLLO: DIVIDE Y VENCERÁS
 -------------------------------------------
@@ -74,6 +104,7 @@ En la carpeta "contexto" se almacenan:
 • estructura-inicial.txt: estructura de carpetas y archivos de la construcción
   básica inicial del juego (Godot 4 + C#), flujo menú/partida y requisitos.
 • estado-actual.txt: estado actual del proyecto con últimos hitos logrados.
+• sistema-changelog.md: documentación completa del sistema de changelog modular.
 • Otros archivos de texto que se irán añadiendo con detalles técnicos,
   convenciones, glosario, estado del proyecto, etc., según haga falta.
 
@@ -92,12 +123,12 @@ para entender el proyecto de un vistazo.
 
 ESTADO ACTUAL DEL PROYECTO
 --------------------------
-• **Versión:** Alpha 0.2.0 (02/03/2026)
-• **Hitos recientes:** Generación de terreno procedural con ruido Perlin y sistema de chunks
-• **Arquitectura:** Cliente-servidor completa y funcional.
+• **Versión:** Alpha 0.2.2 (05/03/2026)
+• **Hitos recientes:** Limpieza y refactorización de GameWorld.cs, sincronización de contexto, backup alpha0.2.1 completado
+• **Arquitectura:** Cliente-servidor completa y funcional, GameWorld refactorizado (arquitectura modular completa)
 • **Terreno:** Alturas variables entre -100 y 1000 metros con chunks de 100x100m
-• **Sistemas:** Menús de mundos, movimiento FPS, logging optimizado, gestión de mundos.
+• **Sistemas:** GameWorldInitializer, ModelSpawner (con SpawnModel), CollisionHandler, NetworkManager (235 líneas), PlayerController, PlayerPersistence, TerrainManager, GameFlow (389 líneas), GameFlowExtensions, GameSettings, SessionData, CharacterManager, GameServer (475 líneas), GameClient (527 líneas), procedimientosIA
 
 ================================================================================
-  Última actualización conceptual: 2026-03-02 - Alpha 0.2.0 con terreno procedural
+  Última actualización conceptual: 2026-03-05 - Alpha 0.2.2 con inicio de nueva versión
 ================================================================================
