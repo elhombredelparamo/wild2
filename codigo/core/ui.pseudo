@@ -1,0 +1,788 @@
+# =============================================================================
+# SISTEMA DE UI
+# =============================================================================
+# Archivo: ui.pseudo
+# Descripción: Menús e interfaz de usuario
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaUI
+# =============================================================================
+class SistemaUI:
+    # Propiedades principales
+    estado_ui: EstadoUI
+    menu_actual: MenuBase
+    hud: HUD
+    gestor_ventanas: GestorVentanas
+    sistema_input: SistemaInputUI
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema
+    function Inicializar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Crear componentes principales
+            hud = new HUD()
+            gestor_ventanas = new GestorVentanas()
+            sistema_input = new SistemaInputUI()
+            
+            # Inicializar menús
+            InicializarMenus()
+            
+            # Establecer estado inicial
+            estado_ui = EstadoSeguroUI.ObtenerValorPorDefecto("estado_ui")
+            menu_actual = GetMenu(MenuTipo.PRINCIPAL)
+            
+            Logger.LogInfo("SistemaUI: Sistema inicializado")
+            return true
+        }, "SistemaUI.Inicializar", true)
+    
+    # Actualización continua
+    function ActualizarInterfaz(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Procesar input
+            if sistema_input != null:
+                sistema_input.Actualizar()
+            else:
+                Logger.LogWarning("SistemaUI: Sistema input nulo")
+                return EstadoSeguroUI.ObtenerValorPorDefecto("actualizar_interfaz_fallido")
+            
+            # Actualizar según estado
+            switch estado_ui:
+                case EstadoUI.MENU_PRINCIPAL:
+                    ActualizarMenuPrincipal(delta_time)
+                case EstadoUI.JUGANDO:
+                    ActualizarHUD(delta_time)
+                case EstadoUI.PAUSADO:
+                    ActualizarMenuPausa(delta_time)
+                case EstadoUI.INVENTARIO:
+                    ActualizarInventario(delta_time)
+                case EstadoUI.CHAT:
+                    ActualizarChat(delta_time)
+            
+            # Actualizar ventanas emergentes
+            if gestor_ventanas != null:
+                gestor_ventanas.Actualizar(delta_time)
+            
+            return true
+        }, "SistemaUI.ActualizarInterfaz", false)
+    
+    # Renderizado de la UI
+    function RenderUI():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Renderizar según estado
+            switch estado_ui:
+                case EstadoUI.MENU_PRINCIPAL:
+                    if menu_actual != null:
+                        menu_actual.Render()
+                case EstadoUI.JUGANDO:
+                    if hud != null:
+                        hud.Render()
+                case EstadoUI.PAUSADO:
+                    if hud != null:
+                        hud.Render()  # HUD de fondo
+                    if menu_actual != null:
+                        menu_actual.Render()
+                case EstadoUI.INVENTARIO:
+                    if hud != null:
+                        hud.Render()  # HUD de fondo
+                    if menu_actual != null:
+                        menu_actual.Render()
+                case EstadoUI.CHAT:
+                    if hud != null:
+                        hud.Render()
+                    if menu_actual != null:
+                        menu_actual.Render()
+            
+            # Renderizar ventanas emergentes
+            if gestor_ventanas != null:
+                gestor_ventanas.Render()
+            
+            return true
+        }, "SistemaUI.RenderUI", false)
+    
+    # =============================================================================
+    # FUNCIONES DE GESTIÓN DE ESTADOS
+    # =============================================================================
+    
+    function CambiarEstado(nuevo_estado: EstadoUI):
+        return ManejoErrores.EjecutarConManejo(() => {
+            estado_ui = nuevo_estado
+            
+            # Configurar para nuevo estado
+            switch nuevo_estado:
+                case EstadoUI.MENU_PRINCIPAL:
+                    menu_actual = GetMenu(MenuTipo.PRINCIPAL)
+                    SetCursorVisible(true)
+                    # El servidor local nunca se pausa, solo cambia estado UI
+                case EstadoUI.JUGANDO:
+                    menu_actual = EstadoSeguroUI.ObtenerValorPorDefecto("menu_nulo")
+                    SetCursorVisible(false)
+                    # Enviar transacción al servidor para persistencia
+                case EstadoUI.INVENTARIO:
+                    menu_actual = GetMenu(MenuTipo.INVENTARIO)
+                    SetCursorVisible(true)
+                    # El servidor local nunca se pausa
+                case EstadoUI.CHAT:
+                    menu_actual = GetMenu(MenuTipo.CHAT)
+                    SetCursorVisible(true)
+                    # El servidor local nunca se pausa
+            
+            return true
+        }, "SistemaUI.CambiarEstado", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroUI
+# =============================================================================
+class EstadoSeguroUI:
+    static valores_por_defecto: Dictionary<string, object>
+    
+    static function Inicializar():
+        valores_por_defecto = new Dictionary()
+        # Valores seguros para cada sistema
+        valores_por_defecto["estado_ui"] = EstadoUI.MENU_PRINCIPAL
+        valores_por_defecto["menu_nulo"] = null
+        valores_por_defecto["hud_nulo"] = null
+        valores_por_defecto["gestor_ventanas_nulo"] = null
+        valores_por_defecto["sistema_input_nulo"] = null
+        valores_por_defecto["cursor_visible"] = true
+        valores_por_defecto["color_piel_defecto"] = Colors.White
+        valores_por_defecto["color_cabello_defecto"] = Colors.Brown
+        valores_por_defecto["confirmacion_defecto"] = false
+        valores_por_defecto["mundo_nulo"] = null
+        valores_por_defecto["resultado_creacion_fallido"] = null
+        valores_por_defecto["resultado_conexion_fallido"] = null
+        valores_por_defecto["lista_mundos_vacia"] = null
+        valores_por_defecto["actualizar_interfaz_fallido"] = false
+        valores_por_defecto["render_ui_fallido"] = false
+        valores_por_defecto["cambiar_estado_fallido"] = false
+        valores_por_defecto["inicializar_menus_fallido"] = false
+        valores_por_defecto["crear_menu_principal_fallido"] = false
+        valores_por_defecto["crear_menu_pausa_fallido"] = false
+        valores_por_defecto["crear_menu_inventario_fallido"] = false
+        valores_por_defecto["procesar_evento_fallido"] = false
+        valores_por_defecto["procesar_boton_fallido"] = false
+        valores_por_defecto["abrir_menu_creacion_fallido"] = false
+        valores_por_defecto["abrir_menu_conexion_fallido"] = false
+        valores_por_defecto["crear_mundo_fallido"] = false
+        valores_por_defecto["conectar_mundo_fallido"] = false
+        valores_por_defecto["actualizar_lista_fallido"] = false
+        valores_por_defecto["volver_menu_principal_fallido"] = false
+        valores_por_defecto["desconectar_mundo_fallido"] = false
+        valores_por_defecto["abrir_opciones_fallido"] = false
+        valores_por_defecto["volver_menu_anterior_fallido"] = false
+        valores_por_defecto["convertir_color_piel_fallido"] = Colors.White
+        valores_por_defecto["convertir_color_cabello_fallido"] = Colors.Brown
+        valores_por_defecto["confirmar_accion_fallida"] = false
+    
+    static function ObtenerValorPorDefecto(contexto: string): object
+        if valores_por_defecto.ContainsKey(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroUI: Sin valor por defecto para: " + contexto)
+            return null  # Fallback seguro
+
+# =============================================================================
+# FUNCIONES DE MENÚS
+# =============================================================================
+    
+    function InicializarMenus():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Crear menús principales
+            CrearMenuPrincipal()
+            CrearMenuPausa()
+            CrearMenuInventario()
+            CrearMenuChat()
+            CrearMenuOpciones()
+            CrearMenuMultiplayer()
+            return true
+        }, "SistemaUI.InicializarMenus", false)
+    
+    function CrearMenuPrincipal():
+        return ManejoErrores.EjecutarConManejo(() => {
+            menu = new MenuPrincipal()
+            
+            # Botones principales actualizados para sistema de mundos
+            menu.AgregarBoton("Crear Mundo", BotonAccion.CREAR_MUNDO)
+            menu.AgregarBoton("Conectar a Mundo", BotonAccion.CONECTAR_MUNDO)
+            menu.AgregarBoton("Opciones", BotonAccion.OPCIONES)
+            menu.AgregarBoton("Salir", BotonAccion.SALIR)
+            
+            RegistrarMenu(MenuTipo.PRINCIPAL, menu)
+            return true
+        }, "SistemaUI.CrearMenuPrincipal", false)
+    
+    function CrearMenuPausa():
+        return ManejoErrores.EjecutarConManejo(() => {
+            menu = new MenuPausa()
+            
+            menu.AgregarBoton("Continuar", BotonAccion.CONTINUAR)
+            menu.AgregarBoton("Inventario", BotonAccion.INVENTARIO)
+            menu.AgregarBoton("Opciones", BotonAccion.OPCIONES)
+            menu.AgregarBoton("Desconectar del Mundo", BotonAccion.DESCONECTAR_MUNDO)
+            menu.AgregarBoton("Salir al Menú", BotonAccion.SALIR_MENU)
+            
+            RegistrarMenu(MenuTipo.PAUSA, menu)
+            return true
+        }, "SistemaUI.CrearMenuPausa", false)
+    
+    function CrearMenuInventario():
+        return ManejoErrores.EjecutarConManejo(() => {
+            menu = new MenuInventario()
+            
+            # Configurar grid de inventario
+            menu.ConfigurarGrid(8, 6)  # 8x6 slots
+            
+            # Botones de acción
+            menu.AgregarBoton("Usar", BotonAccion.USAR_ITEM)
+            menu.AgregarBoton("Tirar", BotonAccion.TIRAR_ITEM)
+            menu.AgregarBoton("Cerrar", BotonAccion.CERRAR_INVENTARIO)
+            
+            RegistrarMenu(MenuTipo.INVENTARIO, menu)
+            return true
+        }, "SistemaUI.CrearMenuInventario", false)
+    
+    function CrearMenuGestionPersonajes():
+        menu = new MenuGestionPersonajes()
+        
+        # Actualizar lista de personajes
+        personajes = GetGestorPersonajes().ObtenerTodosPersonajes()
+        menu.ActualizarListaPersonajes(personajes)
+        
+        # Botones de acción
+        menu.AgregarBoton("Crear Nuevo Personaje", BotonAccion.CREAR_PERSONAJE)
+        menu.AgregarBoton("Seleccionar Personaje", BotonAccion.SELECCIONAR_PERSONAJE)
+        menu.AgregarBoton("Eliminar Personaje", BotonAccion.ELIMINAR_PERSONAJE)
+        menu.AgregarBoton("Personalizar Personaje", BotonAccion.PERSONALIZAR_PERSONAJE)
+        menu.AgregarBoton("Volver", BotonAccion.VOLVER)
+        
+        RegistrarMenu(MenuTipo.GESTION_PERSONAJES, menu)
+    
+    function CrearMenuConexionMundo():
+        menu = new MenuConexionMundo()
+        
+        # Lista de mundos disponibles
+        mundos = GetMundosDisponibles()
+        menu.ActualizarListaMundos(mundos)
+        
+        # Botones
+        menu.AgregarBoton("Conectar al Mundo", BotonAccion.CONECTAR_MUNDO_CONFIRMAR)
+        menu.AgregarBoton("Actualizar Lista", BotonAccion.ACTUALIZAR_MUNDOS)
+        menu.AgregarBoton("Volver", BotonAccion.VOLVER)
+        
+        RegistrarMenu(MenuTipo.CONEXION_MUNDO, menu)
+    
+    function CrearMenuCreacionMundo():
+        menu = new MenuCreacionMundo()
+        
+        # Campos para crear mundo
+        menu.AgregarCampoTexto("Nombre del Mundo", "")
+        menu.AgregarCampoTexto("Seed (opcional)", "")
+        menu.AgregarCampoTexto("Descripción", "")
+        
+        # Botones
+        menu.AgregarBoton("Crear Mundo", BotonAccion.CREAR_MUNDO_CONFIRMAR)
+        menu.AgregarBoton("Cancelar", BotonAccion.CANCELAR)
+        
+        RegistrarMenu(MenuTipo.CREACION_MUNDO, menu)
+    
+    # =============================================================================
+    # FUNCIONES DE EVENTOS
+    # =============================================================================
+    
+    function ProcesarEventoUI(evento: EventoUI):
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch evento.tipo:
+                case TipoEventoUI.BOTON_PRESIONADO:
+                    ProcesarBotonPresionado(evento.boton_accion)
+                case TipoEventoUI.TEXTO_INGRESADO:
+                    ProcesarTextoIngresado(evento.texto)
+                case TipoEventoUI.ITEM_SELECCIONADO:
+                    ProcesarItemSeleccionado(evento.item_id)
+                case TipoEventoUI.VENTANA_CERRADA:
+                    ProcesarVentanaCerrada(evento.ventana_id)
+            return true
+        }, "SistemaUI.ProcesarEventoUI", false)
+    
+    function ProcesarBotonPresionado(accion: BotonAccion):
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch accion:
+                case BotonAccion.CREAR_MUNDO:
+                    AbrirMenuCreacionMundo()
+                case BotonAccion.CONECTAR_MUNDO:
+                    AbrirMenuConexionMundo()
+                case BotonAccion.CREAR_MUNDO_CONFIRMAR:
+                    CrearNuevoMundo()
+                case BotonAccion.CONECTAR_MUNDO_CONFIRMAR:
+                    ConectarAlMundo()
+                case BotonAccion.ACTUALIZAR_MUNDOS:
+                    ActualizarListaMundos()
+                case BotonAccion.CONTINUAR:
+                    CambiarEstado(EstadoUI.JUGANDO)
+                case BotonAccion.INVENTARIO:
+                    CambiarEstado(EstadoUI.INVENTARIO)
+                case BotonAccion.OPCIONES:
+                    AbrirMenuOpciones()
+                case BotonAccion.SALIR:
+                    # Cerrar juego usando SessionData
+                    if SessionData.Instance != null:
+                        SessionData.Instance.juego_pausado = false
+                    if GameManager.instance != null:
+                        GameManager.instance.CerrarJuego()
+                    else:
+                        Logger.LogError("SistemaUI: GameManager no disponible para cerrar juego")
+                case BotonAccion.DESCONECTAR_MUNDO:
+                    DesconectarDelMundo()
+                case BotonAccion.SALIR_MENU:
+                    VolverAlMenuPrincipal()
+                case BotonAccion.CANCELAR:
+                    VolverAlMenuAnterior()
+                case BotonAccion.VOLVER:
+                    VolverAlMenuPrincipal()
+            return true
+        }, "SistemaUI.ProcesarBotonPresionado", false)
+    
+    # =============================================================================
+    # FUNCIONES AUXILIARES
+    # =============================================================================
+    
+    function AbrirMenuCreacionMundo():
+        menu = GetMenu(MenuTipo.CREACION_MUNDO)
+        if menu == null:
+            menu = CrearMenuCreacionMundo()
+        menu.Abrir()
+    
+    function AbrirMenuConexionMundo():
+        menu = GetMenu(MenuTipo.CONEXION_MUNDO)
+        if menu == null:
+            menu = CrearMenuConexionMundo()
+        menu.Abrir()
+    
+    function CrearNuevoMundo():
+        return ManejoErrores.EjecutarConManejo(() => {
+            menu = GetMenu(MenuTipo.CREACION_MUNDO)
+            if menu != null:
+                nombre = menu.ObtenerCampoTexto("Nombre del Mundo")
+                seed = menu.ObtenerCampoTexto("Seed (opcional)")
+                descripcion = menu.ObtenerCampoTexto("Descripción")
+                
+                if nombre == "" or nombre.length() < 3:
+                    Logger.LogError("SistemaUI: El nombre del mundo debe tener al menos 3 caracteres")
+                    return EstadoSeguroUI.ObtenerValorPorDefecto("crear_mundo_fallido")
+                
+                # Convertir seed a número si se proporciona
+                seed_numerica = -1
+                if seed != "":
+                    try:
+                        seed_numerica = int.Parse(seed)
+                    catch:
+                        Logger.LogError("SistemaUI: La seed debe ser un número válido")
+                        return EstadoSeguroUI.ObtenerValorPorDefecto("crear_mundo_fallido")
+                
+                # Crear mundo
+                resultado = CrearMundo(nombre, seed_numerica, descripcion)
+                
+                if resultado.exito:
+                    Logger.LogInfo("SistemaUI: Mundo creado: " + nombre)
+                    VolverAlMenuPrincipal()
+                else:
+                    Logger.LogError("SistemaUI: Error creando mundo: " + resultado.error)
+                    return EstadoSeguroUI.ObtenerValorPorDefecto("crear_mundo_fallido")
+            return EstadoSeguroUI.ObtenerValorPorDefecto("crear_mundo_fallido")
+        }, "SistemaUI.CrearNuevoMundo", false)
+    
+    function ConectarAlMundo():
+        return ManejoErrores.EjecutarConManejo(() => {
+            menu = GetMenu(MenuTipo.CONEXION_MUNDO)
+            if menu != null:
+                mundo_seleccionado = menu.ObtenerMundoSeleccionado()
+                
+                if mundo_seleccionado == null:
+                    Logger.LogError("SistemaUI: Debe seleccionar un mundo")
+                    return EstadoSeguroUI.ObtenerValorPorDefecto("conectar_mundo_fallido")
+                
+                # Conectar al mundo
+                resultado = ConectarMundo(mundo_seleccionado.nombre)
+                
+                if resultado.exito:
+                    Logger.LogInfo("SistemaUI: Conectado exitosamente al mundo: " + mundo_seleccionado.nombre)
+                    CambiarEstado(EstadoUI.JUGANDO)
+                else:
+                    Logger.LogError("SistemaUI: Error conectando: " + resultado.error)
+                    return EstadoSeguroUI.ObtenerValorPorDefecto("conectar_mundo_fallido")
+            return EstadoSeguroUI.ObtenerValorPorDefecto("conectar_mundo_fallido")
+        }, "SistemaUI.ConectarAlMundo", false)
+    
+    function ActualizarListaMundos():
+        return ManejoErrores.EjecutarConManejo(() => {
+            mundos = GetMundosDisponibles()
+            menu = GetMenu(MenuTipo.CONEXION_MUNDO)
+            if menu != null:
+                menu.ActualizarListaMundos(mundos)
+                Logger.LogInfo("SistemaUI: Lista de mundos actualizada")
+            return true
+        }, "SistemaUI.ActualizarListaMundos", false)
+    
+    function VolverAlMenuPrincipal():
+        return ManejoErrores.EjecutarConManejo(() => {
+            CambiarEstado(EstadoUI.MENU_PRINCIPAL)
+            return true
+        }, "SistemaUI.VolverAlMenuPrincipal", false)
+    
+    function VolverAlMenuAnterior():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Lógica para volver al menú anterior
+            return EstadoSeguroUI.ObtenerValorPorDefecto("volver_menu_anterior_fallido")
+        }, "SistemaUI.VolverAlMenuAnterior", false)
+    
+    function DesconectarDelMundo():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Desconectar del mundo si está conectado
+            if SistemaConexionMundos != null:
+                if SistemaConexionMundos.EstaConectadoMundo():
+                    SistemaConexionMundos.DesconectarMundo()
+            VolverAlMenuPrincipal()
+            return true
+        }, "SistemaUI.DesconectarDelMundo", false)
+    
+    function AbrirMenuOpciones():
+        return ManejoErrores.EjecutarConManejo(() => {
+            menu = GetMenu(MenuTipo.OPCIONES)
+            if menu != null:
+                menu.Abrir()
+            return true
+        }, "SistemaUI.AbrirMenuOpciones", false)
+    
+    function GetMenu(tipo: MenuTipo): MenuBase
+        return gestor_ventanas.GetMenu(tipo)
+    
+    function RegistrarMenu(tipo: MenuTipo, menu: MenuBase):
+        gestor_ventanas.RegistrarMenu(tipo, menu)
+    
+    # =============================================================================
+    # FUNCIONES DE CONVERSIÓN
+    # =============================================================================
+    
+    function ConvertirColorPiel(color_str: string): Color
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch color_str:
+                case "Claro":
+                    return Color(0.9, 0.8, 0.7, 1.0)
+                case "Medio":
+                    return Color(0.7, 0.6, 0.5, 1.0)
+                case "Oscuro":
+                    return Color(0.5, 0.4, 0.3, 1.0)
+                default:
+                    return EstadoSeguroUI.ObtenerValorPorDefecto("color_piel_defecto")
+        }, "SistemaUI.ConvertirColorPiel", false)
+    
+    function ConvertirColorCabello(color_str: string): Color
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch color_str:
+                case "Rubio":
+                    return Color(0.9, 0.8, 0.6, 1.0)
+                case "Castaño":
+                    return Color(0.6, 0.4, 0.2, 1.0)
+                case "Negro":
+                    return Color(0.1, 0.1, 0.1, 1.0)
+                case "Pelirrojo":
+                    return Color(0.8, 0.3, 0.1, 1.0)
+                case "Gris":
+                    return Color(0.5, 0.5, 0.5, 1.0)
+                default:
+                    return EstadoSeguroUI.ObtenerValorPorDefecto("color_cabello_defecto")
+        }, "SistemaUI.ConvertirColorCabello", false)
+    
+    function ConfirmarAccion(mensaje: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Implementar diálogo de confirmación
+            return EstadoSeguroUI.ObtenerValorPorDefecto("confirmacion_defecto")
+        }, "SistemaUI.ConfirmarAccion", false)
+
+# =============================================================================
+# CLASE: HUD
+# =============================================================================
+class HUD:
+    # Elementos del HUD
+    barra_vida: BarraVida
+    barra_hambre: BarraHambre
+    barra_sed: BarraSed
+    minimapa: Minimapa
+    cruz: Cruz
+    texto_chat: TextoChat
+    inventario_rapido: InventarioRapido
+    
+    function Inicializar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            barra_vida = new BarraVida()
+            barra_hambre = new BarraHambre()
+            barra_sed = new BarraSed()
+            minimapa = new Minimapa()
+            cruz = new Cruz()
+            texto_chat = new TextoChat()
+            inventario_rapido = new InventarioRapido()
+            
+            Logger.LogInfo("HUD: Inicializado")
+            return true
+        }, "HUD.Inicializar", false)
+    
+    function Actualizar(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Actualizar barras de estado
+            # NOTA: Esto debe ser reemplazado por inyección de dependencias
+            if GameManager.instance != null:
+                jugador = GameManager.instance.sistema_jugador.GetJugadorLocal()
+                if jugador != null:
+                    if barra_vida != null:
+                        barra_vida.Actualizar(jugador.vida, jugador.vida_maxima)
+                    if barra_hambre != null:
+                        barra_hambre.Actualizar(jugador.hambre, 100.0)
+                    if barra_sed != null:
+                        barra_sed.Actualizar(jugador.sed, 100.0)
+            else:
+                Logger.LogWarning("HUD: GameManager o jugador nulo")
+            
+            # Actualizar minimapa
+            if minimapa != null and jugador != null:
+                minimapa.Actualizar(jugador.posicion)
+            
+            # Actualizar inventario rápido
+            if inventario_rapido != null:
+                inventario_rapido.Actualizar()
+            
+            # Actualizar chat
+            if texto_chat != null:
+                texto_chat.Actualizar(delta_time)
+            return true
+        }, "HUD.Actualizar", false)
+    
+    function Render():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Renderizar elementos del HUD
+            if barra_vida != null:
+                barra_vida.Render()
+            if barra_hambre != null:
+                barra_hambre.Render()
+            if barra_sed != null:
+                barra_sed.Render()
+            if minimapa != null:
+                minimapa.Render()
+            if cruz != null:
+                cruz.Render()
+            if texto_chat != null:
+                texto_chat.Render()
+            if inventario_rapido != null:
+                inventario_rapido.Render()
+            return true
+        }, "HUD.Render", false)
+
+# =============================================================================
+# CLASES DE MENÚS
+# =============================================================================
+
+class MenuBase:
+    visible: bool = false
+    botones: List<BotonUI>
+    elementos: List<ElementoUI>
+    
+    virtual function Actualizar(delta_time)
+    virtual function Render()
+    virtual function ProcesarInput(input: InputUI)
+    
+    function AgregarBoton(texto: string, accion: BotonAccion)
+        boton = new BotonUI(texto, accion)
+        botones.Add(boton)
+    
+    function Abrir():
+        visible = true
+    
+    function Cerrar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            visible = false
+            return true
+        }, "MenuBase.Cerrar", false)
+
+class MenuPrincipal extends MenuBase:
+    function Actualizar(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Actualizar animaciones de fondo
+            ActualizarFondo(delta_time)
+            
+            # Procesar input
+            if GetSistemaInputUI() != null:
+                input = GetSistemaInputUI().GetInput()
+                ProcesarInput(input)
+            return true
+        }, "MenuBase.Actualizar", false)
+    
+    virtual function Render():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Renderizar fondo
+            RenderFondo()
+            
+            # Renderizar título
+            RenderTitulo("Wild v2.0")
+            
+            # Renderizar botones
+            for boton in botones:
+                if boton != null:
+                    boton.Render()
+            return true
+        }, "MenuPrincipal.Render", false)
+
+class MenuInventario extends MenuBase:
+    grid_inventario: GridInventario
+    item_seleccionado: ItemInventario
+    
+    virtual function Actualizar(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Actualizar grid
+            if grid_inventario != null:
+                grid_inventario.Actualizar(delta_time)
+            
+            # Procesar input de inventario
+            ProcesarInputInventario()
+            return true
+        }, "MenuInventario.Actualizar", false)
+    
+    function Render():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Renderizar fondo del inventario
+            RenderFondoInventario()
+            
+            # Renderizar grid
+            if grid_inventario != null:
+                grid_inventario.Render()
+            
+            # Renderizar información del item
+            if item_seleccionado != null:
+                RenderInfoItem(item_seleccionado)
+            return true
+        }, "MenuInventario.Render", false)
+
+# =============================================================================
+# CLASES DE COMPONENTES UI
+# =============================================================================
+
+class BotonUI:
+    texto: string
+    posicion: Vector2
+    tamaño: Vector2
+    accion: BotonAccion
+    estado: EstadoBoton = EstadoBoton.NORMAL
+    
+    function Render():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Renderizar según estado
+            switch estado:
+                case EstadoBoton.NORMAL:
+                    RenderNormal()
+                case EstadoBoton.HOVER:
+                    RenderHover()
+                case EstadoBoton.PRESIONADO:
+                    RenderPresionado()
+        }, "BotonUI.Render", false)
+
+class BarraVida:
+    valor_actual: float
+    valor_maximo: float
+    
+    function Actualizar(actual: float, maximo: float):
+        return ManejoErrores.EjecutarConManejo(() => {
+            valor_actual = actual
+            valor_maximo = maximo
+        }, "BarraVida.Actualizar", false)
+    
+    function Render():
+        return ManejoErrores.EjecutarConManejo(() => {
+            porcentaje = valor_actual / valor_maximo
+            RenderBarra(porcentaje, COLOR_ROJO)
+        }, "BarraVida.Render", false)
+
+class Minimapa:
+    posicion: Vector2
+    tamaño: Vector2
+    zoom: float = 1.0
+    
+    function Actualizar(pos_jugador: Vector3):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Centrar minimapa en jugador
+            # Actualizar elementos visibles
+        }, "Minimapa.Actualizar", false)
+    
+    function Render():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Renderizar terreno minimapa
+            # Renderizar posición del jugador
+            # Renderizar otros jugadores
+        }, "Minimapa.Render", false)
+
+# =============================================================================
+# ENUMS Y CONSTANTES
+# =============================================================================
+
+class EstadoUI:
+    static MENU_PRINCIPAL = 0
+    static JUGANDO = 1
+    static PAUSADO = 2
+    static INVENTARIO = 3
+    static CHAT = 4
+    static MULTIJUGADOR = 5
+
+class MenuTipo:
+    static PRINCIPAL = 0
+    static PAUSA = 1
+    static INVENTARIO = 2
+    static CHAT = 3
+    static OPCIONES = 4
+    static CONEXION_MUNDO = 5
+    static CREACION_MUNDO = 6
+
+class BotonAccion:
+    static CREAR_MUNDO = 0
+    static CONECTAR_MUNDO = 1
+    static OPCIONES = 2
+    static SALIR = 3
+    static CONTINUAR = 4
+    static INVENTARIO = 5
+    static DESCONECTAR_MUNDO = 6
+    static SALIR_MENU = 7
+    static USAR_ITEM = 8
+    static TIRAR_ITEM = 9
+    static CERRAR_INVENTARIO = 10
+    static CREAR_MUNDO_CONFIRMAR = 11
+    static CONECTAR_MUNDO_CONFIRMAR = 12
+    static CANCELAR = 13
+    static ACTUALIZAR_MUNDOS = 14
+    static VOLVER = 15
+
+class EstadoBoton:
+    static NORMAL = 0
+    static HOVER = 1
+    static PRESIONADO = 2
+    static DESACTIVADO = 3
+
+class TipoEventoUI:
+    static BOTON_PRESIONADO = 0
+    static TEXTO_INGRESADO = 1
+    static ITEM_SELECCIONADO = 2
+    static VENTANA_CERRADA = 3
+
+# =============================================================================
+# FUNCIONES AUXILIARES
+# =============================================================================
+function SetCursorVisible(visible: bool)
+function GetSistemaInputUI(): SistemaInputUI
+function RenderFondo()
+function RenderTitulo(texto: string)
+function RenderBarra(porcentaje: float, color: Color)
+function RenderFondoInventario()
+function RenderInfoItem(item: ItemInventario)
+function ActualizarFondo(delta_time)
+function ProcesarInputInventario()
+function GetMundosDisponibles(): List<Mundo>
+function CrearMundo(nombre: string, seed: int, descripcion: string): Resultado
+function ConectarMundo(nombre: string): Resultado

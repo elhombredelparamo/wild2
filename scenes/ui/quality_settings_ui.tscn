@@ -1,0 +1,180 @@
+[gd_scene load_steps=2 format=3 uid="uid://wild_quality_settings_ui"]
+
+[ext_resource type="Script" path="res://scripts/ui/QualitySettingsUI.cs" id="1_qui"]
+
+[node name="QualitySettingsUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_qui")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+
+[node name="ProfileRow" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Label" type="Label" parent="VBox/ProfileRow"]
+layout_mode = 2
+text = "Perfil de Calidad:"
+
+[node name="OptionButton" type="OptionButton" parent="VBox/ProfileRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+
+[node name="HSeparator" type="HSeparator" parent="VBox"]
+layout_mode = 2
+
+[node name="Scroll" type="ScrollContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Grid" type="GridContainer" parent="VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 20
+theme_override_constants/v_separation = 10
+columns = 4
+
+[node name="LabelTree" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Árboles:"
+[node name="TreeQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelVeg" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Vegetación:"
+[node name="VegQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelTerrain" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Terreno:"
+[node name="TerrainQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelPlayer" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Jugador:"
+[node name="PlayerQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelBuild" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Construcciones:"
+[node name="BuildingQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelObj" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Objetos:"
+[node name="ObjectQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelGroundTex" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Tex. Suelo:"
+[node name="GroundTexQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelCharTex" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Tex. Personajes:"
+[node name="CharTexQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelWaterTex" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Tex. Agua:"
+[node name="WaterTexQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelSkyTex" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Tex. Cielo:"
+[node name="SkyTexQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelShadow" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Sombras:"
+[node name="ShadowQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelPart" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Partículas:"
+[node name="ParticleQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelPost" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Post-procesado:"
+[node name="PostQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="HSeparator2" type="HSeparator" parent="VBox"]
+layout_mode = 2
+
+[node name="Custom" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Label" type="Label" parent="VBox/Custom"]
+layout_mode = 2
+text = "Nuevo Perfil:"
+[node name="NameEdit" type="LineEdit" parent="VBox/Custom"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+placeholder_text = "Nombre..."
+[node name="SaveBtn" type="Button" parent="VBox/Custom"]
+layout_mode = 2
+text = "Guardar"
+[node name="VSeparator" type="VSeparator" parent="VBox/Custom"]
+layout_mode = 2
+[node name="LoadSelector" type="OptionButton" parent="VBox/Custom"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+[node name="DeleteBtn" type="Button" parent="VBox/Custom"]
+layout_mode = 2
+text = "Borrar"
+
+[node name="Global" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="AutoDetect" type="Button" parent="VBox/Global"]
+layout_mode = 2
+text = "Auto-detectar"
+
+[node name="HBox" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -200.0
+offset_top = -40.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_constants/separation = 10
+
+[node name="Reset" type="Button" parent="HBox"]
+layout_mode = 2
+text = "Reset"
+
+[node name="Apply" type="Button" parent="HBox"]
+layout_mode = 2
+text = "Aplicar"

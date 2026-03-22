@@ -1,0 +1,546 @@
+# =============================================================================
+# SISTEMA DE COORDENADAS GLOBALES
+# =============================================================================
+# Archivo: coordenadas.pseudo
+# Descripción: Sistema de coordenadas únicas para todo el juego
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: CoordenadaGlobal
+# =============================================================================
+class CoordenadaGlobal:
+    # Propiedades principales
+    chunk_x: int
+    chunk_z: int
+    local_x: int  # 0-9 dentro del chunk
+    local_z: int  # 0-9 dentro del chunk
+    altura: float  # Altura en metros (-100 a 1000)
+    
+# =============================================================================
+# CLASE: EstadoSeguroCoordenadas
+# =============================================================================
+class EstadoSeguroCoordenadas:
+    static valores_por_defecto: Dictionary
+    
+    static function _init():
+        valores_por_defecto = {
+            "altura_defecto": 0.0,
+            "constructor_fallido": null,
+            "vector3_fallido": Vector3.ZERO,
+            "coordenada_chunk_fallida": null,
+            "clave_string_fallida": "0_0_0_0_0.0",
+            "coordenada_vecina_fallida": null,
+            "coordenadas_adyacentes_vacias": null,
+            "distancia_fallida": 0.0,
+            "distancia_manhattan_fallida": 0,
+            "es_valida_fallida": false,
+            "misma_chunk_fallida": false,
+            "borde_chunk_fallida": BordeChunk.NINGUNO,
+            "chunks_adyacentes_vacios": null,
+            "hash_coordenada_fallido": 0,
+            "hash_chunk_fallido": 0,
+            "zona_altitud_fallida": "LLANURAS_COLINAS_BAJAS",
+            "chunks_radio_vacios": null,
+            "coordenadas_chunk_vacias": null,
+            "validar_altitud_fallida": false,
+            "normalizar_altitud_fallida": 0.0,
+            "vector3_global_fallido": null,
+            "vector3_chunk_fallido": Vector3.ZERO
+        }
+    
+    static function ObtenerValorPorDefecto(contexto: String):
+        if valores_por_defecto.has(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroCoordenadas: Sin valor por defecto para: " + contexto)
+            return null  # Fallback seguro
+
+# =============================================================================
+# CONSTRUCTORES
+    # =============================================================================
+    
+    function Constructor(chunk_x: int, chunk_z: int, local_x: int, local_z: int):
+        return ManejoErrores.EjecutarConManejo(() => {
+            self.chunk_x = chunk_x
+            self.chunk_z = chunk_z
+            self.local_x = local_x
+            self.local_z = local_z
+            self.altura = EstadoSeguroCoordenadas.ObtenerValorPorDefecto("altura_defecto")
+            
+            # Validar coordenadas locales
+            if local_x < 0 or local_x > 9 or local_z < 0 or local_z > 9:
+                Logger.LogError("CoordenadaGlobal: Coordenadas locales deben estar entre 0 y 9")
+                return EstadoSeguroCoordenadas.ObtenerValorPorDefecto("constructor_fallido")
+            
+            Logger.LogDebug("CoordenadaGlobal: Coordenada creada: " + AClaveString())
+        }, "CoordenadaGlobal.Constructor", false)
+    
+    function Constructor(chunk_x: int, chunk_z: int, local_x: int, local_z: int, altura: float):
+        return ManejoErrores.EjecutarConManejo(() => {
+            self.chunk_x = chunk_x
+            self.chunk_z = chunk_z
+            self.local_x = local_x
+            self.local_z = local_z
+            self.altura = altura
+            
+            # Validar coordenadas locales
+            if local_x < 0 or local_x > 9 or local_z < 0 or local_z > 9:
+                Logger.LogError("CoordenadaGlobal: Coordenadas locales deben estar entre 0 y 9")
+                return EstadoSeguroCoordenadas.ObtenerValorPorDefecto("constructor_fallido")
+            
+            Logger.LogDebug("CoordenadaGlobal: Coordenada creada con altura: " + AClaveString())
+        }, "CoordenadaGlobal.Constructor", false)
+    
+    function Constructor(posicion_mundo: Vector3):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Convertir de posición mundo a coordenada global
+            chunk_size = 10.0
+            chunk_x = floor(posicion_mundo.x / chunk_size)
+            chunk_z = floor(posicion_mundo.z / chunk_size)
+            
+            local_x = floor(abs(posicion_mundo.x - chunk_x * chunk_size))
+            local_z = floor(abs(posicion_mundo.z - chunk_z * chunk_size))
+            
+            # Validar y normalizar altura
+            altura = posicion_mundo.y
+            if altura < -100.0:
+                altura = -100.0
+            elif altura > 1000.0:
+                altura = 1000.0
+            
+            self.chunk_x = chunk_x
+            self.chunk_z = chunk_z
+            self.local_x = local_x
+            self.local_z = local_z
+            self.altura = altura
+            
+            Logger.LogDebug("CoordenadaGlobal: Coordenada creada desde Vector3: " + posicion_mundo.ToString())
+        }, "CoordenadaGlobal.Constructor", false)
+    
+    # =============================================================================
+    # FUNCIONES DE CONVERSIÓN
+    # =============================================================================
+    
+    function AVector3(): Vector3
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunk_size = 10.0
+            x = chunk_x * chunk_size + local_x
+            y = altura
+            z = chunk_z * chunk_size + local_z
+            
+            resultado = Vector3(x, y, z)
+            Logger.LogDebug("CoordenadaGlobal: Convertido a Vector3: " + resultado.ToString())
+            return resultado
+        }, "CoordenadaGlobal.AVector3", false)
+    
+    function ACoordenadaChunk(): CoordenadaChunk
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = new CoordenadaChunk(chunk_x, chunk_z)
+            Logger.LogDebug("CoordenadaGlobal: Convertido a CoordenadaChunk: " + resultado.AClaveString())
+            return resultado
+        }, "CoordenadaGlobal.ACoordenadaChunk", false)
+    
+    function AClaveString(): String
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = chunk_x.ToString() + "_" + chunk_z.ToString() + "_" + local_x.ToString() + "_" + local_z.ToString() + "_" + altura.ToString("F1")
+            Logger.LogDebug("CoordenadaGlobal: Generada clave string: " + resultado)
+            return resultado
+        }, "CoordenadaGlobal.AClaveString", false)
+    
+    # =============================================================================
+    # FUNCIONES DE OPERACIONES
+    # =============================================================================
+    
+    function GetCoordenadaVecina(direccion: DireccionCoordenada): CoordenadaGlobal
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch direccion:
+                case DireccionCoordenada.NORTE:
+                    return new CoordenadaGlobal(chunk_x, chunk_z + 1, local_x, local_z, altura)
+                case DireccionCoordenada.SUR:
+                    return new CoordenadaGlobal(chunk_x, chunk_z - 1, local_x, local_z, altura)
+                case DireccionCoordenada.ESTE:
+                    return new CoordenadaGlobal(chunk_x + 1, chunk_z, local_x, local_z, altura)
+                case DireccionCoordenada.OESTE:
+                    return new CoordenadaGlobal(chunk_x - 1, chunk_z, local_x, local_z, altura)
+                case DireccionCoordenada.ARRIBA:
+                    nueva_altura = altura + 1.0
+                    if nueva_altura > 1000.0:
+                        nueva_altura = 1000.0
+                    if local_x < 9:
+                        return new CoordenadaGlobal(chunk_x, chunk_z, local_x + 1, local_z, nueva_altura)
+                    else:
+                        return new CoordenadaGlobal(chunk_x + 1, chunk_z, 0, local_z, nueva_altura)
+                case DireccionCoordenada.ABAJO:
+                    nueva_altura = altura - 1.0
+                    if nueva_altura < -100.0:
+                        nueva_altura = -100.0
+                    if local_x > 0:
+                        return new CoordenadaGlobal(chunk_x, chunk_z, local_x - 1, local_z, nueva_altura)
+                    else:
+                        return new CoordenadaGlobal(chunk_x - 1, chunk_z, 9, local_z, nueva_altura)
+            
+            Logger.LogDebug("CoordenadaGlobal: Obtenida coordenada vecina en dirección: " + direccion.ToString())
+        }, "CoordenadaGlobal.GetCoordenadaVecina", false)
+    
+    function GetCoordenadasAdyacentes(): List<CoordenadaGlobal>
+        return ManejoErrores.EjecutarConManejo(() => {
+            adyacentes = new List()
+            
+            # 8 direcciones cardinales y diagonales
+            for dx in -1..1:
+                for dz in -1..1:
+                    if dx != 0 or dz != 0:
+                        nueva_coord = new CoordenadaGlobal(
+                            chunk_x + dx, 
+                            chunk_z + dz, 
+                            local_x, 
+                            local_z,
+                            altura
+                        )
+                        adyacentes.Add(nueva_coord)
+            
+            Logger.LogDebug("CoordenadaGlobal: Obtenidas " + adyacentes.length() + " coordenadas adyacentes")
+            return adyacentes
+        }, "CoordenadaGlobal.GetCoordenadasAdyacentes", false)
+    
+    function GetDistancia(otra: CoordenadaGlobal): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Distancia euclidiana entre coordenadas
+            pos1 = self.AVector3()
+            pos2 = otra.AVector3()
+            
+            resultado = (pos1 - pos2).length()
+            Logger.LogDebug("CoordenadaGlobal: Distancia calculada: " + resultado.ToString())
+            return resultado
+        }, "CoordenadaGlobal.GetDistancia", false)
+    
+    function GetDistanciaManhattan(otra: CoordenadaGlobal): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Distancia Manhattan entre chunks
+            dx = abs(chunk_x - otra.chunk_x)
+            dz = abs(chunk_z - otra.chunk_z)
+            
+            resultado = dx + dz
+            Logger.LogDebug("CoordenadaGlobal: Distancia Manhattan calculada: " + resultado.ToString())
+            return resultado
+        }, "CoordenadaGlobal.GetDistanciaManhattan", false)
+    
+    # =============================================================================
+    # FUNCIONES DE VALIDACIÓN
+    # =============================================================================
+    
+    function EsValida(): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = local_x >= 0 and local_x <= 9 and local_z >= 0 and local_z <= 9
+            Logger.LogDebug("CoordenadaGlobal: Validación de coordenadas: " + resultado.ToString())
+            return resultado
+        }, "CoordenadaGlobal.EsValida", false)
+    
+    function EstaEnMismoChunk(otra: CoordenadaGlobal): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = chunk_x == otra.chunk_x and chunk_z == otra.chunk_z
+            Logger.LogDebug("CoordenadaGlobal: Verificación mismo chunk: " + resultado.ToString())
+            return resultado
+        }, "CoordenadaGlobal.EstaEnMismoChunk", false)
+    
+    function EsBordeChunk(): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = local_x == 0 or local_x == 9 or local_z == 0 or local_z == 9
+            Logger.LogDebug("CoordenadaGlobal: Verificación borde chunk: " + resultado.ToString())
+            return resultado
+        }, "CoordenadaGlobal.EsBordeChunk", false)
+    
+    function GetBorde(): BordeChunk
+        return ManejoErrores.EjecutarConManejo(() => {
+            if local_x == 0:
+                resultado = BordeChunk.OESTE
+            elif local_x == 9:
+                resultado = BordeChunk.ESTE
+            elif local_z == 0:
+                resultado = BordeChunk.SUR
+            elif local_z == 9:
+                resultado = BordeChunk.NORTE
+            else:
+                resultado = BordeChunk.NINGUNO
+            
+            Logger.LogDebug("CoordenadaGlobal: Borde detectado: " + resultado.ToString())
+            return resultado
+        }, "CoordenadaGlobal.GetBorde", false)
+
+# =============================================================================
+# CLASE: CoordenadaChunk
+# =============================================================================
+class CoordenadaChunk:
+    chunk_x: int
+    chunk_z: int
+    
+    function Constructor(chunk_x: int, chunk_z: int):
+        return ManejoErrores.EjecutarConManejo(() => {
+            self.chunk_x = chunk_x
+            self.chunk_z = chunk_z
+            
+            Logger.LogDebug("CoordenadaChunk: Coordenada creada: " + AClaveString())
+        }, "CoordenadaChunk.Constructor", false)
+    
+    function AClaveString(): String
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = chunk_x.ToString() + "_" + chunk_z.ToString()
+            Logger.LogDebug("CoordenadaChunk: Generada clave string: " + resultado)
+            return resultado
+        }, "CoordenadaChunk.AClaveString", false)
+    
+    function GetChunksAdyacentes(): List<CoordenadaChunk>
+        return ManejoErrores.EjecutarConManejo(() => {
+            adyacentes = new List()
+            
+            # 8 chunks adyacentes
+            for dx in -1..1:
+                for dz in -1..1:
+                    if dx != 0 or dz != 0:
+                        nueva_coord = new CoordenadaChunk(chunk_x + dx, chunk_z + dz)
+                        adyacentes.Add(nueva_coord)
+            
+            Logger.LogDebug("CoordenadaChunk: Obtenidos " + adyacentes.length() + " chunks adyacentes")
+            return adyacentes
+        }, "CoordenadaChunk.GetChunksAdyacentes", false)
+    
+    function GetDistancia(otra: CoordenadaChunk): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            dx = chunk_x - otra.chunk_x
+            dz = chunk_z - otra.chunk_z
+            
+            resultado = sqrt(dx*dx + dz*dz)
+            Logger.LogDebug("CoordenadaChunk: Distancia calculada: " + resultado.ToString())
+            return resultado
+        }, "CoordenadaChunk.GetDistancia", false)
+    
+    function GetDistanciaManhattan(otra: CoordenadaChunk): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            dx = abs(chunk_x - otra.chunk_x)
+            dz = abs(chunk_z - otra.chunk_z)
+            
+            resultado = dx + dz
+            Logger.LogDebug("CoordenadaChunk: Distancia Manhattan calculada: " + resultado.ToString())
+            return resultado
+        }, "CoordenadaChunk.GetDistanciaManhattan", false)
+
+# =============================================================================
+# CLASE: SistemaCoordenadas
+# =============================================================================
+class SistemaCoordenadas:
+    static chunk_size: float = 10.0
+    static altura_maxima: float = 1000.0
+    static altura_minima: float = -100.0
+    
+    # =============================================================================
+    # FUNCIONES DE CONVERSIÓN
+    # =============================================================================
+    
+    static function Vector3AGlobal(pos: Vector3): CoordenadaGlobal
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = new CoordenadaGlobal(pos)
+            Logger.LogDebug("SistemaCoordenadas: Vector3 a Global: " + pos.ToString() + " -> " + resultado.AClaveString())
+            return resultado
+        }, "SistemaCoordenadas.Vector3AGlobal", false)
+    
+    static function GlobalAVector3(coord: CoordenadaGlobal): Vector3
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = coord.AVector3()
+            Logger.LogDebug("SistemaCoordenadas: Global a Vector3: " + coord.AClaveString() + " -> " + resultado.ToString())
+            return resultado
+        }, "SistemaCoordenadas.GlobalAVector3", false)
+    
+    static function Vector3AChunk(pos: Vector3): CoordenadaChunk
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunk_x = floor(pos.x / chunk_size)
+            chunk_z = floor(pos.z / chunk_size)
+            resultado = new CoordenadaChunk(chunk_x, chunk_z)
+            Logger.LogDebug("SistemaCoordenadas: Vector3 a Chunk: " + pos.ToString() + " -> " + resultado.AClaveString())
+            return resultado
+        }, "SistemaCoordenadas.Vector3AChunk", false)
+    
+    static function ChunkAVector3(coord: CoordenadaChunk): Vector3
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = Vector3(coord.chunk_x * chunk_size, 0, coord.chunk_z * chunk_size)
+            Logger.LogDebug("SistemaCoordenadas: Chunk a Vector3: " + coord.AClaveString() + " -> " + resultado.ToString())
+            return resultado
+        }, "SistemaCoordenadas.ChunkAVector3", false)
+    
+    # =============================================================================
+    # FUNCIONES DE UTILIDAD
+    # =============================================================================
+    
+    static function GetChunksEnRadio(pos_centro: Vector3, radio: int): List<CoordenadaChunk>
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunks = new List()
+            centro_chunk = Vector3AChunk(pos_centro)
+            
+            # Calcular rango de chunks
+            rango_x = radio
+            rango_z = radio
+            
+            for x in centro_chunk.chunk_x - rango_x .. centro_chunk.chunk_x + rango_x:
+                for z in centro_chunk.chunk_z - rango_z .. centro_chunk.chunk_z + rango_z:
+                    chunk = new CoordenadaChunk(x, z)
+                    
+                    # Verificar si está dentro del radio
+                    if chunk.GetDistancia(centro_chunk) <= radio:
+                        chunks.Add(chunk)
+            
+            Logger.LogDebug("SistemaCoordenadas: Obtenidos " + chunks.length() + " chunks en radio " + radio.ToString())")
+            return chunks
+        }, "SistemaCoordenadas.GetChunksEnRadio", false)
+    
+    static function GetCoordenadasEnChunk(chunk: CoordenadaChunk): List<CoordenadaGlobal>
+        return ManejoErrores.EjecutarConManejo(() => {
+            coordenadas = new List()
+            
+            for x in 0..9:
+                for z in 0..9:
+                    coord = new CoordenadaGlobal(chunk.chunk_x, chunk.chunk_z, x, z, 0.0)
+                    coordenadas.Add(coord)
+            
+            Logger.LogDebug("SistemaCoordenadas: Obtenidas " + coordenadas.length() + " coordenadas en chunk " + chunk.AClaveString())")
+            return coordenadas
+        }, "SistemaCoordenadas.GetCoordenadasEnChunk", false)
+    
+    static function ValidarAltitud(altitud: float): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = altitud >= altura_minima and altitud <= altura_maxima
+            Logger.LogDebug("SistemaCoordenadas: Validación altitud " + altitud.ToString() + ": " + resultado.ToString())
+            return resultado
+        }, "SistemaCoordenadas.ValidarAltitud", false)
+    
+    static function NormalizarAltitud(altitud: float): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = clamp(altitud, altura_minima, altura_maxima)
+            Logger.LogDebug("SistemaCoordenadas: Altitud normalizada de " + altitud.ToString() + " a " + resultado.ToString())")
+            return resultado
+        }, "SistemaCoordenadas.NormalizarAltitud", false)
+    
+    # =============================================================================
+    # FUNCIONES DE HASHING
+    # =============================================================================
+    
+    static function HashCoordenada(coord: CoordenadaGlobal): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Hash simple para coordenadas globales
+            primo = 31
+            hash = 1
+            hash = hash * primo + coord.chunk_x
+            hash = hash * primo + coord.chunk_z
+            hash = hash * primo + coord.local_x
+            hash = hash * primo + coord.local_z
+            hash = hash * primo + floor(coord.altura)  # Incluir altura en hash
+            
+            Logger.LogDebug("SistemaCoordenadas: Hash generado para coordenada: " + coord.AClaveString() + " -> " + hash.ToString())
+            return hash
+        }, "SistemaCoordenadas.HashCoordenada", false)
+    
+    static function HashChunk(chunk: CoordenadaChunk): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Hash para coordenadas de chunk
+            primo = 31
+            hash = 1
+            hash = hash * primo + chunk.chunk_x
+            hash = hash * primo + chunk.chunk_z
+            
+            Logger.LogDebug("SistemaCoordenadas: Hash generado para chunk: " + chunk.AClaveString() + " -> " + hash.ToString())
+            return hash
+        }, "SistemaCoordenadas.HashChunk", false)
+
+# =============================================================================
+# ENUMS
+# =============================================================================
+
+class DireccionCoordenada:
+    static NORTE = 0
+    static SUR = 1
+    static ESTE = 2
+    static OESTE = 3
+    static ARRIBA = 4
+    static ABAJO = 5
+
+class BordeChunk:
+    static NINGUNO = 0
+    static NORTE = 1
+    static SUR = 2
+    static ESTE = 3
+    static OESTE = 4
+
+# =============================================================================
+# FUNCIONES ADICIONALES DE UTILIDAD
+# =============================================================================
+
+# Funciones para manejo de alturas por zona según memoria ALTURAS DEL TERRENO
+function ObtenerZonaAltitud(altura: float): String
+    return ManejoErrores.EjecutarConManejo(() => {
+        if altura < -50:
+            resultado = "AGUA_PROFUNDA"
+        elif altura < -20:
+            resultado = "AGUA_SOMERA"
+        elif altura < 0:
+            resultado = "AGUAS_POCO_PROFUNDAS"
+        elif altura < 5:
+            resultado = "PLAYAS_COSTAS"
+        elif altura < 50:
+            resultado = "LLANURAS_COLINAS_BAJAS"
+        elif altura < 200:
+            resultado = "COLINAS_ELEVADAS"
+        elif altura < 500:
+            resultado = "MONTAÑAS_BAJAS"
+        elif altura < 800:
+            resultado = "MONTAÑAS_MEDIAS"
+        else:
+            resultado = "MONTAÑAS_ALTAS"
+        
+        Logger.LogDebug("ObtenerZonaAltitud: Altura " + altura.ToString() + " -> " + resultado)
+        return resultado
+    }, "ObtenerZonaAltitud", false)
+
+function EsAltitudAcuatica(altura: float): bool
+    return ManejoErrores.EjecutarConManejo(() => {
+        resultado = altura < 0
+        Logger.LogDebug("EsAltitudAcuatica: Altura " + altura.ToString() + " -> " + resultado.ToString())
+        return resultado
+    }, "EsAltitudAcuatica", false)
+
+function EsAltitudMontañosa(altura: float): bool
+    return ManejoErrores.EjecutarConManejo(() => {
+        resultado = altura >= 200
+        Logger.LogDebug("EsAltitudMontañosa: Altura " + altura.ToString() + " -> " + resultado.ToString())
+        return resultado
+    }, "EsAltitudMontañosa", false)
+
+# =============================================================================
+# FUNCIONES GLOBALES DE ACCESO RÁPIDO
+# =============================================================================
+function Vector3AGlobal(pos: Vector3): CoordenadaGlobal
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaCoordenadas.Vector3AGlobal(pos)
+    }, "Vector3AGlobal", false)
+
+function GlobalAVector3(coord: CoordenadaGlobal): Vector3
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaCoordenadas.GlobalAVector3(coord)
+    }, "GlobalAVector3", false)
+
+function Vector3AChunk(pos: Vector3): CoordenadaChunk
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaCoordenadas.Vector3AChunk(pos)
+    }, "Vector3AChunk", false)
+
+function GetChunksEnRadio(pos_centro: Vector3, radio: int): List<CoordenadaChunk>
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaCoordenadas.GetChunksEnRadio(pos_centro, radio)
+    }, "GetChunksEnRadio", false)
+
+# =============================================================================
+# OPERADORES SOBRECARGADOS (Pseudo-código)
+# =============================================================================
+
+# CoordenadaGlobal + Vector3 = CoordenadaGlobal
+# CoordenadaGlobal - CoordenadaGlobal = Vector3
+# CoordenadaGlobal == CoordenadaGlobal = bool
+# CoordenadaGlobal != CoordenadaGlobal = bool

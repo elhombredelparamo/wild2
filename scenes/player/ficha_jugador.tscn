@@ -1,0 +1,31 @@
+[gd_scene load_steps=5 format=3 uid="uid://wild_player"]
+
+[ext_resource type="Script" path="res://scripts/Core/Player/JugadorController.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Core/Player/StatsJugador.cs" id="2_stats"]
+[ext_resource type="Script" path="res://scripts/Core/Player/InteraccionJugador.cs" id="3_interact"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
+radius = 0.4
+height = 1.8
+
+[node name="Player" type="CharacterBody3D"]
+script = ExtResource("1_controller")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_player")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+current = true
+
+[node name="StatsJugador" type="Node" parent="."]
+script = ExtResource("2_stats")
+
+[node name="InteraccionJugador" type="Node3D" parent="."]
+script = ExtResource("3_interact")
+
+[node name="RayCast3D" type="RayCast3D" parent="InteraccionJugador"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+target_position = Vector3(0, 0, -3)
+enabled = true

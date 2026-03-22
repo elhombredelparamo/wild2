@@ -1,0 +1,104 @@
+[gd_scene load_steps=3 format=3 uid="uid://wild_character_create_menu"]
+
+[ext_resource type="Script" path="res://scripts/ui/CharacterCreateMenu.cs" id="1_ccm"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.12, 0.14, 0.18, 0.95)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.38, 0.45, 1)
+
+[node name="CharacterCreateMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_ccm")
+visible = false
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.1, 0.1, 0.1, 0.9)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="Panel" parent="CenterContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(400, 280)
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="Title" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "Crear Personaje"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 24
+
+[node name="LabelName" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "Nombre del personaje:"
+
+[node name="EditName" type="LineEdit" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+placeholder_text = "Ingresa un nombre para tu personaje"
+
+[node name="LabelFeedback" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.8, 0.9, 1.0, 1)
+theme_override_font_sizes/font_size = 14
+
+[node name="LabelGender" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "Género:"
+
+[node name="OptionGender" type="OptionButton" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+item_count = 2
+selected = 0
+popup/item_0/text = "Hombre"
+popup/item_0/id = 0
+popup/item_1/text = "Mujer"
+popup/item_1/id = 1
+
+[node name="Buttons" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 20
+
+[node name="ButtonCancel" type="Button" parent="CenterContainer/Panel/MarginContainer/VBox/Buttons"]
+layout_mode = 2
+text = "Cancelar"
+
+[node name="ButtonCreate" type="Button" parent="CenterContainer/Panel/MarginContainer/VBox/Buttons"]
+layout_mode = 2
+text = "Crear"
+disabled = true

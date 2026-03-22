@@ -1,0 +1,1518 @@
+# =============================================================================
+# SISTEMA DE TERRENO
+# =============================================================================
+# Archivo: terreno.pseudo
+# Descripción: Generación procedural y gestión de chunks de terreno
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaTerreno (Singleton)
+# =============================================================================
+class SistemaTerreno:
+    # Propiedades principales
+    chunks_cargados: Dictionary<CoordenadaGlobal, Chunk>
+    chunks_activos: Dictionary<CoordenadaGlobal, Chunk>
+    generador: GeneradorTerreno
+    sistema_biomas: SistemaBiomas
+    sistema_colisiones: SistemaColisionesTerreno
+    # seed_mundo eliminada - ahora usa SessionData.Instance.seed_mundo
+    radio_carga: int = 5  # chunks alrededor del jugador
+    radio_render: int = 3  # chunks visibles
+    
+    # Métricas de rendimiento
+    chunks_generados: int = 0
+    chunks_cargados_count: int = 0
+    chunks_activos_count: int = 0
+    tiempo_generacion_total: float = 0.0
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema
+    function Inicializar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            _InicializarInterno()
+            Logger.LogInfo("SistemaTerreno: Sistema inicializado")
+            return true
+        }, "SistemaTerreno.Inicializar", true)
+    
+    # Inicialización interna
+    function _InicializarInterno():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Usar SessionData.Instance.seed_mundo
+            
+            chunks_cargados = new Dictionary()
+            chunks_activos = new Dictionary()
+            generador = new GeneradorTerreno(SessionData.Instance.seed_mundo)
+            sistema_biomas = new SistemaBiomas()  # Inyectado directamente
+            sistema_biomas.Inicializar(SessionData.Instance.seed_mundo)
+            sistema_colisiones = new SistemaColisionesTerreno(SessionData.Instance.seed_mundo)
+            
+            Logger.LogInfo("SistemaTerreno: Inicializado con seed " + SessionData.Instance.seed_mundo.ToString())
+            return true
+        }, "SistemaTerreno._InicializarInterno", false)
+    
+    # Actualización continua
+    function ActualizarChunks(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Obtener posición del jugador
+            pos_jugador = GetPosicionJugador()
+            if pos_jugador == null:
+                Logger.LogWarning("SistemaTerreno: Posición de jugador nula")
+                return EstadoSeguroTerreno.ObtenerValorPorDefecto("actualizar_chunks_fallido")
+            
+            # Validar posición (rango de alturas -100 a 1000)
+            if pos_jugador.y < -100 or pos_jugador.y > 1000:
+                Logger.LogWarning("SistemaTerreno: Posición de jugador fuera de rango")
+                pos_jugador.y = clamp(pos_jugador.y, -100, 1000)
+            
+            coord_central = ConvertirACoordenadaGlobal(pos_jugador)
+            
+            # Determinar chunks necesarios
+            chunks_necesarios = CalcularChunksNecesarios(coord_central)
+            
+            # Cargar nuevos chunks
+            for coord in chunks_necesarios:
+                if not chunks_cargados.ContainsKey(coord):
+                    CargarChunk(coord)
+            
+            # Activar/desactivar chunks para render
+            ActualizarChunksActivos(coord_central)
+            
+            # Descargar chunks lejanos
+            DescargarChunksLejanos(coord_central)
+            
+            # Actualizar métricas
+            ActualizarMetricas()
+            return true
+        }, "SistemaTerreno.ActualizarChunks", false)
+    
+    # Cargar un chunk específico
+    function CargarChunk(coord: CoordenadaGlobal):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Validar coordenada
+            if coord == null:
+                Logger.LogError("SistemaTerreno: Coordenada nula en CargarChunk")
+                return EstadoSeguroTerreno.ObtenerValorPorDefecto("cargar_chunk_fallido")
+            
+            # Generar datos del chunk
+            inicio_generacion = Time.GetTicksMsec()
+            datos_chunk = generador.GenerarChunk(coord)
+            fin_generacion = Time.GetTicksMsec()
+            tiempo_generacion_total += (fin_generacion - inicio_generacion) / 1000.0
+            
+            # Aplicar bioma
+            if sistema_biomas != null:
+                bioma = sistema_biomas.ObtenerBioma(coord)
+                if bioma != null:
+                    datos_chunk = bioma.ModificarChunk(datos_chunk)
+            
+            # Generar colisiones 3D
+            datos_chunk = sistema_colisiones.GenerarColisionesChunk(datos_chunk, coord)
+            
+            # Crear objeto chunk
+            chunk = new Chunk(coord, datos_chunk)
+            
+            # Almacenar
+            chunks_cargados[coord] = chunk
+            chunks_cargados_count++
+            chunks_generados++
+            
+            Logger.LogDebug("SistemaTerreno: Chunk cargado - " + coord.ToString())
+            return true
+        }, "SistemaTerreno.CargarChunk", false)
+    
+    # Actualizar chunks activos para render
+    function ActualizarChunksActivos(coord_central: CoordenadaGlobal):
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunks_para_render = CalcularChunksEnRadio(coord_central, radio_render)
+            
+            # Activar chunks necesarios
+            for coord in chunks_para_render:
+                if chunks_cargados.ContainsKey(coord):
+                    chunk = chunks_cargados[coord]
+                    chunk.Activar()
+                    chunks_activos[coord] = chunk
+            
+            # Desactivar chunks no necesarios
+            for coord, chunk in chunks_activos:
+                if coord not in chunks_para_render:
+                    chunk.Desactivar()
+                    chunks_activos.Remove(coord)
+            
+            # Actualizar contador
+            chunks_activos_count = chunks_activos.length()
+            
+            Logger.LogDebug("SistemaTerreno: Chunks activos: " + chunks_activos_count.ToString())
+            return true
+        }, "SistemaTerreno.ActualizarChunksActivos", false)
+    
+    # Descargar chunks lejanos
+    function DescargarChunksLejanos(coord_central: CoordenadaGlobal):
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunks_mantener = CalcularChunksEnRadio(coord_central, radio_carga * 2)
+            
+            coords_descargar = new List<CoordenadaGlobal>()
+            for coord in chunks_cargados.Keys:
+                if coord not in chunks_mantener:
+                    coords_descargar.Add(coord)
+            
+            # Descargar en orden inverso para evitar problemas de iteración
+            for coord in coords_descargar:
+                chunk = chunks_cargados[coord]
+                
+                # Remover colisiones 3D del mundo
+                if chunk != null and chunk.datos != null and chunk.datos.cuerpo_colision != null:
+                    sistema_colisiones.RemoverColisionChunk(chunk.datos.cuerpo_colision)
+                
+                chunk.Descargar()
+                chunks_cargados.Remove(coord)
+                chunks_cargados_count--
+            
+            Logger.LogDebug("SistemaTerreno: Chunks descargados: " + coords_descargar.length().ToString())
+            return true
+        }, "SistemaTerreno.DescargarChunksLejanos", false)
+    
+    # Guardar estado
+    function GuardarChunks():
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunks_guardados = 0
+            for coord, chunk in chunks_cargados:
+                if chunk != null and chunk.modificado:
+                    GuardarChunkEnDisco(coord, chunk)
+                    chunks_guardados++
+            
+            Logger.LogInfo("SistemaTerreno: Chunks guardados: " + chunks_guardados.ToString())
+            return true
+        }, "SistemaTerreno.GuardarChunks", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroTerreno
+# =============================================================================
+class EstadoSeguroTerreno:
+    static valores_por_defecto: Dictionary<string, object>
+    
+    static function Inicializar():
+        valores_por_defecto = new Dictionary()
+        # Valores seguros para cada sistema
+        valores_por_defecto["chunks_generados"] = 0
+        valores_por_defecto["chunks_cargados"] = 0
+        valores_por_defecto["chunks_activos"] = 0
+        valores_por_defecto["tiempo_generacion_total"] = 0.0
+        valores_por_defecto["radio_carga"] = 5
+        valores_por_defecto["radio_render"] = 3
+        valores_por_defecto["chunk_nulo"] = null
+        valores_por_defecto["datos_chunk_nulo"] = null
+        valores_por_defecto["coordenada_nula"] = null
+        valores_por_defecto["posicion_nula"] = Vector3.ZERO
+        valores_por_defecto["estadisticas_vacias"] = null
+        valores_por_defecto["actualizar_chunks_fallido"] = false
+        valores_por_defecto["cargar_chunk_fallido"] = false
+        valores_por_defecto["actualizar_activos_fallido"] = false
+        valores_por_defecto["descargar_chunks_fallido"] = false
+        valores_por_defecto["guardar_chunks_fallido"] = false
+        valores_por_defecto["calcular_chunks_fallido"] = null
+        valores_por_defecto["calcular_radio_fallido"] = null
+        valores_por_defecto["convertir_coordenada_fallida"] = null
+        valores_por_defecto["obtener_posicion_fallida"] = null
+        valores_por_defecto["guardar_chunk_fallido"] = false
+        valores_por_defecto["serializar_datos_fallido"] = null
+        valores_por_defecto["actualizar_metricas_fallido"] = false
+        valores_por_defecto["obtener_estadisticas_fallidas"] = null
+        valores_por_defecto["chunks_generados_fallido"] = 0
+        valores_por_defecto["chunks_cargados_fallido"] = 0
+        valores_por_defecto["chunks_activos_fallido"] = 0
+        valores_por_defecto["tiempo_generacion_fallido"] = 0.0
+        valores_por_defecto["set_seed_fallido"] = false
+        valores_por_defecto["get_seed_fallido"] = 0
+    
+    static function ObtenerValorPorDefecto(contexto: string): object
+        if valores_por_defecto.ContainsKey(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroTerreno: Sin valor por defecto para: " + contexto)
+            return null  # Fallback seguro
+
+# =============================================================================
+# FUNCIONES AUXILIARES
+# =============================================================================
+    
+    function CalcularChunksNecesarios(coord_central: CoordenadaGlobal): List<CoordenadaGlobal>
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunks = new List<CoordenadaGlobal>()
+            
+            for x in coord_central.chunk_x - radio_carga to coord_central.chunk_x + radio_carga:
+                for z in coord_central.chunk_z - radio_carga to coord_central.chunk_z + radio_carga:
+                    coord = new CoordenadaGlobal(x, z)
+                    if not chunks_cargados.ContainsKey(coord):
+                        chunks.Add(coord)
+            
+            return chunks
+        }, "SistemaTerreno.CalcularChunksNecesarios", false)
+    
+    function CalcularChunksEnRadio(coord_central: CoordenadaGlobal, radio: int): List<CoordenadaGlobal>
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunks = new List<CoordenadaGlobal>()
+            
+            for x in coord_central.chunk_x - radio to coord_central.chunk_x + radio:
+                for z in coord_central.chunk_z - radio to coord_central.chunk_z + radio:
+                    chunks.Add(new CoordenadaGlobal(x, z))
+            
+            return chunks
+        }, "SistemaTerreno.CalcularChunksEnRadio", false)
+    
+    function ConvertirACoordenadaGlobal(posicion: Vector3): CoordenadaGlobal
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Validar posición
+            if posicion == null:
+                Logger.LogWarning("SistemaTerreno: Posición nula en ConvertirACoordenadaGlobal")
+                return EstadoSeguroTerreno.ObtenerValorPorDefecto("coordenada_nula")
+            
+            # Validar rango de alturas (-100 a 1000)
+            if posicion.y < -100 or posicion.y > 1000:
+                Logger.LogWarning("SistemaTerreno: Posición fuera de rango en conversión")
+                posicion.y = clamp(posicion.y, -100, 1000)
+            
+            # Usar SessionData.Instance.seed_mundo para consistencia
+            x_chunk = floor(posicion.x / 10.0)
+            z_chunk = floor(posicion.z / 10.0)
+            
+            return new CoordenadaGlobal(x_chunk, z_chunk)
+        }, "SistemaTerreno.ConvertirACoordenadaGlobal", false)
+    
+    function GetPosicionJugador(): Vector3
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Obtener posición del jugador local
+            if GameManager.instance != null:
+                jugador = GameManager.instance.sistema_jugador.GetJugadorLocal()
+                if jugador != null:
+                    return jugador.posicion
+            else:
+                Logger.LogWarning("SistemaTerreno: Jugador local nulo")
+                return EstadoSeguroTerreno.ObtenerValorPorDefecto("posicion_nula")
+            return EstadoSeguroTerreno.ObtenerValorPorDefecto("posicion_nula")
+        }, "SistemaTerreno.GetPosicionJugador", false)
+    
+    function GuardarChunkEnDisco(coord: CoordenadaGlobal, chunk: Chunk):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Validar chunk
+            if chunk == null or chunk.datos == null:
+                Logger.LogError("SistemaTerreno: Chunk nulo en GuardarChunkEnDisco")
+                return EstadoSeguroTerreno.ObtenerValorPorDefecto("guardar_chunk_fallido")
+            
+            # Generar ruta del archivo
+            ruta = "chunks/" + coord.chunk_x.ToString() + "_" + coord.chunk_z.ToString() + ".dat"
+            
+            # Guardar datos en formato binario .dat
+            archivo = FileAccess.Open(ruta, FileAccess.ModeFlags.WRITE)
+            if archivo != null:
+                # Serializar datos del chunk
+                datos_serializados = SerializarDatosChunk(chunk.datos)
+                archivo.StoreBuffer(datos_serializados)
+                archivo.Close()
+                
+                chunk.modificado = false
+                Logger.LogDebug("SistemaTerreno: Chunk guardado en disco - " + coord.ToString())
+            else:
+                Logger.LogError("SistemaTerreno: No se pudo abrir archivo para guardar chunk")
+            return true
+        }, "SistemaTerreno.GuardarChunkEnDisco", false)
+    
+    function SerializarDatosChunk(datos: DatosChunk): PackedByteArray
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Implementar serialización binaria
+            # (Aquí iría la implementación real)
+            return EstadoSeguroTerreno.ObtenerValorPorDefecto("serializar_datos_fallido")
+        }, "SistemaTerreno.SerializarDatosChunk", false)
+    
+    # =============================================================================
+    # FUNCIONES DE MÉTRICAS
+    # =============================================================================
+    
+    function ActualizarMetricas():
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunks_activos_count = chunks_activos.length()
+            chunks_cargados_count = chunks_cargados.length()
+            return true
+        }, "SistemaTerreno.ActualizarMetricas", false)
+    
+    function ObtenerEstadisticas(): Dictionary<string, object>
+        return ManejoErrores.EjecutarConManejo(() => {
+            stats = new Dictionary()
+            stats["chunks_generados"] = chunks_generados
+            stats["chunks_cargados"] = chunks_cargados_count
+            stats["chunks_activos"] = chunks_activos_count
+            stats["tiempo_generacion_total"] = tiempo_generacion_total
+            stats["radio_carga"] = radio_carga
+            stats["radio_render"] = radio_render
+            stats["seed_mundo"] = SessionData.Instance.seed_mundo
+            return stats
+        }, "SistemaTerreno.ObtenerEstadisticas", false)
+    
+    function GetChunksGenerados(): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            return chunks_generados
+        }, "SistemaTerreno.GetChunksGenerados", false)
+    
+    function GetChunksCargados(): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            return chunks_cargados_count
+        }, "SistemaTerreno.GetChunksCargados", false)
+    
+    function GetChunksActivos(): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            return chunks_activos_count
+        }, "SistemaTerreno.GetChunksActivos", false)
+    
+    function GetTiempoGeneracionTotal(): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            return tiempo_generacion_total
+        }, "SistemaTerreno.GetTiempoGeneracionTotal", false)
+    
+    function SetSeed(seed: int):
+        return ManejoErrores.EjecutarConManejo(() => {
+            SessionData.Instance.seed_mundo = seed
+            if generador != null:
+                generador.SetSeed(seed)
+            if sistema_colisiones != null:
+                sistema_colisiones.SetSeed(seed)
+            Logger.LogInfo("SistemaTerreno: Seed configurada: " + SessionData.Instance.seed_mundo.ToString())
+            return true
+        }, "SistemaTerreno.SetSeed", false)
+    
+    function GetSeed(): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            return SessionData.Instance.seed_mundo
+        }, "SistemaTerreno.GetSeed", false)
+
+# =============================================================================
+# CLASE: Chunk (Mejorada)
+# =============================================================================
+class Chunk:
+    coordenada: CoordenadaGlobal
+    datos: DatosChunk
+    malla: Mesh
+    activo: bool = false
+    modificado: bool = false
+    seed_mundo: int
+    
+    function Constructor(coord: CoordenadaGlobal, datos: DatosChunk, seed: int = 0):
+        try:
+            self.coordenada = coord
+            self.datos = datos
+            self.seed_mundo = seed
+            malla = null
+            activo = false
+            modificado = false
+        catch error as Exception:
+            Logger.LogError("Chunk: Error en constructor: " + error.Message)
+    
+    function Activar():
+        try:
+            if not activo:
+                CrearMalla()
+                activo = true
+                Logger.LogDebug("Chunk: Activado - " + coordenada.ToString())
+        catch error as Exception:
+            Logger.LogError("Chunk: Error activando chunk: " + error.Message)
+    
+    function Desactivar():
+        try:
+            if activo:
+                DestruirMalla()
+                activo = false
+                Logger.LogDebug("Chunk: Desactivado - " + coordenada.ToString())
+        catch error as Exception:
+            Logger.LogError("Chunk: Error desactivando chunk: " + error.Message)
+    
+    function Descargar():
+        try:
+            Desactivar()
+            LiberarDatos()
+            Logger.LogDebug("Chunk: Descargado - " + coordenada.ToString())
+        catch error as Exception:
+            Logger.LogError("Chunk: Error descargando chunk: " + error.Message)
+    
+    function CrearMalla():
+        try:
+            # Validar datos
+            if datos == null:
+                Logger.LogError("Chunk: Datos nulos en CrearMalla")
+                return
+            
+            # Crear malla desde datos de altura
+            malla = new Mesh()
+            malla = GenerarMallaDesdeAlturas(datos.altitudes)
+            
+            # Aplicar seed para consistencia
+            if seed_mundo > 0:
+                malla.SetSeed(seed_mundo)
+            
+            Logger.LogDebug("Chunk: Malla creada para " + coordenada.ToString())
+        catch error as Exception:
+            Logger.LogError("Chunk: Error creando malla: " + error.Message)
+    
+    function DestruirMalla():
+        try:
+            if malla != null:
+                malla.Free()
+                malla = null
+        catch error as Exception:
+            Logger.LogError("Chunk: Error destruyendo malla: " + error.Message)
+    
+    function LiberarDatos():
+        try:
+            if datos != null:
+                datos.Liberar()
+                datos = null
+        catch error as Exception:
+            Logger.LogError("Chunk: Error liberando datos: " + error.Message)
+    
+    function GenerarMallaDesdeAlturas(alturas: float[10, 10]): Mesh
+        try:
+            # Crear malla procedural desde alturas
+            malla = new Mesh()
+            
+            # Generar vértices y triángulos
+            vertices = new List()
+            indices = new List()
+            
+            for x in range(0, 10):
+                for z in range(0, 10):
+                    # Obtener 4 vértices del cuadrado
+                    v1 = Vector3(x * 10, altitudes[x, z], z * 10)
+                    v2 = Vector3((x + 1) * 10, altitudes[x + 1, z] * 10, z * 10)
+                    v3 = Vector3((x + 1) * 10, altitudes[x + 1, z + 1] * 10, (z + 1) * 10)
+                    v4 = Vector3(x * 10, altitudes[x, z + 1] * 10, (z + 1) * 10)
+                    
+                    # Agregar dos triángulos para el cuadrado
+                    vertices.Add(v1)
+                    vertices.Add(v2)
+            
+                    vertices.Add(v1)
+                    vertices.Add(v3)
+                    vertices.Add(v4)
+                    
+                    # Agregar índices
+                    base = x * 9 + z * 9
+                    indices.Add(base)
+                    indices.Add(base + 1)
+                    indices.Add(base + 2)
+                    indices.Add(base + 3)
+            
+            # Configurar malla
+            malla.vertices = vertices
+            malla.indices = indices
+            
+            return malla
+        catch error as Exception:
+            Logger.LogError("Chunk: Error generando malla: " + error.Message)
+            return null
+    
+    function Modificar():
+        try:
+            modificado = true
+            Logger.LogDebug("Chunk: Modificado - " + coordenada.ToString())
+        catch error as Exception:
+            Logger.LogError("Chunk: Error modificando chunk: " + error.Message)
+    
+    function SetSeed(seed: int):
+        try:
+            seed_mundo = seed
+            if malla != null:
+                malla.SetSeed(seed)
+            Logger.LogInfo("Chunk: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("Chunk: Error configurando seed: " + error.Message)
+    
+    function GetCoordenada(): CoordenadaGlobal
+        try:
+            return coordenada
+        catch error as Exception:
+            Logger.LogError("Chunk: Error obteniendo coordenada: " + error.Message)
+            return new CoordenadaGlobal(0, 0)
+    
+    function GetDatos(): DatosChunk
+        try:
+            return datos
+        catch error as Exception:
+            Logger.LogError("Chunk: Error obteniendo datos: " + error.Message)
+            return null
+    
+    function EstaActivo(): bool
+        try:
+            return activo
+        catch error as Exception:
+            Logger.LogError("Chunk: Error verificando estado activo: " + error.Message)
+            return false
+    
+    function EstaModificado(): bool
+        try:
+            return modificado
+        catch error as Exception:
+            Logger.LogError("Chunk: Error verificando estado modificado: " + error.Message)
+            return false
+
+    function GetMesh(): Mesh
+        try:
+            return malla
+        catch error as Exception:
+            Logger.LogError("Chunk: Error obteniendo malla: " + error.Message)
+            return null
+
+# =============================================================================
+# CLASE: GeneradorTerreno (Mejorada)
+# =============================================================================
+class GeneradorTerreno:
+    # Constantes de altura
+    static ALTURA_MINIMA = -100.0  # Nivel del mar (-100 metros)
+    static ALTURA_MAXIMA = 1000.0  # Montañas extremas (1000 metros)
+    static NIVEL_MAR = 0.0       # Nivel del mar (0 metros)
+    
+    # Propiedades
+    seed_mundo: int
+    generador_ruido: NoiseGenerator
+    
+    function Constructor(seed: int = 0):
+        try:
+            seed_mundo = seed
+            generador_ruido = new NoiseGenerator(seed)
+            Logger.LogInfo("GeneradorTerreno: Inicializado con seed " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error en constructor: " + error.Message)
+    
+    function GenerarChunk(coord: CoordenadaGlobal): DatosChunk
+        try:
+            # Validar coordenada
+            if coord == null:
+                Logger.LogError("GeneradorTerreno: Coordenada nula en GenerarChunk")
+                return new DatosChunk()
+            
+            datos = new DatosChunk()
+            
+            # Generar alturas base
+            for x in range(0, 10):
+                for z in range(0, 10):
+                    altura = GenerarAltura(coord, x, z)
+                    datos.altitudes[x, z] = clamp(altura, ALTURA_MINIMA, ALTURA_MAXIMA)
+            
+            # Determinar tipo de terreno según altura
+            datos = DeterminarTipoTerreno(datos)
+            
+            # Generar vegetación
+            datos = GenerarVegetacion(datos)
+            
+            # Generar recursos
+            datos = GenerarRecursos(datos)
+            
+            datos.modificado = true
+            
+            Logger.LogDebug("GeneradorTerreno: Chunk generado - " + coord.ToString())
+            return datos
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error generando chunk: " + error.Message)
+            return new DatosChunk()
+    
+    function GenerarAltura(coord: CoordenadaGlobal, local_x: int, local_z: int): float
+        try:
+            # Calcular coordenada global del punto
+            x_global = coord.chunk_x * 10 + local_x
+            z_global = coord.chunk_z * 10 + local_z
+            
+            # Validar coordenadas
+            if x_global < -100000 or x_global > 100000 or z_global < -100000 or z_global > 100000:
+                Logger.LogWarning("GeneradorTerreno: Coordenadas fuera de rango")
+                return 0.0
+            
+            # Generar ruido base para地形 usando seed
+            ruido_1 = generador_ruido.Perlin(x_global * 0.01, z_global * 0.01, 0.5)
+            ruido_2 = generador_ruido.Perlin(x_global * 0.02, z_global * 0.02, 1.0)
+            ruido_3 = generador_ruido.Perlin(x_global * 0.005, z_global * 0.005, 2.0)
+            
+            # Combinar ruidos para variación natural
+            altura_base = ruido_1 * 50.0 + ruido_2 * 25.0 + ruido_3 * 10.0
+            
+            # Ajustar para rango -100 a 1000 metros
+            altura_normalizada = (altura_base + 1.0) * 0.5  # Normalizar a 0-1
+            altura_final = altura_normalizada * 1100.0 - 100.0  # Escalar a -100 a 1000
+            
+            return altura_final
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error generando altura: " + error.Message)
+            return 0.0
+    
+    function DeterminarTipoTerreno(datos: DatosChunk): DatosChunk
+        try:
+            # Validar datos
+            if datos == null:
+                Logger.LogError("GeneradorTerreno: Datos nulos en DeterminarTipoTerreno")
+                return new DatosChunk()
+            
+            for x in range(0, 10):
+                for z in range(0, 10):
+                    altura = datos.altitudes[x, z]
+                    datos.tipo_terreno[x, z] = ClasificarTerrenoPorAltura(altura)
+            
+            return datos
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error determinando tipo terreno: " + error.Message)
+            return datos != null ? datos : new DatosChunk()
+    
+    function ClasificarTerrenoPorAltura(altura: float): int
+        try:
+            # Validar altura
+            if altura < ALTURA_MINIMA:
+                return TipoTerreno.AGUA_PROFUNDA
+            elif altura > ALTURA_MAXIMA:
+                return TipoTerreno.MONTAÑA_ALTA
+            
+            if altura < -50:      # Profundo (-100 a -50 metros)
+                return TipoTerreno.AGUA_PROFUNDA
+            elif altura < -20:    # Agua somera (-50 a -20 metros)
+                return TipoTerreno.AGUA
+            elif altura < 0:       # Aguas poco profundas (-20 a 0 metros)
+                return TipoTerreno.AGUA_POCO_PROFUND
+            elif altura < 5:        # Playas y costas (0 a 5 metros)
+                return TipoTerreno.ARENA
+            elif altura < 50:       # Llanuras y colinas bajas (5 a 50 metros)
+                return TipoTerreno.TIERRA_BAJA
+            elif altura < 200:      # Colinas y terrenos elevados (50 a 200 metros)
+                return TipoTerreno.COLINA
+            elif altura < 500:      # Montañas bajas (200 a 500 metros)
+                return TipoTerreno.MONTAÑA_BAJA
+            elif altura < 800:      # Montañas medias (500 a 800 metros)
+                return TipoTerreno.MONTAÑA_MEDIA
+            else:                 # Montañas altas y extremas (800 a 1000 metros)
+                return TipoTerreno.MONTAÑA_ALTA
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error clasificando terreno: " + error.Message)
+            return TipoTerreno.TIERRA_BAJA  # Fallback
+    
+    function GenerarVegetacion(datos: DatosChunk): DatosChunk
+        try:
+            # Validar datos
+            if datos == null:
+                Logger.LogError("GeneradorTerreno: Datos nulos en GenerarVegetacion")
+                return new DatosChunk()
+            
+            # Usar seed para consistencia en generación
+            rand_seed = seed_mundo + datos.GetHashCode()
+            
+            for x in range(0, 10):
+                for z in range(0, 10):
+                    altura = datos.altitudes[x, z]
+                    tipo = datos.tipo_terreno[x, z]
+                    
+                    # Generar vegetación según tipo de terreno
+                    if tipo == TipoTerreno.AGUA_POCO_PROFUND:
+                        # Algas marinas en aguas poco profundas
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.1:  # 10% probabilidad
+                            alga = new AlgaMarina(x, z)
+                            datos.vegetacion.Add(alga)
+                    
+                    elif tipo == TipoTerreno.ARENA:
+                        # Hierba en playas
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.3:  # 30% probabilidad
+                            hierba = new HierbaCostera(x, z)
+                            datos.vegetacion.Add(hierba)
+                    
+                    elif tipo == TipoTerreno.TIERRA_BAJA:
+                        # Hierba y arbustos pequeños
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.2:  # 20% probabilidad
+                            hierba = new Hierba(x, z)
+                            datos.vegetacion.Add(hierba)
+                        elif RandomSeed(rand_seed + x * 10 + z) < 0.05:  # 5% probabilidad
+                            arbusto = new ArbustoPequeño(x, z)
+                            datos.vegetacion.Add(arbusto)
+                    
+                    elif tipo == TipoTerreno.COLINA:
+                        # Arbustos y árboles pequeños
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.3:  # 30% probabilidad
+                            arbusto = new Arbusto(x, z)
+                            datos.vegetacion.Add(arbusto)
+                        elif RandomSeed(rand_seed + x * 10 + z) < 0.1:  # 10% probabilidad
+                            arbol_pequeño = new ArbolPequeño(x, z)
+                            datos.vegetacion.Add(arbol_pequeño)
+                    
+                    elif tipo == TipoTerreno.MONTAÑA_BAJA:
+                        # Árboles medianos
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.4:  # 40% probabilidad
+                            arbol = new ArbolMediano(x, z)
+                            datos.vegetacion.Add(arbol)
+                    
+                    elif tipo == TipoTerreno.MONTAÑA_MEDIA:
+                        # Árboles grandes
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.5:  # 50% probabilidad
+                            arbol = new ArbolGrande(x, z)
+                            datos.vegetation.Add(arbol)
+                    
+                    elif tipo == TipoTerreno.MONTAÑA_ALTA:
+                        # Pocos árboles en altitudes extremas
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.1:  # 10% probabilidad
+                            arbol_resistente = new ArbolResistente(x, z)
+                            datos.vegetacion.Add(arbol_resistente)
+            
+            return datos
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error generando vegetación: " + error.Message)
+            return datos != null ? datos : new DatosChunk()
+    
+    function GenerarRecursos(datos: DatosChunk): DatosChunk
+        try:
+            # Validar datos
+            if datos == null:
+                Logger.LogError("GeneradorTerreno: Datos nulos en GenerarRecursos")
+                return new DatosChunk()
+            
+            # Usar seed para consistencia en generación
+            rand_seed = seed_mundo + datos.GetHashCode() * 2
+            
+            for x in range(0, 10):
+                for z in range(0, 10):
+                    altura = datos.altitudes[x, z]
+                    tipo = datos.tipo_terreno[x, z]
+                    
+                    # Generar recursos según tipo de terreno
+                    if tipo == TipoTerreno.MONTAÑA_BAJA or tipo == TipoTerreno.MONTANA_MEDIA or tipo == TipoTerreno.MONTAÑA_ALTA:
+                        # Minerales en montañas
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.1:  # 10% probabilidad
+                            mineral = GenerarMineralAleatorio()
+                            datos.recursos.Add(mineral)
+                    
+                    elif tipo == TipoTerreno.TIERRA_BAJA or tipo == TipoTerreno.COLINA:
+                        # Piedras y arcilla en terrenos bajos
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.15:  # 15% probabilidad
+                            piedra = new Piedra(x, z)
+                            datos.recursos.Add(piedra)
+                        elif RandomSeed(rand_seed + x * 10 + z) < 0.05:  # 5% probabilidad
+                            arcilla = new Arcilla(x, z)
+                            datos.recursos.Add(arcilla)
+                    
+                    elif tipo == TipoTerreno.ARENA:
+                        # Conchas en playas
+                        if RandomSeed(rand_seed + x * 10 + z) < 0.2:  # 20% probabilidad
+                            concha = new Concha(x, z)
+                            datos.recursos.Add(concha)
+            
+            return datos
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error generando recursos: " + error.Message)
+            return datos != null ? datos : new DatosChunk()
+    
+    function GenerarMineralAleatorio(): ElementoRecurso
+        try:
+            tipos_minerales = [TipoRecurso.HIERRO, TipoRecurso.COBRE, TipoRecurso.ORO, TipoRecurso.PLATA]
+            tipo = tipos_minerales[RandomSeed(seed_mundo) % tipos_minerales.length()]
+            
+            return new ElementoRecurso(tipo)
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error generando mineral aleatorio: " + error.Message)
+            return new ElementoRecurso(TipoRecurso.HIERRO)  # Fallback
+    
+    function RandomSeed(seed: int): float
+        try:
+            # Generador de números aleatorios con seed
+            return float((seed * 1103515245 + 12345) & 0x7fffffff) / 2147483647.0
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error generando random: " + error.Message)
+            return 0.5  # Fallback
+    
+    function SetSeed(seed: int):
+        try:
+            seed_mundo = seed
+            if generador_ruido != null:
+                generador_ruido.SetSeed(seed)
+            Logger.LogInfo("GeneradorTerreno: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error configurando seed: " + error.Message)
+    
+    function GetSeed(): int
+        try:
+            return seed_mundo
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error obteniendo seed: " + error.Message)
+            return 0
+    
+    function clamp(valor: float, minimo: float, maximo: float): float
+        try:
+            if valor < minimo:
+                return minimo
+            elif valor > maximo:
+                return maximo
+            else:
+                return valor
+        catch error as Exception:
+            Logger.LogError("GeneradorTerreno: Error en clamp: " + error.Message)
+            return 0.0
+
+# =============================================================================
+# CLASES DE ENTIDADES (Mejoradas)
+# =============================================================================
+class ElementoVegetacion:
+    posicion: Vector3
+    tipo: string
+    seed_mundo: int
+    
+    function Constructor(pos: Vector3, tipo_veg: string, seed: int = 0):
+        try:
+            posicion = pos
+            tipo = tipo_veg
+            seed_mundo = seed
+            
+            # Validar posición (rango de alturas -100 a 1000)
+            if posicion.y < -100 or posicion.y > 1000:
+                Logger.LogWarning("ElementoVegetacion: Posición fuera de rango")
+                posicion.y = clamp(posicion.y, -100, 1000)
+        catch error as Exception:
+            Logger.LogError("ElementoVegetacion: Error en constructor: " + error.Message)
+
+class ElementoRecurso:
+    posicion: Vector3
+    tipo: TipoRecurso
+    seed_mundo: int
+    
+    function Constructor(pos: Vector3, tipo_rec: TipoRecurso, seed: int = 0):
+        try:
+            posicion = pos
+            tipo = tipo_rec
+            seed_mundo = seed
+            
+            # Validar posición
+            if posicion.y < -100 or posicion.y > 1000:
+                Logger.LogWarning("ElementoRecurso: Posición fuera de rango")
+                posicion.y = clamp(posicion.y, -100, 1000)
+        catch error as Exception:
+            Logger.LogError("ElementoRecurso: Error en constructor: " + error.Message)
+
+# Clases específicas de vegetación
+class AlgaMarina extends ElementoVegetacion:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, -25, z * 10)  # Bajo el agua
+            super.Constructor(pos, "alga_marina", seed)
+        catch error as Exception:
+            Logger.LogError("AlgaMarina: Error en constructor: " + error.Message)
+
+class HierbaCostera extends ElementoVegetacion:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 2, z * 10)  # Cerca del nivel del mar
+            super.Constructor(pos, "hierba_costera", seed)
+        catch error as Exception:
+            Logger.LogError("HierbaCostera: Error en constructor: " + error.Message)
+
+class Hierba extends ElementoVegetacion:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 10, z * 10)  # Llanuras bajas
+            super.Constructor(pos, "hierba", seed)
+        catch error as Exception:
+            Logger.LogError("Hierba: Error en constructor: " + error.Message)
+
+class ArbustoPequeño extends ElementoVegetacion:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 15, z * 10)  # Llanuras bajas
+            super.Constructor(pos, "arbusto_pequeño", seed)
+        catch error as Exception:
+            Logger.LogError("ArbustoPequeño: Error en constructor: " + error.Message)
+
+class Arbusto extends ElementoVegetacion:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 30, z * 10)  # Colinas
+            super.Constructor(pos, "arbusto", seed)
+        catch error as Exception:
+            Logger.LogError("Arbusto: Error en constructor: " + error.Message)
+
+class ArbolPequeño extends ElementoVegetacion:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 35, z * 10)  # Colinas
+            super.Constructor(pos, "arbol_pequeño", seed)
+        catch error as Exception:
+            Logger.LogError("ArbolPequeño: Error en constructor: " + error.Message)
+
+class ArbolMediano extends ElementoVegetacion:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 100, z * 10)  # Montañas bajas
+            super.Constructor(pos, "arbol_mediano", seed)
+        catch error as Exception:
+            Logger.LogError("ArbolMediano: Error en constructor: " + error.Message)
+
+class ArbolGrande extends ElementoVegetacion:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 150, z * 10)  # Montañas medias
+            super.Constructor(pos, "arbol_grande", seed)
+        catch error as Exception:
+            Logger.LogError("ArbolGrande: Error en constructor: " + error.Message)
+
+class ArbolResistente extends ElementoVegetacion:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 200, z * 10)  # Montañas altas
+            super.Constructor(pos, "arbol_resistente", seed)
+        catch error as Exception:
+            Logger.LogError("ArbolResistente: Error en constructor: " + error.Message)
+
+# Clases específicas de recursos
+class Piedra extends ElementoRecurso:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 25, z * 10)  # Terrenos bajos
+            super.Constructor(pos, TipoRecurso.PIEDRA, seed)
+        catch error as Exception:
+            Logger.LogError("Piedra: Error en constructor: " + error.Message)
+
+class Arcilla extends ElementoRecurso:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 20, z * 10)  # Terrenos bajos
+            super.Constructor(pos, TipoRecurso.ARCILLA, seed)
+        catch error as Exception:
+            Logger.LogError("Arcilla: Error en constructor: " + error.Message)
+
+class Concha extends ElementoRecurso:
+    function Constructor(x: int, z: int, seed: int = 0):
+        try:
+            pos = Vector3(x * 10, 1, z * 10)  # Playas
+            super.Constructor(pos, TipoRecurso.CONCHA, seed)
+        catch error as Exception:
+            Logger.LogError("Concha: Error en constructor: " + error.Message)
+
+# =============================================================================
+# ENUMS: TIPOS DE TERRENO Y RECURSOS (Mejorados)
+# =============================================================================
+class TipoTerreno:
+    static AGUA_PROFUNDA = 0      # -100 a -80 metros
+    static AGUA_SOMERA = 1        # -80 a -50 metros
+    static AGUA_POCO_PROFUND = 2     # -50 a -20 metros
+    static AGUA_POCO_PROFUND = 3     # -20 a 0 metros
+    static ARENA = 4               # 0 a 5 metros
+    static TIERRA_BAJA = 5           # 5 a 50 metros
+    static COLINA = 6               # 50 a 200 metros
+    static MONTAÑA_BAJA = 7           # 200 a 500 metros
+    static MONTAÑA_MEDIA = 8           # 500 a 800 metros
+    static MONTAÑA_ALTA = 9           # 800 a 1000 metros
+    
+    static function ObtenerNombre(tipo: int): string
+        try:
+            switch tipo:
+                case AGUA_PROFUNDA: return "Agua Profunda"
+                case AGUA_SOMERA: return "Agua Somera"
+                case AGUA_POCO_PROFUND: return "Agua Poco Profunda"
+                case ARENA: return "Arena"
+                case TIERRA_BAJA: return "Tierra Baja"
+                case COLINA: return "Colina"
+                case MONTAÑA_BAJA: return "Montaña Baja"
+                case MONTAÑA_MEDIA: return "Montaña Media"
+                case MONTAÑA_ALTA: return "Montaña Alta"
+                default: return "Desconocido"
+        catch error as Exception:
+            Logger.LogError("TipoTerreno: Error obteniendo nombre: " + error.Message)
+            return "Desconocido"
+    
+    static function EsAcuatico(tipo: int): bool
+        try:
+            return tipo >= AGUA_PROFUNDA and tipo <= AGUA_POCO_PROFUND
+        catch error as Exception:
+            Logger.LogError("TipoTerreno: Error verificando si es acuático: " + error.Message)
+            return false
+    
+    static function EsTerreno(tipo: int): bool
+        try:
+            return tipo >= ARENA and tipo <= MONTAÑA_ALTA
+        catch error as Exception:
+            Logger.LogError("TipoTerreno: Error verificando si es terreno: " + error.Message)
+            return false
+    
+    static function EsMontaña(tipo: int): bool
+        try:
+            return tipo >= MONTAÑA_BAJA and tipo <= MONTAÑA_ALTA
+        catch error as Exception:
+            Logger.LogError("TipoTerreno: Error verificando si es montaña: " + error.Message)
+            return false
+
+class TipoRecurso:
+    static HIERRO = 0
+    static COBRE = 1
+    static ORO = 2
+    static PLATA = 3
+    static PIEDRA = 4
+    static ARCILLA = 5
+    static CONCHA = 6
+    
+    static function ObtenerNombre(tipo: int): string
+        try:
+            switch tipo:
+                case HIERRO: return "Hierro"
+                case COBRE: return "Cobre"
+                case ORO: return "Oro"
+                case PLATA: return "Plata"
+                case PIEDRA: return "Piedra"
+                case ARCILLA: return "Arcilla"
+                case CONCHA: return "Concha"
+                default: return "Desconocido"
+        catch error as Exception:
+            Logger.LogError("TipoRecurso: Error obteniendo nombre: " + error.Message)
+            return "Desconocido"
+    
+    static function EsMineral(tipo: int): bool
+        try:
+            return tipo >= HIERRO and tipo <= PLATA
+        catch error as Exception:
+            Logger.LogError("TipoRecurso: Error verificando si es mineral: " + error.Message)
+            return false
+    
+    static function EsMaterial(tipo: int): bool
+        try:
+            return tipo >= PIEDRA and tipo <= ARCILLA
+        catch error as Exception:
+            Logger.LogError("TipoRecurso: Error verificando si es material: " + error.Message)
+            return false
+
+# =============================================================================
+# CLASE: DatosChunk (Mejorada)
+# =============================================================================
+class DatosChunk:
+    altitudes: float[10, 10]  # 10x10 = 100 alturas
+    tipo_terreno: int[10, 10]
+    vegetacion: List<ElementoVegetacion>
+    recursos: List<ElementoRecurso>
+    modificado: bool = false
+    seed_mundo: int
+    
+    # Sistema de colisiones 3D
+    datos_colision: ConcavePolygonShape3D
+    cuerpo_colision: StaticBody3D
+    
+    function Constructor(seed: int = 0):
+        try:
+            seed_mundo = seed
+            altitudes = new float[10, 10]
+            tipo_terreno = new int[10, 10]
+            vegetacion = new List()
+            recursos = new List()
+            modificado = false
+            datos_colision = null
+            cuerpo_colision = null
+            
+            Logger.LogDebug("DatosChunk: Inicializado con seed " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error en constructor: " + error.Message)
+    
+    function GenerarColisiones():
+        try:
+            # Generar ConcavePolygonShape3D desde alturas
+            datos_colision = new ConcavePolygonShape3D()
+            vertices = GenerarVerticesDesdeAlturas()
+            datos_colision.SetVertices(vertices)
+            
+            # Crear StaticBody3D para el chunk
+            cuerpo_colision = new StaticBody3D()
+            cuerpo_colision.ShapeOwnerAddShape(datos_colision)
+            
+            Logger.LogDebug("DatosChunk: Colisiones generadas")
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error generando colisiones: " + error.Message)
+    
+    function GenerarVerticesDesdeAlturas(): List<Vector3>
+        try:
+            vertices = new List<Vector3>()
+            
+            # Generar triángulos para cada cuadrado 2x2 de alturas
+            for x in range(0, 9):
+                for z in range(0, 9):
+                    # Obtener 4 vértices del cuadrado
+                    v1 = Vector3(x, altitudes[x, z], z)
+                    v2 = Vector3(x + 1, altitudes[x + 1, z], z)
+                    v3 = Vector3(x + 1, altitudes[x + 1, z + 1], z + 1)
+                    v4 = Vector3(x, altitudes[x, z + 1], z + 1)
+                    
+                    # Validar alturas (rango -100 a 1000)
+                    if v1.y < -100 or v1.y > 1000: v1.y = clamp(v1.y, -100, 1000)
+                    if v2.y < -100 or v2.y > 1000: v2.y = clamp(v2.y, -100, 1000)
+                    if v3.y < -100 or v3.y > 1000: v3.y = clamp(v3.y, -100, 1000)
+                    if v4.y < -100 or v4.y > 1000: v4.y = clamp(v4.y, -100, 1000)
+                    
+                    # Agregar dos triángulos para el cuadrado
+                    vertices.Add(v1)
+                    vertices.Add(v2)
+                    vertices.Add(v3)
+                    
+                    vertices.Add(v1)
+                    vertices.Add(v3)
+                    vertices.Add(v4)
+            
+            return vertices
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error generando vertices: " + error.Message)
+            return new List<Vector3>()
+    
+    function ActualizarColisiones():
+        try:
+            # Regenerar colisiones si el terreno cambió
+            if modificado and cuerpo_colision != null:
+                GenerarColisiones()
+                modificado = false
+                Logger.LogDebug("DatosChunk: Colisiones actualizadas")
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error actualizando colisiones: " + error.Message)
+    
+    function Modificar():
+        try:
+            modificado = true
+            Logger.LogDebug("DatosChunk: Modificado")
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error modificando: " + error.Message)
+    
+    function Liberar():
+        try:
+            # Liberar colisiones
+            if cuerpo_colision != null:
+                cuerpo_colision.Free()
+                cuerpo_colision = null
+            
+            if datos_colision != null:
+                datos_colision.Free()
+                datos_colision = null
+            
+            # Liberar listas
+            if vegetacion != null:
+                vegetacion.Clear()
+            
+            if recursos != null:
+                recursos.Clear()
+            
+            Logger.LogDebug("DatosChunk: Liberado")
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error liberando: " + error.Message)
+    
+    function SetSeed(seed: int):
+        try:
+            seed_mundo = seed
+            Logger.LogInfo("DatosChunk: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error configurando seed: " + error.Message)
+    
+    function GetSeed(): int
+        try:
+            return seed_mundo
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error obteniendo seed: " + error.Message)
+            return 0
+    
+    function EstaModificado(): bool
+        try:
+            return modificado
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error verificando si está modificado: " + error.Message)
+            return false
+    
+    function ObtenerAlturaPromedio(): float
+        try:
+            suma = 0.0
+            for x in range(0, 10):
+                for z in range(0, 10):
+                    suma += altitudes[x, z]
+            return suma / 100.0  # 10x10 = 100 alturas
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error obteniendo altura promedio: " + error.Message)
+            return 0.0
+    
+    function ObtenerTipoDominante(): int
+        try:
+            conteo_tipos = new Dictionary()
+            
+            for x in range(0, 10):
+                for z in range(0, 10):
+                    tipo = tipo_terreno[x, z]
+                    if conteo_tipos.ContainsKey(tipo):
+                        conteo_tipos[tipo] += 1
+                    else:
+                        conteo_tipos[tipo] = 1
+            
+            # Encontrar el tipo más común
+            tipo_dominante = 0
+            max_conteo = 0
+            
+            for tipo, conteo in conteo_tipos:
+                if conteo > max_conteo:
+                    max_conteo = conteo
+                    tipo_dominante = tipo
+            
+            return tipo_dominante
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error obteniendo tipo dominante: " + error.Message)
+            return TipoTerreno.TIERRA_BAJA  # Fallback
+    
+    function ObtenerEstadisticas(): Dictionary<string, object>
+        try:
+            stats = new Dictionary()
+            stats["altura_promedio"] = ObtenerAlturaPromedio()
+            stats["tipo_dominante"] = ObtenerTipoDominante()
+            stats["vegetacion_count"] = vegetacion.length()
+            stats["recursos_count"] = recursos.length()
+            stats["modificado"] = modificado
+            stats["seed"] = seed_mundo
+            return stats
+        catch error as Exception:
+            Logger.LogError("DatosChunk: Error obteniendo estadísticas: " + error.Message)
+            return new Dictionary()
+
+# =============================================================================
+# CLASE: SistemaColisionesTerreno (Mejorada)
+# =============================================================================
+class SistemaColisionesTerreno:
+    seed_mundo: int
+    chunks_con_colision: Dictionary<string, StaticBody3D>
+    
+    function Constructor(seed: int = 0):
+        try:
+            seed_mundo = seed
+            chunks_con_colision = new Dictionary()
+            Logger.LogInfo("SistemaColisionesTerreno: Inicializado con seed " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error en constructor: " + error.Message)
+    
+    function GenerarColisionesChunk(datos: DatosChunk, coord: CoordenadaGlobal): DatosChunk
+        try:
+            # Validar datos y coordenada
+            if datos == null or coord == null:
+                Logger.LogError("SistemaColisionesTerreno: Datos o coordenada nulos")
+                return datos
+            
+            # Generar colisiones 3D
+            datos.GenerarColisiones()
+            
+            # Posicionar cuerpo en coordenadas del chunk
+            if datos.cuerpo_colision != null:
+                datos.cuerpo_colision.Position = Vector3(coord.chunk_x * 10, 0, coord.chunk_z * 10)
+                
+                # Añadir al mundo 3D
+                GetWorld3D().AddChild(datos.cuerpo_colision)
+                
+                # Registrar en el sistema
+                clave = coord.chunk_x.ToString() + "_" + coord.chunk_z.ToString()
+                chunks_con_colision[clave] = datos.cuerpo_colision
+            
+            Logger.LogDebug("SistemaColisionesTerreno: Colisiones generadas para " + coord.ToString())
+            return datos
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error generando colisiones chunk: " + error.Message)
+            return datos
+    
+    function RemoverColisionChunk(cuerpo: StaticBody3D):
+        try:
+            if cuerpo != null:
+                # Remover del mundo 3D
+                GetWorld3D().RemoveChild(cuerpo)
+                
+                # Liberar memoria
+                cuerpo.Free()
+                
+                # Eliminar del registro
+                clave_a_eliminar = ""
+                for clave, cuerpo_registrado in chunks_con_colision:
+                    if cuerpo_registrado == cuerpo:
+                        clave_a_eliminar = clave
+                        break
+                
+                if clave_a_eliminar != "":
+                    chunks_con_colision.Remove(clave_a_eliminar)
+                
+                Logger.LogDebug("SistemaColisionesTerreno: Colisiones removidas")
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error removiendo colisiones chunk: " + error.Message)
+    
+    function ActualizarColisionChunk(datos: DatosChunk, coord: CoordenadaGlobal):
+        try:
+            # Validar datos y coordenada
+            if datos == null or coord == null:
+                Logger.LogError("SistemaColisionesTerreno: Datos o coordenada nulos en actualización")
+                return
+            
+            # Actualizar colisiones si el terreno cambió
+            if datos.EstaModificado():
+                # Remover colisiones antiguas
+                clave = coord.chunk_x.ToString() + "_" + coord.chunk_z.ToString()
+                if chunks_con_colision.ContainsKey(clave):
+                    cuerpo_antiguo = chunks_con_colision[clave]
+                    RemoverColisionChunk(cuerpo_antiguo)
+                
+                # Generar nuevas colisiones
+                GenerarColisionesChunk(datos, coord)
+                
+                Logger.LogDebug("SistemaColisionesTerreno: Colisiones actualizadas para " + coord.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error actualizando colisiones chunk: " + error.Message)
+    
+    function ObtenerColisionChunk(coord: CoordenadaGlobal): StaticBody3D
+        try:
+            if coord == null:
+                Logger.LogError("SistemaColisionesTerreno: Coordenada nula en ObtenerColisionChunk")
+                return null
+            
+            clave = coord.chunk_x.ToString() + "_" + coord.chunk_z.ToString()
+            if chunks_con_colision.ContainsKey(clave):
+                return chunks_con_colision[clave]
+            else:
+                return null
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error obteniendo colision chunk: " + error.Message)
+            return null
+    
+    function ExisteColisionChunk(coord: CoordenadaGlobal): bool
+        try:
+            if coord == null:
+                return false
+            
+            clave = coord.chunk_x.ToString() + "_" + coord.chunk_z.ToString()
+            return chunks_con_colision.ContainsKey(clave)
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error verificando si existe colisión: " + error.Message)
+            return false
+    
+    function LimpiarTodasColisiones():
+        try:
+            # Remover todas las colisiones del mundo
+            for clave, cuerpo in chunks_con_colision:
+                if cuerpo != null:
+                    GetWorld3D().RemoveChild(cuerpo)
+                    cuerpo.Free()
+            
+            # Limpiar registro
+            chunks_con_colision.Clear()
+            
+            Logger.LogInfo("SistemaColisionesTerreno: Todas las colisiones limpiadas")
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error limpiando colisiones: " + error.Message)
+    
+    function ObtenerEstadisticas(): Dictionary<string, object>
+        try:
+            stats = new Dictionary()
+            stats["chunks_con_colision"] = chunks_con_colision.length()
+            stats["seed_mundo"] = seed_mundo
+            return stats
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error obteniendo estadísticas: " + error.Message)
+            return new Dictionary()
+    
+    function SetSeed(seed: int):
+        try:
+            seed_mundo = seed
+            Logger.LogInfo("SistemaColisionesTerreno: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error configurando seed: " + error.Message)
+    
+    function GetSeed(): int
+        try:
+            return seed_mundo
+        catch error as Exception:
+            Logger.LogError("SistemaColisionesTerreno: Error obteniendo seed: " + error.Message)
+            return 0
+
+# =============================================================================
+# FUNCIONES GLOBALES DE ACCESO RÁPIDO
+# =============================================================================
+# FUNCIONES DE ACCESO (DEPRECATED)
+# =============================================================================
+# NOTA: Estas funciones están obsoletas y violan el principio de evitar referencias circulares
+# Se deben eliminar y reemplazar por inyección de dependencias desde GameManager
+# =============================================================================
+
+function GetSistemaTerreno(): SistemaTerreno
+    return ManejoErrores.EjecutarConManejo(() => {
+        if GameManager.instance == null:
+            Logger.LogError("GetSistemaTerreno: GameManager no inicializado")
+            return EstadoSeguroTerreno.ObtenerValorPorDefecto("chunk_nulo")
+        return GameManager.instance.sistema_terreno
+    }, "GetSistemaTerreno", false)
+
+function InicializarTerreno(seed: int = 0): SistemaTerreno
+    # NOTA: Esta función está obsoleta y viola el principio de evitar referencias circulares
+    # Se debe usar GameManager.instance.sistema_terreno.Inicializar()
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = new SistemaTerreno()
+        sistema.Inicializar()
+        if sistema != null:
+            Logger.LogInfo("Terreno: Sistema inicializado correctamente")
+        return sistema
+    }, "InicializarTerreno", false)
+
+function ActualizarTerreno(delta_time):
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = GetSistemaTerreno()
+        if sistema != null:
+            sistema.ActualizarChunks(delta_time)
+        else:
+            Logger.LogError("Terreno: No se pudo actualizar - SistemaTerreno no disponible")
+        return true
+    }, "ActualizarTerreno", false)
+
+function ObtenerEstadisticasTerreno(): Dictionary<string, object>
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = GetSistemaTerreno()
+        if sistema != null:
+            return sistema.ObtenerEstadisticas()
+        else:
+            return EstadoSeguroTerreno.ObtenerValorPorDefecto("estadisticas_vacias")
+    }, "ObtenerEstadisticasTerreno", false)
+
+# =============================================================================
+# FUNCIONES DE UTILIDAD
+# =============================================================================
+function clamp(valor: float, minimo: float, maximo: float): float
+    return ManejoErrores.EjecutarConManejo(() => {
+        if valor < minimo:
+            return minimo
+        elif valor > maximo:
+            return maximo
+        else:
+            return valor
+    }, "clamp", false)
+
+function floor(valor: float): int
+    return ManejoErrores.EjecutarConManejo(() => {
+        return int(valor)
+    }, "floor", false)
+
+# =============================================================================
+# CLASES AUXILIARES DE RUIDO
+# =============================================================================
+class NoiseGenerator:
+    seed: int
+    
+    function Constructor(seed: int = 0):
+        try:
+            self.seed = seed
+            Logger.LogDebug("NoiseGenerator: Inicializado con seed " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("NoiseGenerator: Error en constructor: " + error.Message)
+    
+    function Perlin(x: float, y: float, z: float): float
+        try:
+            # Simulación de ruido Perlin con seed
+            # (Aquí iría la implementación real)
+            return sin(x + seed) * cos(y + seed) * cos(z + seed)
+        catch error as Exception:
+            Logger.LogError("NoiseGenerator: Error generando ruido Perlin: " + error.Message)
+            return 0.0
+    
+    function SetSeed(seed: int):
+        try:
+            self.seed = seed
+            Logger.LogDebug("NoiseGenerator: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("NoiseGenerator: Error configurando seed: " + error.Message)
+    
+    function GetSeed(): int
+        try:
+            return seed
+        catch error as Exception:
+            Logger.LogError("NoiseGenerator: Error obteniendo seed: " + error.Message)
+            return 0

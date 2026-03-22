@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach to Godot",
+            "type": "godot",
+            "request": "attach",
+            "address": "localhost",
+            "port": 6005
+        },
+        {
+            "name": "Launch Godot",
+            "type": "godot",
+            "request": "launch",
+            "project": "${workspaceFolder}",
+            "port": 6005
+        }
+    ]
+}

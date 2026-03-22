@@ -1,0 +1,298 @@
+[gd_scene load_steps=4 format=3 uid="uid://wild_options_menu"]
+
+[ext_resource type="Script" path="res://scripts/ui/OptionsMenu.cs" id="1_opt"]
+[ext_resource type="PackedScene" uid="uid://wild_quality_settings_ui" path="res://scenes/ui/quality_settings_ui.tscn" id="1_qui"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_left"]
+bg_color = Color(0.1, 0.12, 0.16, 1)
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+border_width_left = 0
+border_width_top = 0
+border_width_right = 1
+border_width_bottom = 0
+border_color = Color(0.3, 0.33, 0.4, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_content"]
+bg_color = Color(0.08, 0.09, 0.12, 0.95)
+corner_radius_top_left = 8
+corner_radius_bottom_left = 8
+
+[node name="OptionsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_opt")
+visible = false
+
+[node name="ColorRect" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.06, 0.08, 0.1, 1)
+
+[node name="HBox" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="PanelLeft" type="PanelContainer" parent="HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(220, 0)
+theme_override_styles/panel = SubResource("StyleBoxFlat_left")
+
+[node name="VBox" type="VBoxContainer" parent="HBox/PanelLeft"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LabelTitle" type="Label" parent="HBox/PanelLeft/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.82, 0.75, 1)
+theme_override_font_sizes/font_size = 20
+text = "Opciones"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="HBox/PanelLeft/VBox"]
+layout_mode = 2
+
+[node name="ButtonControls" type="Button" parent="HBox/PanelLeft/VBox"]
+layout_mode = 2
+text = "Controles"
+
+[node name="ButtonGraphics" type="Button" parent="HBox/PanelLeft/VBox"]
+layout_mode = 2
+text = "Gráficos"
+
+[node name="ButtonAudio" type="Button" parent="HBox/PanelLeft/VBox"]
+layout_mode = 2
+text = "Audio"
+
+[node name="ButtonQuality" type="Button" parent="HBox/PanelLeft/VBox"]
+layout_mode = 2
+text = "Calidad"
+
+[node name="Spacer" type="Control" parent="HBox/PanelLeft/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ButtonBack" type="Button" parent="HBox/PanelLeft/VBox"]
+layout_mode = 2
+text = "Volver"
+
+[node name="PanelContent" type="PanelContainer" parent="HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_content")
+
+[node name="Margin" type="MarginContainer" parent="HBox/PanelContent"]
+layout_mode = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="ContentStack" type="VBoxContainer" parent="HBox/PanelContent/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="PanelControls" type="Control" parent="HBox/PanelContent/Margin/ContentStack"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VBox" type="VBoxContainer" parent="HBox/PanelContent/Margin/ContentStack/PanelControls"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+
+[node name="TitleControls" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelControls/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.85, 0.7, 1)
+theme_override_font_sizes/font_size = 24
+text = "Controles"
+
+[node name="LabelMove" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelControls/VBox"]
+layout_mode = 2
+text = "Movimiento: WASD"
+
+[node name="LabelJump" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelControls/VBox"]
+layout_mode = 2
+text = "Saltar: ESPACIO"
+
+[node name="LabelCrouch" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelControls/VBox"]
+layout_mode = 2
+text = "Agacharse: CTRL"
+
+[node name="LabelInteract" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelControls/VBox"]
+layout_mode = 2
+text = "Interactuar: E"
+
+[node name="PanelGraphics" type="Control" parent="HBox/PanelContent/Margin/ContentStack"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VBox" type="VBoxContainer" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+
+[node name="TitleGraphics" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.85, 0.7, 1)
+theme_override_font_sizes/font_size = 24
+text = "Gráficos"
+
+[node name="ResolutionRow" type="HBoxContainer" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="LabelResolutionDesc" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics/VBox/ResolutionRow"]
+layout_mode = 2
+size_flags_vertical = 1
+text = "Resolución de pantalla:"
+
+[node name="OptionResolution" type="OptionButton" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics/VBox/ResolutionRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+
+
+[node name="RenderRow" type="HBoxContainer" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="LabelRenderDesc" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics/VBox/RenderRow"]
+layout_mode = 2
+size_flags_vertical = 1
+text = "Distancia de renderizado (metros):"
+
+[node name="HSliderRenderDistance" type="HSlider" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics/VBox/RenderRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+min_value = 10.0
+max_value = 99.0
+value = 50.0
+step = 1.0
+allow_greater = false
+allow_lesser = false
+
+[node name="LabelRenderValue" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics/VBox/RenderRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+size_flags_vertical = 1
+text = "50 m"
+horizontal_alignment = 1
+
+[node name="ButtonSaveGraphics" type="Button" parent="HBox/PanelContent/Margin/ContentStack/PanelGraphics/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+size_flags_horizontal = 0
+text = "Guardar cambios"
+
+[node name="PanelAudio" type="Control" parent="HBox/PanelContent/Margin/ContentStack"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VBox" type="VBoxContainer" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+
+[node name="TitleAudio" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.85, 0.7, 1)
+theme_override_font_sizes/font_size = 24
+text = "Audio"
+
+[node name="MasterRow" type="HBoxContainer" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="LabelMasterDesc" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox/MasterRow"]
+layout_mode = 2
+size_flags_vertical = 1
+text = "Volumen Maestro:"
+
+[node name="HSliderMasterVolume" type="HSlider" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox/MasterRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+min_value = 0.0
+max_value = 1.0
+value = 0.8
+step = 0.1
+allow_greater = false
+allow_lesser = false
+
+[node name="LabelMasterValue" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox/MasterRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+size_flags_vertical = 1
+text = "80%"
+horizontal_alignment = 1
+
+[node name="MusicRow" type="HBoxContainer" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="LabelMusicDesc" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox/MusicRow"]
+layout_mode = 2
+size_flags_vertical = 1
+text = "Volumen Música:"
+
+[node name="HSliderMusicVolume" type="HSlider" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox/MusicRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+min_value = 0.0
+max_value = 1.0
+value = 0.6
+step = 0.1
+allow_greater = false
+allow_lesser = false
+
+[node name="LabelMusicValue" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox/MusicRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+size_flags_vertical = 1
+text = "60%"
+horizontal_alignment = 1
+
+[node name="ButtonSaveAudio" type="Button" parent="HBox/PanelContent/Margin/ContentStack/PanelAudio/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+size_flags_horizontal = 0
+text = "Guardar cambios"
+
+[node name="PanelQuality" type="Control" parent="HBox/PanelContent/Margin/ContentStack"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="QualitySettingsUI" parent="HBox/PanelContent/Margin/ContentStack/PanelQuality" instance=ExtResource("1_qui")]
+layout_mode = 1
+
+[node name="ExtResource" type="Label" parent="HBox/PanelContent/Margin/ContentStack/PanelQuality"]
+visible = false
+layout_mode = 0
+text = "res://scenes/ui/quality_settings_ui.tscn"

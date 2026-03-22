@@ -1,0 +1,513 @@
+# =============================================================================
+# SISTEMA PRINCIPAL DEL JUEGO
+# =============================================================================
+# Archivo: juego.pseudo
+# Descripción: Orquestación principal del juego Wild v2.0
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: GameManager (Singleton)
+# =============================================================================
+class GameManager:
+    # Instancia única manejada externamente
+    static instance: GameManager = null
+    
+    # Propiedades principales
+    estado_juego: EstadoJuego
+    sistema_terreno: SistemaTerreno
+    sistema_biomas: SistemaBiomas
+    sistema_calidad: SistemaCalidad
+    sistema_red: SistemaRed
+    sistema_jugador: SistemaJugador
+    sistema_render: SistemaRender
+    sistema_ui: SistemaUI
+    sistema_persistencia: SistemaPersistenciaServidor
+    sistema_conexion_mundos: SistemaConexionServidor
+    sistema_colisiones: SistemaColisionesTerreno
+    sistema_habilidades: SistemaHabilidades
+    sistema_fisica: SistemaFisicaJugador
+    resource_loader: DynamicResourceLoader
+    # seed_mundo eliminada - usar SessionData.Instance.seed_mundo
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema
+    static function Inicializar(): GameManager
+        return ManejoErrores.EjecutarConManejo(() => {
+            if instance == null:
+                instance = new GameManager()
+                instance._InicializarInterno()
+                Logger.LogInfo("GameManager: Sistema inicializado")
+            return instance
+        }, "GameManager.Inicializar", true)
+    
+    # Inicialización interna
+    function _InicializarInterno():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Generar seed para el mundo si no existe
+            if SessionData.Instance.seed_mundo == 0:
+                SessionData.Instance.seed_mundo = GenerarSeedAleatoria()
+                Logger.LogInfo("GameManager: Seed generada: " + SessionData.Instance.seed_mundo.ToString())
+            
+            # Establecer datos en SessionData
+            SessionData.Instance.nombre_mundo = "Mundo_" + str(SessionData.Instance.seed_mundo)
+            SessionData.Instance.ruta_mundo = "worlds/" + SessionData.Instance.nombre_mundo
+            
+            # Inicializar sistemas con inyección de dependencias
+            InicializarLogger()
+            InicializarConfiguracion()
+            InicializarSistemaPersistencia()
+            InicializarSistemaConexionMundos()
+            InicializarSistemaCalidad()
+            InicializarSistemaCoordenadas()
+            InicializarResourceLoader()
+            InicializarSistemaFisica()
+            InicializarSistemaColisiones()
+            InicializarSistemaTerreno()  # Inyecta SistemaBiomas
+            # SistemaBiomas ya está inicializado dentro de SistemaTerreno
+            InicializarSistemaHabilidades()
+            InicializarSistemaRender()
+            InicializarSistemaUI()
+            InicializarSistemaJugador()
+            InicializarSistemaRed()
+            
+            # Establecer estado inicial
+            estado_juego = EstadoJuego.MENU_PRINCIPAL
+            
+            Logger.LogInfo("GameManager: Todos los sistemas inicializados")
+            return true
+        }, "GameManager._InicializarInterno", true)
+    
+    # Bucle principal del juego
+    function ActualizarJuego(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Nota: El juego siempre se actualiza, incluso con menú de pausa abierto
+            # El servidor local nunca se detiene para mantener consistencia con multijugador
+            
+            # Actualizar sistemas en orden
+            sistema_red.ProcesarMensajes()
+            sistema_persistencia.ProcesarTransacciones()
+            sistema_jugador.ActualizarJugadores(delta_time)
+            sistema_fisica.ActualizarFisica(delta_time)
+            sistema_terreno.ActualizarChunks(delta_time)
+            sistema_colisiones.ActualizarColisiones(delta_time)
+            sistema_render.ActualizarEscena(delta_time)
+            sistema_ui.ActualizarInterfaz(delta_time)
+            sistema_habilidades.ActualizarHabilidades(delta_time)
+            
+            # Persistencia continua - guardar cambios automáticamente
+            # El servidor guarda datos continuamente, sin importar el estado de la UI
+            ActualizarPersistencia(delta_time)
+            return true
+        }, "GameManager.ActualizarJuego", false)
+    
+    # Cierre del juego
+    function CerrarJuego():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Desconectar del mundo si está conectado
+            if sistema_conexion_mundos.EstaConectado():
+                sistema_conexion_mundos.DesconectarMundo()
+            
+            # Guardar estado final
+            GuardarEstadoFinal()
+            
+            # Liberar recursos
+            sistema_render.LiberarRecursos()
+            sistema_red.Desconectar()
+            resource_loader.LiberarTodo()
+            
+            Logger.LogInfo("GameManager: Juego cerrado correctamente")
+            exit(0)
+        }, "GameManager.CerrarJuego", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroJuego
+# =============================================================================
+class EstadoSeguroJuego:
+    static valores_por_defecto: Dictionary<string, object>
+    
+    static function Inicializar():
+        valores_por_defecto = new Dictionary()
+        # Valores seguros para cada sistema
+        valores_por_defecto["estado_juego"] = EstadoJuego.MENU_PRINCIPAL
+        valores_por_defecto["seed_mundo"] = 123456789
+        valores_por_defecto["nombre_mundo"] = "Mundo_Default"
+        valores_por_defecto["ruta_mundo"] = "worlds/Mundo_Default"
+        valores_por_defecto["nombre_jugador"] = "Jugador"
+        valores_por_defecto["posicion_jugador"] = Vector3.ZERO
+        valores_por_defecto["calidad_actual"] = NivelCalidad.MEDIUM
+        valores_por_defecto["limite_memoria"] = 500  # MB
+        valores_por_defecto["distancia_carga"] = 5
+        valores_por_defecto["resolucion_chunks"] = 10
+        valores_por_defecto["lod_maximo"] = 3
+    
+    static function ObtenerValorPorDefecto(contexto: string): object
+        if valores_por_defecto.ContainsKey(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroJuego: Sin valor por defecto para: " + contexto)
+            return EstadoJuego.MENU_PRINCIPAL  # Fallback seguro
+
+# =============================================================================
+# CLASE: EstadoJuego
+# =============================================================================
+class EstadoJuego:
+    static MENU_PRINCIPAL = 0
+    static CONECTANDO = 1
+    static JUGANDO = 2
+    static CARGANDO = 3
+    static ERROR = 4
+    # Nota: No existe estado PAUSADO - el juego nunca se detiene completamente
+
+# =============================================================================
+# FUNCIONES GLOBALES DE ACCESO (DEPRECATED)
+# =============================================================================
+# NOTA: Estas funciones están obsoletas y violan el principio de evitar referencias circulares
+# Se deben eliminar y reemplazar por inyección de dependencias
+# =============================================================================
+
+function GetGameManager(): GameManager
+    return ManejoErrores.EjecutarConManejo(() => {
+        if GameManager.instance == null:
+            Logger.LogError("GetGameManager: GameManager no inicializado")
+            return EstadoSeguroJuego.ObtenerValorPorDefecto("game_manager")
+        return GameManager.instance
+    }, "GetGameManager", false)
+
+function GetEstadoActual(): EstadoJuego
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.estado_juego
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("estado_juego")
+    }, "GetEstadoActual", false)
+
+function CambiarEstado(nuevo_estado: EstadoJuego):
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            estado_anterior = game_manager.estado_juego
+            game_manager.estado_juego = nuevo_estado
+            Logger.LogInfo("GameManager: Estado cambiado de " + estado_anterior.ToString() + " a " + nuevo_estado.ToString())
+            return true
+        else:
+            Logger.LogError("CambiarEstado: GameManager no disponible")
+            return false
+    }, "CambiarEstado", false)
+
+# =============================================================================
+# FUNCIONES DE INICIALIZACIÓN DE SISTEMAS
+# =============================================================================
+function InicializarLogger():
+    return ManejoErrores.EjecutarConManejo(() => {
+        Logger.Inicializar("wild.log")
+        Logger.LogInfo("GameManager: Logger inicializado")
+        return true
+    }, "InicializarLogger", true)
+
+function InicializarConfiguracion():
+    return ManejoErrores.EjecutarConManejo(() => {
+        SistemaConfiguracion.Inicializar()
+        Logger.LogInfo("GameManager: Configuración inicializada")
+        return true
+    }, "InicializarConfiguracion", true)
+
+function InicializarSistemaPersistencia():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_persistencia = new SistemaPersistenciaServidor()
+        sistema_persistencia.Inicializar(SessionData.Instance.seed_mundo)  # Usar seed de SessionData
+        Logger.LogInfo("GameManager: Sistema de persistencia inicializado")
+        return true
+    }, "InicializarSistemaPersistencia", true)
+
+function InicializarSistemaConexionMundos():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_conexion_mundos = new SistemaConexionServidor()
+        sistema_conexion_mundos.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de conexión inicializado")
+        return true
+    }, "InicializarSistemaConexionMundos", true)
+
+function InicializarSistemaCalidad():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_calidad = SistemaCalidad.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de calidad inicializado")
+        return true
+    }, "InicializarSistemaCalidad", true)
+
+function InicializarSistemaCoordenadas():
+    return ManejoErrores.EjecutarConManejo(() => {
+        SistemaCoordenadas.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de coordenadas inicializado")
+        return true
+    }, "InicializarSistemaCoordenadas", true)
+
+function InicializarResourceLoader():
+    return ManejoErrores.EjecutarConManejo(() => {
+        calidad_actual = sistema_calidad.calidad_actual
+        resource_loader = new DynamicResourceLoader()
+        resource_loader.Inicializar(calidad_actual)
+        Logger.LogInfo("GameManager: Resource loader inicializado")
+        return true
+    }, "InicializarResourceLoader", true)
+
+function InicializarSistemaFisica():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_fisica = new SistemaFisicaJugador()
+        sistema_fisica.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de física inicializado")
+        return true
+    }, "InicializarSistemaFisica", true)
+
+function InicializarSistemaColisiones():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_colisiones = new SistemaColisionesTerreno()
+        sistema_colisiones.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de colisiones inicializado")
+        return true
+    }, "InicializarSistemaColisiones", true)
+
+function InicializarSistemaTerreno():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_terreno = new SistemaTerreno()
+        sistema_terreno.Inicializar(SessionData.Instance.seed_mundo)  # Usar seed de SessionData
+        Logger.LogInfo("GameManager: Sistema de terreno inicializado")
+        return true
+    }, "InicializarSistemaTerreno", true)
+
+function InicializarSistemaBiomas():
+    # NOTA: SistemaBiomas ya está inicializado dentro de SistemaTerreno
+    # Esta función se mantiene por compatibilidad pero no hace nada
+    Logger.LogInfo("GameManager: SistemaBiomas ya inicializado en SistemaTerreno")
+
+function InicializarSistemaHabilidades():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_habilidades = new SistemaHabilidades()
+        sistema_habilidades.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de habilidades inicializado")
+        return true
+    }, "InicializarSistemaHabilidades", true)
+
+function InicializarSistemaRender():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_render = new SistemaRender()
+        sistema_render.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de renderizado inicializado")
+        return true
+    }, "InicializarSistemaRender", true)
+
+function InicializarSistemaUI():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_ui = new SistemaUI()
+        sistema_ui.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de UI inicializado")
+        return true
+    }, "InicializarSistemaUI", true)
+
+function InicializarSistemaJugador():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_jugador = new SistemaJugador()
+        sistema_jugador.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de jugador inicializado")
+        return true
+    }, "InicializarSistemaJugador", true)
+
+function InicializarSistemaRed():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema_red = new SistemaRed()
+        sistema_red.Inicializar()
+        Logger.LogInfo("GameManager: Sistema de red inicializado")
+        return true
+    }, "InicializarSistemaRed", true)
+
+# =============================================================================
+# FUNCIONES DE PERSISTENCIA CONTINUA
+# =============================================================================
+function ActualizarPersistencia(delta_time):
+    return ManejoErrores.EjecutarConManejo(() => {
+        # La persistencia se maneja automáticamente a través de transacciones
+        # Esta función puede usarse para tareas periódicas de mantenimiento
+        
+        # Guardar estado del servidor periódicamente
+        if sistema_persistencia != null:
+            sistema_persistencia.ActualizarMantenimiento(delta_time)
+        
+        # Actualizar métricas de rendimiento
+        if sistema_calidad != null:
+            sistema_calidad.Actualizar(delta_time)
+        
+        # Procesar cola de transacciones pendientes
+        if sistema_persistencia != null:
+            sistema_persistencia.ProcesarColaTransacciones()
+        return true
+    }, "ActualizarPersistencia", false)
+
+function ConectarMundo(nombre_mundo: string, nombre_jugador: string): bool
+    return ManejoErrores.EjecutarConManejo(() => {
+        resultado = sistema_conexion_mundos.ConectarMundo(nombre_mundo, nombre_jugador)
+        
+        if resultado.exito:
+            CambiarEstado(EstadoJuego.JUGANDO)
+            sistema_ui.CambiarEstado(EstadoUI.JUGANDO)
+            Logger.LogInfo("GameManager: Conectado al mundo " + nombre_mundo + " como " + nombre_jugador)
+            return true
+        else:
+            Logger.LogError("GameManager: Error conectando al mundo " + nombre_mundo + ": " + resultado.error)
+            return EstadoSeguroJuego.ObtenerValorPorDefecto("conexion_fallida")
+    }, "ConectarMundo", false)
+
+function CrearMundo(nombre_mundo: string, configuracion: ConfiguracionMundo): bool
+    return ManejoErrores.EjecutarConManejo(() => {
+        exito = sistema_persistencia.CrearMundo(nombre_mundo, configuracion)
+        
+        if exito:
+            Logger.LogInfo("GameManager: Mundo creado exitosamente: " + nombre_mundo)
+        else:
+            Logger.LogError("GameManager: Error creando mundo: " + nombre_mundo)
+        
+        return exito
+    }, "CrearMundo", false)
+
+# =============================================================================
+# FUNCIONES AUXILIARES
+# =============================================================================
+function GenerarSeedAleatoria(): int
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Generar seed aleatoria de 32 bits
+        random = new Random()
+        seed = random.Next(0, 2147483647)  # 2^31 - 1
+        Logger.LogInfo("GameManager: Seed aleatoria generada: " + seed.ToString())
+        return seed
+    }, "GenerarSeedAleatoria", false)
+
+function GuardarEstadoFinal():
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Guardar estado final del juego antes de cerrar
+        estado_final = {
+            "timestamp": DateTime.Now().ToString("O"),
+            "estado_juego": GetEstadoActual().ToString(),
+            "jugador_posicion": sistema_jugador.GetJugadorLocal().posicion,
+            "mundo_actual": sistema_conexion_mundos.GetMundoActual(),
+            "seed_mundo": SessionData.Instance.seed_mundo
+        }
+        
+        ruta_estado = "user://final_game_state.json"
+        json_str = JsonConvert.SerializeObject(estado_final, Formatting.Indented)
+        
+        archivo = FileAccess.Open(ruta_estado, FileAccess.ModeFlags.WRITE)
+        archivo.StoreString(json_str)
+        archivo.Close()
+        
+        Logger.LogInfo("GameManager: Estado final guardado")
+        return true
+    }, "GuardarEstadoFinal", false)
+
+# =============================================================================
+# FUNCIONES DE ACCESO A SISTEMAS
+# =============================================================================
+function GetSistemaTerreno(): SistemaTerreno
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_terreno
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_terreno")
+    }, "GetSistemaTerreno", false)
+
+function GetSistemaBiomas(): SistemaBiomas
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_biomas
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_biomas")
+    }, "GetSistemaBiomas", false)
+
+function GetSistemaCalidad(): SistemaCalidad
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_calidad
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_calidad")
+    }, "GetSistemaCalidad", false)
+
+function GetSistemaJugador(): SistemaJugador
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_jugador
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_jugador")
+    }, "GetSistemaJugador", false)
+
+function GetSistemaUI(): SistemaUI
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_ui
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_ui")
+    }, "GetSistemaUI", false)
+
+function GetSistemaRed(): SistemaRed
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_red
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_red")
+    }, "GetSistemaRed", false)
+
+function GetSistemaPersistencia(): SistemaPersistenciaServidor
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_persistencia
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_persistencia")
+    }, "GetSistemaPersistencia", false)
+
+function GetSistemaConexionMundos(): SistemaConexionServidor
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_conexion_mundos
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_conexion_mundos")
+    }, "GetSistemaConexionMundos", false)
+
+function GetSistemaColisiones(): SistemaColisionesTerreno
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_colisiones
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_colisiones")
+    }, "GetSistemaColisiones", false)
+
+function GetSistemaHabilidades(): SistemaHabilidades
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_habilidades
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_habilidades")
+    }, "GetSistemaHabilidades", false)
+
+function GetSistemaFisica(): SistemaFisicaJugador
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.sistema_fisica
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("sistema_fisica")
+    }, "GetSistemaFisica", false)
+
+function GetResourceLoader(): DynamicResourceLoader
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return game_manager.resource_loader
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("resource_loader")
+    }, "GetResourceLoader", false)
+
+function GetSeedMundo(): int
+    return ManejoErrores.EjecutarConManejo(() => {
+        game_manager = GetGameManager()
+        if game_manager != null:
+            return SessionData.Instance.seed_mundo  # Usar SessionData directamente
+        return EstadoSeguroJuego.ObtenerValorPorDefecto("seed_mundo")
+    }, "GetSeedMundo", false)

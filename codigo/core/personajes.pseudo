@@ -1,0 +1,593 @@
+# =============================================================================
+# SISTEMA DE GESTIÓN DE PERSONAJES (CLIENTE)
+# =============================================================================
+# Archivo: personajes.pseudo
+# Descripción: Gestión local de múltiples personajes por cliente
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: GestorPersonajes (Singleton)
+# =============================================================================
+class GestorPersonajes:
+    # Singleton para acceso global (solo cliente)
+    static instance: GestorPersonajes
+    
+    # Propiedades principales
+    personajes_locales: Dictionary<string, Personaje>
+    personaje_actual: string = ""
+    directorio_personajes: string
+    max_personajes: int = 10
+    # seed_mundo eliminada - usar SessionData.Instance.seed_mundo
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del singleton
+    static function Inicializar(directorio: string = "client_data/characters/", seed: int = 0): GestorPersonajes
+        return ManejoErrores.EjecutarConManejo(() => {
+            if instance == null:
+                instance = new GestorPersonajes()
+                instance._InicializarInterno(directorio, seed)
+                Logger.LogInfo("GestorPersonajes: Singleton inicializado")
+            return instance
+        }, "GestorPersonajes.Inicializar", true)
+    
+    # Inicialización interna
+    function _InicializarInterno(directorio: string, seed: int):
+        return ManejoErrores.EjecutarConManejo(() => {
+            instance.directorio_personajes = directorio
+            # Usar SessionData en lugar de seed local
+            instance.personajes_locales = new Dictionary()
+            
+            # Crear directorio si no existe
+            instance.CrearDirectorioPersonajes()
+            
+            # Cargar personajes existentes
+            instance.CargarPersonajesLocales()
+            
+            Logger.LogInfo("GestorPersonajes: Inicializado con directorio " + directorio + " y seed " + SessionData.Instance.seed_mundo.ToString())
+            return true
+        }, "GestorPersonajes._InicializarInterno", true)
+    
+    # =============================================================================
+    # FUNCIONES DE GESTIÓN DE PERSONAJES
+    # =============================================================================
+    
+    static function CrearPersonaje(nombre: string, apariencia: CharacterAppearance): ResultadoCreacionPersonaje
+        return ManejoErrores.EjecutarConManejo(() => {
+            return instance.CrearNuevoPersonaje(nombre, apariencia)
+        }, "GestorPersonajes.CrearPersonaje", false)
+    
+    static function EliminarPersonaje(id_personaje: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            return instance.EliminarPersonajeLocal(id_personaje)
+        }, "GestorPersonajes.EliminarPersonaje", false)
+    
+    static function SeleccionarPersonaje(id_personaje: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            return instance.SeleccionarPersonajeActual(id_personaje)
+        }, "GestorPersonajes.SeleccionarPersonaje", false)
+    
+    static function ObtenerPersonajeActual(): Personaje
+        return ManejoErrores.EjecutarConManejo(() => {
+            if instance.personaje_actual != "" and instance.personajes_locales.ContainsKey(instance.personaje_actual):
+                return instance.personajes_locales[instance.personaje_actual]
+            return EstadoSeguroPersonajes.ObtenerValorPorDefecto("personaje_actual")
+        }, "GestorPersonajes.ObtenerPersonajeActual", false)
+    
+    static function ObtenerTodosPersonajes(): List<Personaje>
+        return ManejoErrores.EjecutarConManejo(() => {
+            personajes = new List()
+            for id, personaje in instance.personajes_locales:
+                personajes.Add(personaje)
+            return personajes
+        }, "GestorPersonajes.ObtenerTodosPersonajes", false)
+    
+    static function ObtenerPersonajesDisponibles(): List<Personaje>
+        return ManejoErrores.EjecutarConManejo(() => {
+            return instance.ObtenerTodosPersonajes()
+        }, "GestorPersonajes.ObtenerPersonajesDisponibles", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroPersonajes
+# =============================================================================
+class EstadoSeguroPersonajes:
+    static valores_por_defecto: Dictionary<string, object>
+    
+    static function Inicializar():
+        valores_por_defecto = new Dictionary()
+        # Valores seguros para cada sistema
+        valores_por_defecto["max_personajes"] = 10
+        valores_por_defecto["directorio_personajes"] = "client_data/characters/"
+        valores_por_defecto["personaje_actual"] = ""
+        valores_por_defecto["vida"] = 100.0
+        valores_por_defecto["vida_maxima"] = 100.0
+        valores_por_defecto["hambre"] = 100.0
+        valores_por_defecto["sed"] = 100.0
+        valores_por_defecto["posicion"] = CoordenadaGlobal(0, 10, 0)
+        valores_por_defecto["rotacion"] = Vector3.ZERO
+        valores_por_defecto["nivel"] = 1
+        valores_por_defecto["experiencia"] = 0
+        valores_por_defecto["inventario"] = null  # Se inicializa dinámicamente
+        valores_por_defecto["equipamiento"] = null  # Se inicializa dinámicamente
+        valores_por_defecto["resultado_creacion_fallido"] = null
+        valores_por_defecto["personaje_nulo"] = null
+    
+    static function ObtenerValorPorDefecto(contexto: string): object
+        if valores_por_defecto.ContainsKey(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroPersonajes: Sin valor por defecto para: " + contexto)
+            return null  # Fallback seguro
+
+# =============================================================================
+# FUNCIONES INTERNAS
+# =============================================================================
+    
+    function CrearNuevoPersonaje(nombre: string, apariencia: CharacterAppearance): ResultadoCreacionPersonaje
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = new ResultadoCreacionPersonaje()
+            
+            # Validar nombre
+            if nombre == "" or nombre.length() < 3:
+                resultado.error = "El nombre debe tener al menos 3 caracteres"
+                resultado.exito = false
+                return resultado
+            
+            # Validar caracteres especiales
+            if not ValidarNombrePersonaje(nombre):
+                resultado.error = "El nombre contiene caracteres inválidos"
+                resultado.exito = false
+                return resultado
+            
+            # Verificar límite de personajes
+            if personajes_locales.length() >= max_personajes:
+                resultado.error = "Límite de personajes alcanzado (" + max_personajes.ToString() + ")"
+                resultado.exito = false
+                return resultado
+            
+            # Verificar nombre duplicado
+            for id, personaje in personajes_locales:
+                if personaje.nombre.ToLower() == nombre.ToLower():
+                    resultado.error = "Ya existe un personaje con ese nombre"
+                    resultado.exito = false
+                    return resultado
+            
+            # Generar ID único usando seed del mundo
+            id_personaje = GenerarIDPersonaje(nombre)
+            
+            # Validar apariencia
+            if not ValidarApariencia(apariencia):
+                resultado.error = "La apariencia contiene datos inválidos"
+                resultado.exito = false
+                return resultado
+            
+            # Crear personaje
+            personaje = new Personaje()
+            personaje.id = id_personaje
+            personaje.nombre = nombre
+            personaje.apariencia = apariencia
+            personaje.fecha_creacion = DateTime.Now()
+            personaje.ultima_seleccion = DateTime.Now()
+            personaje.ultima_conexion = DateTime.MinValue
+            personaje.niveles_mundo = new Dictionary()
+            
+            # Guardar personaje localmente
+            GuardarPersonajeLocal(personaje)
+            
+            # Agregar a lista
+            personajes_locales[id_personaje] = personaje
+            
+            resultado.exito = true
+            resultado.personaje = personaje
+            
+            Logger.LogInfo("GestorPersonajes: Personaje creado exitosamente: " + nombre + " (ID: " + id_personaje + ")")
+            return resultado
+        }, "GestorPersonajes.CrearNuevoPersonaje", false)
+    
+    function EliminarPersonajeLocal(id_personaje: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if not personajes_locales.ContainsKey(id_personaje):
+                Logger.LogError("GestorPersonajes: Personaje no encontrado: " + id_personaje)
+                return EstadoSeguroPersonajes.ObtenerValorPorDefecto("eliminar_personaje_fallido")
+            
+            # Eliminar archivo local
+            ruta_personaje = ObtenerRutaPersonaje(id_personaje)
+            if FileAccess.FileExists(ruta_personaje):
+                archivo = FileAccess.Open(ruta_personaje, FileAccess.ModeFlags.WRITE)
+                archivo.Close()
+                Dir.RemoveAbsolute(ruta_personaje)
+            
+            # Eliminar de lista
+            personajes_locales.Remove(id_personaje)
+            
+            # Si era el personaje actual, limpiar selección
+            if personaje_actual == id_personaje:
+                personaje_actual = ""
+            
+            Logger.LogInfo("GestorPersonajes: Personaje eliminado: " + id_personaje)
+            return true
+        }, "GestorPersonajes.EliminarPersonajeLocal", false)
+    
+    function SeleccionarPersonajeActual(id_personaje: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if not personajes_locales.ContainsKey(id_personaje):
+                Logger.LogError("GestorPersonajes: Personaje no encontrado: " + id_personaje)
+                return EstadoSeguroPersonajes.ObtenerValorPorDefecto("seleccionar_personaje_fallido")
+            
+            personaje_actual = id_personaje
+            personajes_locales[id_personaje].ultima_seleccion = DateTime.Now()
+            
+            # Guardar cambio
+            GuardarPersonajeLocal(personajes_locales[id_personaje])
+            
+            Logger.LogInfo("GestorPersonajes: Personaje seleccionado: " + id_personaje)
+            return true
+        }, "GestorPersonajes.SeleccionarPersonajeActual", false)
+    
+    function CargarPersonajesLocales():
+        return ManejoErrores.EjecutarConManejo(() => {
+            if not Dir.DirExists(directorio_personajes):
+                Logger.LogInfo("GestorPersonajes: Directorio de personajes no existe: " + directorio_personajes)
+                return EstadoSeguroPersonajes.ObtenerValorPorDefecto("cargar_personajes_vacio")
+            
+            archivos = Dir.GetDirectoriesAt(directorio_personajes)
+            
+            for archivo in archivos:
+                if archivo.ends_with(".json"):
+                    try:
+                        ruta_completa = directorio_personajes + "/" + archivo
+                        archivo_acceso = FileAccess.Open(ruta_completa, FileAccess.ModeFlags.READ)
+                        
+                        if archivo_acceso != null:
+                            datos_json = archivo_acceso.GetAsText()
+                            archivo_acceso.Close()
+                            
+                            personaje = JsonConvert.DeserializeObject<Personaje>(datos_json)
+                            
+                            if personaje != null:
+                                personajes_locales[personaje.id] = personaje
+                                Logger.LogDebug("GestorPersonajes: Personaje cargado: " + personaje.nombre)
+                            else:
+                                Logger.LogWarning("GestorPersonajes: Personaje nulo en archivo: " + archivo)
+                        else:
+                            Logger.LogError("GestorPersonajes: No se pudo abrir archivo: " + archivo)
+                    
+                    catch error as Exception:
+                        Logger.LogError("GestorPersonajes: Error cargando personaje desde " + archivo + ": " + error.Message)
+            
+            Logger.LogInfo("GestorPersonajes: Cargados " + personajes_locales.length().ToString() + " personajes locales")
+            return true
+        }, "GestorPersonajes.CargarPersonajesLocales", false)
+    
+    function GuardarPersonajeLocal(personaje: Personaje):
+        return ManejoErrores.EjecutarConManejo(() => {
+            CrearDirectorioPersonajes()
+            
+            ruta_personaje = ObtenerRutaPersonaje(personaje.id)
+            datos_json = JsonConvert.SerializeObject(personaje, Formatting.Indented)
+            
+            archivo = FileAccess.Open(ruta_personaje, FileAccess.ModeFlags.WRITE)
+            if archivo != null:
+                archivo.StoreString(datos_json)
+                archivo.Close()
+                Logger.LogDebug("GestorPersonajes: Personaje guardado: " + personaje.nombre)
+            else:
+                Logger.LogError("GestorPersonajes: No se pudo crear archivo para personaje: " + personaje.nombre)
+            return true
+        }, "GestorPersonajes.GuardarPersonajeLocal", false)
+    
+    function CrearDirectorioPersonajes():
+        return ManejoErrores.EjecutarConManejo(() => {
+            if not Dir.DirExists(directorio_personajes):
+                Dir.MakeDirAbsolute(directorio_personajes)
+                Logger.LogInfo("GestorPersonajes: Directorio creado: " + directorio_personajes)
+            return true
+        }, "GestorPersonajes.CrearDirectorioPersonajes", false)
+    
+    function ObtenerRutaPersonaje(id_personaje: string): string
+        return directorio_personajes + "/" + id_personaje + ".json"
+    
+    function GenerarIDPersonaje(nombre: string): string
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Usar seed del mundo para generación reproducible
+            random = new Random(SessionData.Instance.seed_mundo)
+            timestamp = DateTime.Now().ToString("yyyyMMddHHmmssfff")
+            random_component = random.Next(0, 9999).ToString("D4")
+            datos = nombre.ToLower() + timestamp + random_component + SessionData.Instance.seed_mundo.ToString()
+            
+            # Generar hash MD5
+            hash = datos.Hash()
+            Logger.LogDebug("GestorPersonajes: ID generado para " + nombre + ": " + hash)
+            return hash
+        }, "GestorPersonajes.GenerarIDPersonaje", false)
+    
+    function ObtenerDatosPersonajeMundo(id_personaje: string, nombre_mundo: string): DatosPersonajeMundo
+        return ManejoErrores.EjecutarConManejo(() => {
+            if not personajes_locales.ContainsKey(id_personaje):
+                Logger.LogWarning("GestorPersonajes: Personaje no encontrado: " + id_personaje)
+                return EstadoSeguroPersonajes.ObtenerValorPorDefecto("datos_mundo_nulo")
+            
+            personaje = personajes_locales[id_personaje]
+            
+            if not personaje.niveles_mundo.ContainsKey(nombre_mundo):
+                # Crear datos por defecto para este mundo
+                datos_mundo = new DatosPersonajeMundo()
+                datos_mundo.nombre_mundo = nombre_mundo
+                datos_mundo.id_personaje = id_personaje
+                datos_mundo.fecha_primera_vez = DateTime.Now()
+                datos_mundo.inventario = new CharacterInventory()
+                datos_mundo.vida = EstadoSeguroPersonajes.ObtenerValorPorDefecto("vida")
+                datos_mundo.vida_maxima = EstadoSeguroPersonajes.ObtenerValorPorDefecto("vida_maxima")
+                datos_mundo.hambre = EstadoSeguroPersonajes.ObtenerValorPorDefecto("hambre")
+                datos_mundo.sed = EstadoSeguroPersonajes.ObtenerValorPorDefecto("sed")
+                datos_mundo.posicion = CoordenadaGlobal(0, 10, 0)  # Usar coordenadas globales
+                datos_mundo.rotacion = EstadoSeguroPersonajes.ObtenerValorPorDefecto("rotacion")
+                datos_mundo.ultima_conexion = DateTime.Now
+                datos_mundo.nivel = EstadoSeguroPersonajes.ObtenerValorPorDefecto("nivel")
+                datos_mundo.experiencia = EstadoSeguroPersonajes.ObtenerValorPorDefecto("experiencia")
+                datos_mundo.habilidades = new Dictionary()
+                
+                # Inicializar habilidades básicas
+                datos_mundo.habilidades["supervivencia"] = 1
+                datos_mundo.habilidades["exploracion"] = 1
+                datos_mundo.habilidades["crafting"] = 1
+                
+                personaje.niveles_mundo[nombre_mundo] = datos_mundo
+                GuardarPersonajeLocal(personaje)
+                
+                Logger.LogInfo("GestorPersonajes: Datos de mundo creados para " + personaje.nombre + " en " + nombre_mundo)
+            
+            return personaje.niveles_mundo[nombre_mundo]
+        }, "GestorPersonajes.ObtenerDatosPersonajeMundo", false)
+    
+    function ActualizarDatosPersonajeMundo(id_personaje: string, nombre_mundo: string, datos: DatosPersonajeMundo):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if not personajes_locales.ContainsKey(id_personaje):
+                Logger.LogWarning("GestorPersonajes: Personaje no encontrado para actualizar: " + id_personaje)
+                return EstadoSeguroPersonajes.ObtenerValorPorDefecto("actualizar_datos_fallido")
+            
+            # Validar datos antes de guardar
+            if not ValidarDatosPersonajeMundo(datos):
+                Logger.LogError("GestorPersonajes: Datos de personaje inválidos para actualizar")
+                return EstadoSeguroPersonajes.ObtenerValorPorDefecto("actualizar_datos_fallido")
+            
+            personaje = personajes_locales[id_personaje]
+            personaje.niveles_mundo[nombre_mundo] = datos
+            personaje.ultima_conexion = DateTime.Now
+            
+            GuardarPersonajeLocal(personaje)
+            
+            # Enviar transacción al servidor para persistencia
+            # NOTA: Esto debe ser reemplazado por inyección de dependencias
+            if GameManager.instance != null:
+                sistema_persistencia = GameManager.instance.sistema_persistencia
+                if sistema_persistencia != null:
+                    sistema_persistencia.PersistirPersonaje(id_personaje, nombre_mundo, datos)
+            
+            Logger.LogDebug("GestorPersonajes: Datos de mundo actualizados para " + id_personaje + " en " + nombre_mundo)
+            return true
+        }, "GestorPersonajes.ActualizarDatosPersonajeMundo", false)
+    
+    # =============================================================================
+    # FUNCIONES DE VALIDACIÓN
+    # =============================================================================
+    
+    function ValidarNombrePersonaje(nombre: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Verificar longitud
+            if nombre.length() < 3 or nombre.length() > 20:
+                return false
+            
+            # Verificar caracteres permitidos (letras, números, espacios, guiones bajos)
+            for i in range(nombre.length()):
+                caracter = nombre[i]
+                if not (caracter.is_alphanumeric() or caracter == " " or caracter == "_" or caracter == "-"):
+                    return false
+            
+            # Verificar que no empiece o termine con espacio
+            if nombre[0] == " " or nombre[nombre.length() - 1] == " ":
+                return false
+            
+            return true
+        }, "GestorPersonajes.ValidarNombrePersonaje", false)
+    
+    function ValidarApariencia(apariencia: CharacterAppearance): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Verificar que la apariencia no sea nula
+            if apariencia == null:
+                return false
+            
+            # Verificar ruta del modelo
+            if apariencia.model_path == "" or not apariencia.model_path.ends_with(".glb"):
+                return false
+            
+            # Verificar escala
+            if apariencia.scale.x <= 0 or apariencia.scale.y <= 0 or apariencia.scale.z <= 0:
+                return false
+            
+            # Verificar colores válidos
+            if apariencia.skin_tone.r < 0 or apariencia.skin_tone.r > 1:
+                return false
+            if apariencia.hair_color.r < 0 or apariencia.hair_color.r > 1:
+                return false
+            
+            return true
+        }, "GestorPersonajes.ValidarApariencia", false)
+    
+    function ValidarDatosPersonajeMundo(datos: DatosPersonajeMundo): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Verificar datos básicos
+            if datos == null:
+                return false
+            
+            # Verificar rangos de estadísticas
+            if datos.vida < 0 or datos.vida > datos.vida_maxima:
+                return false
+            if datos.hambre < 0 or datos.hambre > 100:
+                return false
+            if datos.sed < 0 or datos.sed > 100:
+                return false
+            
+            # Verificar nivel y experiencia
+            if datos.nivel < 1 or datos.nivel > 100:
+                return false
+            if datos.experiencia < 0:
+                return false
+            
+            # Verificar inventario
+            if datos.inventario == null:
+                return false
+            
+            return true
+        }, "GestorPersonajes.ValidarDatosPersonajeMundo", false)
+
+# =============================================================================
+# CLASE: Personaje
+# =============================================================================
+class Personaje:
+    id: string
+    nombre: string
+    apariencia: CharacterAppearance
+    fecha_creacion: DateTime
+    ultima_seleccion: DateTime
+    ultima_conexion: DateTime
+    niveles_mundo: Dictionary<string, DatosPersonajeMundo>  # Datos por cada mundo
+    
+    function Constructor():
+        id = ""
+        nombre = ""
+        apariencia = new CharacterAppearance()
+        fecha_creacion = DateTime.Now()
+        ultima_seleccion = DateTime.Now
+        ultima_conexion = DateTime.MinValue
+        niveles_mundo = new Dictionary()
+
+# =============================================================================
+# CLASE: DatosPersonajeMundo
+# =============================================================================
+class DatosPersonajeMundo:
+    id_personaje: string
+    nombre_mundo: string
+    fecha_primera_vez: DateTime
+    ultima_conexion: DateTime
+    tiempo_jugado: TimeSpan
+    
+    # Estadísticas del personaje en este mundo
+    vida: float = 100.0
+    vida_maxima: float = 100.0
+    hambre: float = 100.0
+    sed: float = 100.0
+    
+    # Posición y orientación (usando coordenadas globales)
+    posicion: CoordenadaGlobal
+    rotacion: Vector3
+    
+    # Inventario específico del mundo
+    inventario: CharacterInventory
+    equipamiento: Dictionary<EquipmentSlot, ItemData>
+    
+    # Progreso específico del mundo
+    nivel: int = 1
+    experiencia: long = 0
+    habilidades: Dictionary<string, int>
+    
+    function Constructor():
+        posicion = CoordenadaGlobal(0, 10, 0)  # Usar coordenadas globales
+        rotacion = Vector3.ZERO
+        inventario = new CharacterInventory()
+        equipamiento = new Dictionary()
+        habilidades = new Dictionary()
+
+# =============================================================================
+# CLASES DE SOPORTE
+# =============================================================================
+
+class CharacterAppearance:
+    model_path: string = "res://models/characters/human_base.glb"
+    scale: Vector3 = Vector3.ONE
+    skin_tone: Color = Colors.White
+    hair_color: Color = Colors.Brown
+    hair_style: string = "short"
+    body_type: string = "normal"
+    clothing: string = "casual"
+
+class CharacterInventory:
+    items: List<ItemData> = new()
+    equipped_items: Dictionary<EquipmentSlot, ItemData> = new()
+    max_weight: float = 30.0
+    max_slots: int = 20
+
+class ItemData:
+    id: string
+    nombre: string
+    tipo: ItemType
+    cantidad: int
+    peso: float
+    durabilidad: float
+
+class EquipmentSlot:
+    static CABEZA = 0
+    static PECHO = 1
+    static PIERNAS = 2
+    static PIES = 3
+    static MANO_DERECHA = 4
+    static MANO_IZQUIERDA = 5
+
+class ItemType:
+    static ARMA = 0
+    static ARMADURA = 1
+    static HERRAMIENTA = 2
+    static COMIDA = 3
+    static BEBIDA = 4
+    static MATERIAL = 5
+
+# =============================================================================
+# CLASES DE RESULTADO
+# =============================================================================
+
+class ResultadoCreacionPersonaje:
+    exito: bool
+    error: string
+    personaje: Personaje
+
+# =============================================================================
+# FUNCIONES GLOBALES DE ACCESO RÁPIDO
+# =============================================================================
+function GetGestorPersonajes(): GestorPersonajes
+    return ManejoErrores.EjecutarConManejo(() => {
+        if GestorPersonajes.instance == null:
+            Logger.LogError("GetGestorPersonajes: GestorPersonajes no inicializado")
+            return EstadoSeguroPersonajes.ObtenerValorPorDefecto("gestor_personajes_nulo")
+        return GestorPersonajes.instance
+    }, "GetGestorPersonajes", false)
+
+function CrearPersonaje(nombre: string, apariencia: CharacterAppearance): ResultadoCreacionPersonaje
+    return ManejoErrores.EjecutarConManejo(() => {
+        return GestorPersonajes.CrearPersonaje(nombre, apariencia)
+    }, "CrearPersonaje", false)
+
+function GetPersonajeActual(): Personaje
+    return ManejoErrores.EjecutarConManejo(() => {
+        return GestorPersonajes.ObtenerPersonajeActual()
+    }, "GetPersonajeActual", false)
+
+function SeleccionarPersonaje(id: string): bool
+    return ManejoErrores.EjecutarConManejo(() => {
+        return GestorPersonajes.SeleccionarPersonaje(id)
+    }, "SeleccionarPersonaje", false)
+
+function GetTodosPersonajes(): List<Personaje>
+    return ManejoErrores.EjecutarConManejo(() => {
+        return GestorPersonajes.ObtenerTodosPersonajes()
+    }, "GetTodosPersonajes", false)
+
+function GetDatosPersonajeMundo(nombre_mundo: string): DatosPersonajeMundo
+    return ManejoErrores.EjecutarConManejo(() => {
+        personaje_actual = GetPersonajeActual()
+        if personaje_actual != null:
+            return GestorPersonajes.instance.ObtenerDatosPersonajeMundo(personaje_actual.id, nombre_mundo)
+        return EstadoSeguroPersonajes.ObtenerValorPorDefecto("datos_mundo_nulo")
+    }, "GetDatosPersonajeMundo", false)

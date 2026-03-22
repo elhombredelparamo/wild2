@@ -1,0 +1,589 @@
+# =============================================================================
+# SISTEMA DE BIOMAS
+# =============================================================================
+# Archivo: biomas.pseudo
+# Descripción: Definición y aplicación de biomas en el terreno
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaBiomas
+# =============================================================================
+class SistemaBiomas:
+    # Propiedades principales
+    biomas_disponibles: Dictionary<TipoBioma, Bioma>
+    generador_biomas: GeneradorBiomas
+    mapa_biomas: MapaBiomas
+    # seed_mundo eliminada - ahora usa SessionData.Instance.seed_mundo
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema
+    function Inicializar(seed: int = 0):
+        try:
+            # Establecer seed en SessionData
+            SessionData.Instance.seed_mundo = seed
+            generador_biomas.ActualizarSeed()
+            
+            biomas_disponibles = new Dictionary()
+            generador_biomas = new GeneradorBiomas()
+            mapa_biomas = new MapaBiomas()
+            
+            # Registrar biomas base
+            RegistrarBiomasBase()
+            
+            Logger.LogInfo("SistemaBiomas: Inicialización completada")
+        catch error as Exception:
+            Logger.LogError("SistemaBiomas: Error en inicialización - " + error.Message)
+    
+    # Establecer seed del mundo para generación reproducible
+    function EstablecerSeed(seed: int):
+        try:
+            # Ya no se almacena localmente, se usa SessionData
+            SessionData.Instance.seed_mundo = seed
+            generador_biomas.ActualizarSeed()
+            Logger.LogInfo("SistemaBiomas: Seed de biomas establecida: " + str(seed))
+        catch error as Exception:
+            Logger.LogError("SistemaBiomas: Error estableciendo seed - " + error.Message)
+    
+    # Obtener bioma para una coordenada
+    function ObtenerBioma(coord: CoordenadaGlobal): Bioma
+        try:
+            tipo_bioma = generador_biomas.DeterminarTipoBioma(coord)
+            
+            if biomas_disponibles.ContainsKey(tipo_bioma):
+                return biomas_disponibles[tipo_bioma]
+            else:
+                Logger.LogWarning("Bioma no encontrado: " + tipo_bioma.ToString())
+                return biomas_disponibles[TipoBioma.PRADERA]  # Por defecto seguro
+        catch error as Exception:
+            Logger.LogError("SistemaBiomas: Error obteniendo bioma - " + error.Message)
+            return biomas_disponibles[TipoBioma.PRADERA]  # Por defecto seguro
+    
+    # Modificar chunk según bioma
+    function ModificarChunkConBioma(datos_chunk: DatosChunk, coord: CoordenadaGlobal): DatosChunk
+        try:
+            bioma = ObtenerBioma(coord)
+            resultado = bioma.ModificarChunk(datos_chunk)
+            Logger.LogInfo("SistemaBiomas: Chunk modificado con bioma")
+            return resultado
+        catch error as Exception:
+            Logger.LogWarning("SistemaBiomas: Error modificando chunk con bioma - " + error.Message)
+            return datos_chunk  # Devolver chunk sin modificar
+    
+    # =============================================================================
+    # FUNCIONES AUXILIARES
+    # =============================================================================
+    
+    function RegistrarBiomasBase():
+        try:
+            # Crear instancias de biomas base
+            biomas_disponibles[TipoBioma.BOSQUE] = new BiomaBosque()
+            biomas_disponibles[TipoBioma.DESIERTO] = new BiomaDesierto()
+            biomas_disponibles[TipoBioma.MONTAÑA] = new BiomaMontaña()
+            biomas_disponibles[TipoBioma.OCEANO] = new BiomaOceano()
+            biomas_disponibles[TipoBioma.PRADERA] = new BiomaPradera()
+            biomas_disponibles[TipoBioma.TUNDRA] = new BiomaTundra()
+            biomas_disponibles[TipoBioma.JUNGLA] = new BiomaSelva()
+            
+            # Nuevos biomas acuáticos para alturas negativas
+            biomas_disponibles[TipoBioma.AGUA_PROFUNDA] = new BiomaAguaProfunda()
+            biomas_disponibles[TipoBioma.AGUA_SOMERA] = new BiomaAguaSomera()
+            biomas_disponibles[TipoBioma.COSTA] = new BiomaCosta()
+            biomas_disponibles[TipoBioma.RIO] = new BiomaRio()
+            biomas_disponibles[TipoBioma.MARISMA] = new BiomaMarisma()
+            biomas_disponibles[TipoBioma.ISLA] = new BiomaIsla()
+            
+            Logger.LogInfo("SistemaBiomas: Biomas base registrados")
+        catch error as Exception:
+            Logger.LogError("SistemaBiomas: Error crítico registrando biomas base - " + error.Message)
+
+# =============================================================================
+# CLASE BASE: Bioma
+# =============================================================================
+class Bioma:
+    tipo: TipoBioma
+    nombre: string
+    temperatura_base: float
+    humedad_base: float
+    altitud_minima: float
+    altitud_maxima: float
+    
+    # Función principal de modificación
+    function ModificarChunk(datos_chunk: DatosChunk): DatosChunk
+        # Modificar alturas según características del bioma
+        datos_chunk = ModificarAlturas(datos_chunk)
+        
+        # Agregar vegetación característica
+        datos_chunk = AgregarVegetacion(datos_chunk)
+        
+        # Agregar recursos característicos
+        datos_chunk = AgregarRecursos(datos_chunk)
+        
+        # Modificar tipo de terreno
+        datos_chunk = ModificarTipoTerreno(datos_chunk)
+        
+        return datos_chunk
+    
+    # Funciones virtuales a implementar por cada bioma
+    virtual function ModificarAlturas(datos: DatosChunk): DatosChunk
+    virtual function AgregarVegetacion(datos: DatosChunk): DatosChunk
+    virtual function AgregarRecursos(datos: DatosChunk): DatosChunk
+    virtual function ModificarTipoTerreno(datos: DatosChunk): DatosChunk
+
+# =============================================================================
+# BIOMAS ESPECÍFICOS
+# =============================================================================
+
+class BiomaBosque extends Bioma:
+    function ModificarAlturas(datos: DatosChunk): DatosChunk
+        try:
+            # Bosques tienen variación moderada de alturas
+            for x in 0..9:
+                for z in 0..9:
+                    ruido = GenerarRuidoPerlinConSeed(x, z, 0.1, SessionData.Instance.seed_mundo)
+                    datos.altitudes[x, z] += ruido * 2.0
+            Logger.LogInfo("BiomaBosque: Alturas modificadas")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaBosque: Error modificando alturas - " + error.Message)
+            return datos
+    
+    function AgregarVegetacion(datos: DatosChunk): DatosChunk
+        try:
+            # Agregar árboles principalmente
+            for x in 0..9:
+                for z in 0..9:
+                    if Random() < 0.3:  # 30% probabilidad de árbol
+                        arbol = new Arbol(x, z)
+                        if ValidarElementoVegetacion(arbol):
+                            datos.vegetacion.Add(arbol)
+                            Logger.LogInfo("BiomaBosque: Árbol agregado en (" + x + "," + z + ")")
+                        else:
+                            Logger.LogWarning("BiomaBosque: Árbol inválido omitido en posición (" + x + "," + z + ")")
+            Logger.LogInfo("BiomaBosque: Vegetación agregada")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaBosque: Error agregando vegetación - " + error.Message)
+            return datos
+
+class BiomaDesierto extends Bioma:
+    function ModificarAlturas(datos: DatosChunk): DatosChunk
+        try:
+            # Desiertos son más planos con dunas
+            for x in 0..9:
+                for z in 0..9:
+                    ruido = GenerarRuidoPerlinConSeed(x, z, 0.05, SessionData.Instance.seed_mundo)
+                    datos.altitudes[x, z] += ruido * 1.0
+            Logger.LogInfo("BiomaDesierto: Alturas modificadas")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaDesierto: Error modificando alturas - " + error.Message)
+            return datos
+    
+    function AgregarVegetacion(datos: DatosChunk): DatosChunk
+        try:
+            # Poca vegetación, principalmente cactus
+            for x in 0..9:
+                for z in 0..9:
+                    if Random() < 0.05:  # 5% probabilidad de cactus
+                        cactus = new Cactus(x, z)
+                        if ValidarElementoVegetacion(cactus):
+                            datos.vegetacion.Add(cactus)
+                            Logger.LogInfo("BiomaDesierto: Cactus agregado en (" + x + "," + z + ")")
+                        else:
+                            Logger.LogWarning("BiomaDesierto: Cactus inválido omitido en posición (" + x + "," + z + ")")
+            Logger.LogInfo("BiomaDesierto: Vegetación agregada")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaDesierto: Error agregando vegetación - " + error.Message)
+            return datos
+
+class BiomaMontaña extends Bioma:
+    function ModificarAlturas(datos: DatosChunk): DatosChunk
+        try:
+            # Montañas tienen gran variación de alturas
+            for x in 0..9:
+                for z in 0..9:
+                    ruido = GenerarRuidoPerlinConSeed(x, z, 0.2, SessionData.Instance.seed_mundo)
+                    datos.altitudes[x, z] += ruido * 5.0
+            Logger.LogInfo("BiomaMontaña: Alturas modificadas")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaMontaña: Error modificando alturas - " + error.Message)
+            return datos
+    
+    function AgregarRecursos(datos: DatosChunk): DatosChunk
+        try:
+            # Minerales en montañas
+            for x in 0..9:
+                for z in 0..9:
+                    if Random() < 0.1:  # 10% probabilidad de mineral
+                        mineral = new Mineral(x, z)
+                        if ValidarElementoRecurso(mineral):
+                            datos.recursos.Add(mineral)
+                            Logger.LogInfo("BiomaMontaña: Mineral agregado en (" + x + "," + z + ")")
+                        else:
+                            Logger.LogWarning("BiomaMontaña: Mineral inválido omitido en posición (" + x + "," + z + ")")
+            Logger.LogInfo("BiomaMontaña: Recursos agregados")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaMontaña: Error agregando recursos - " + error.Message)
+            return datos
+
+# =============================================================================
+# BIOMAS ACUÁTICOS (Nuevos para alturas negativas)
+# =============================================================================
+
+class BiomaOceano extends Bioma:
+    function ModificarAlturas(datos: DatosChunk): DatosChunk
+        try:
+            # Océano profundo - alturas muy bajas
+            for x in 0..9:
+                for z in 0..9:
+                    ruido = GenerarRuidoPerlinConSeed(x, z, 0.03, SessionData.Instance.seed_mundo)
+                    datos.altitudes[x, z] = -80 + ruido * 20  # -100 a -60 metros
+            Logger.LogInfo("BiomaOceano: Alturas modificadas")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaOceano: Error modificando alturas - " + error.Message)
+            return datos
+    
+    function AgregarVegetacion(datos: DatosChunk): DatosChunk
+        try:
+            # Sin vegetación en océano profundo
+            Logger.LogInfo("BiomaOceano: Vegetación procesada (sin vegetación en océano)")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaOceano: Error procesando vegetación - " + error.Message)
+            return datos
+
+class BiomaAguaProfunda extends Bioma:
+    function ModificarAlturas(datos: DatosChunk): DatosChunk
+        try:
+            # Aguas profundas -50 a -20 metros
+            for x in 0..9:
+                for z in 0..9:
+                    ruido = GenerarRuidoPerlinConSeed(x, z, 0.04, SessionData.Instance.seed_mundo)
+                    datos.altitudes[x, z] = -35 + ruido * 15  # -50 a -20 metros
+            Logger.LogInfo("BiomaAguaProfunda: Alturas modificadas")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaAguaProfunda: Error modificando alturas - " + error.Message)
+            return datos
+    
+    function AgregarVegetacion(datos: DatosChunk): DatosChunk
+        try:
+            # Algas marinas en aguas profundas
+            for x in 0..9:
+                for z in 0..9:
+                    if Random() < 0.05:  # 5% probabilidad de algas
+                        alga = new AlgaMarina(x, z)
+                        if ValidarElementoVegetacion(alga):
+                            datos.vegetacion.Add(alga)
+                            Logger.LogInfo("BiomaAguaProfunda: Alga marina agregada en (" + x + "," + z + ")")
+                        else:
+                            Logger.LogWarning("BiomaAguaProfunda: Alga marina inválida omitida en posición (" + x + "," + z + ")")
+            Logger.LogInfo("BiomaAguaProfunda: Vegetación agregada")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaAguaProfunda: Error agregando vegetación - " + error.Message)
+            return datos
+
+class BiomaCosta extends Bioma:
+    function ModificarAlturas(datos: DatosChunk): DatosChunk
+        try:
+            # Costas -20 a 0 metros
+            for x in 0..9:
+                for z in 0..9:
+                    ruido = GenerarRuidoPerlinConSeed(x, z, 0.06, SessionData.Instance.seed_mundo)
+                    datos.altitudes[x, z] = -10 + ruido * 10  # -20 a 0 metros
+            Logger.LogInfo("BiomaCosta: Alturas modificadas")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaCosta: Error modificando alturas - " + error.Message)
+            return datos
+    
+    function AgregarVegetacion(datos: DatosChunk): DatosChunk
+        try:
+            # Hierba costera y algas
+            for x in 0..9:
+                for z in 0..9:
+                    if Random() < 0.2:  # 20% probabilidad
+                        if Random() < 0.5:
+                            alga = new AlgaMarina(x, z)
+                            if ValidarElementoVegetacion(alga):
+                                datos.vegetacion.Add(alga)
+                                Logger.LogInfo("BiomaCosta: Alga marina agregada en (" + x + "," + z + ")")
+                            else:
+                                Logger.LogWarning("BiomaCosta: Alga marina inválida omitida en posición (" + x + "," + z + ")")
+                        else:
+                            hierba = new HierbaCostera(x, z)
+                            if ValidarElementoVegetacion(hierba):
+                                datos.vegetacion.Add(hierba)
+                                Logger.LogInfo("BiomaCosta: Hierba costera agregada en (" + x + "," + z + ")")
+                            else:
+                                Logger.LogWarning("BiomaCosta: Hierba costera inválida omitida en posición (" + x + "," + z + ")")
+            Logger.LogInfo("BiomaCosta: Vegetación agregada")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaCosta: Error agregando vegetación - " + error.Message)
+            return datos
+
+class BiomaRio extends Bioma:
+    function ModificarAlturas(datos: DatosChunk): DatosChunk
+        try:
+            # Ríos - valles con agua corriendo
+            for x in 0..9:
+                for z in 0..9:
+                    ruido = GenerarRuidoPerlinConSeed(x, z, 0.08, SessionData.Instance.seed_mundo)
+                    datos.altitudes[x, z] = -25 + ruido * 25  # -50 a 0 metros
+            Logger.LogInfo("BiomaRio: Alturas modificadas")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaRio: Error modificando alturas - " + error.Message)
+            return datos
+    
+    function AgregarVegetacion(datos: DatosChunk): DatosChunk
+        try:
+            # Vegetación ribereña
+            for x in 0..9:
+                for z in 0..9:
+                    if Random() < 0.15:  # 15% probabilidad
+                        hierba = new HierbaCostera(x, z)
+                        if ValidarElementoVegetacion(hierba):
+                            datos.vegetacion.Add(hierba)
+                            Logger.LogInfo("BiomaRio: Hierba costera agregada en (" + x + "," + z + ")")
+                        else:
+                            Logger.LogWarning("BiomaRio: Hierba costera inválida omitida en posición (" + x + "," + z + ")")
+            Logger.LogInfo("BiomaRio: Vegetación agregada")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaRio: Error agregando vegetación - " + error.Message)
+            return datos
+
+class BiomaMarisma extends Bioma:
+    function ModificarAlturas(datos: DatosChunk): DatosChunk
+        try:
+            # Marismas - terrenos pantanosos cerca del agua
+            for x in 0..9:
+                for z in 0..9:
+                    ruido = GenerarRuidoPerlinConSeed(x, z, 0.07, SessionData.Instance.seed_mundo)
+                    datos.altitudes[x, z] = -5 + ruido * 5  # -10 a 0 metros
+            Logger.LogInfo("BiomaMarisma: Alturas modificadas")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaMarisma: Error modificando alturas - " + error.Message)
+            return datos
+    
+    function AgregarVegetacion(datos: DatosChunk): DatosChunk
+        try:
+            # Hierba de marisma y algas
+            for x in 0..9:
+                for z in 0..9:
+                    if Random() < 0.3:  # 30% probabilidad
+                        if Random() < 0.7:
+                            hierba = new HierbaMarisma(x, z)
+                            if ValidarElementoVegetacion(hierba):
+                                datos.vegetacion.Add(hierba)
+                                Logger.LogInfo("BiomaMarisma: Hierba de marisma agregada en (" + x + "," + z + ")")
+                            else:
+                                Logger.LogWarning("BiomaMarisma: Hierba de marisma inválida omitida en posición (" + x + "," + z + ")")
+                        else:
+                            alga = new AlgaMarina(x, z)
+                            if ValidarElementoVegetacion(alga):
+                                datos.vegetacion.Add(alga)
+                                Logger.LogInfo("BiomaMarisma: Alga marina agregada en (" + x + "," + z + ")")
+                            else:
+                                Logger.LogWarning("BiomaMarisma: Alga marina inválida omitida en posición (" + x + "," + z + ")")
+            Logger.LogInfo("BiomaMarisma: Vegetación agregada")
+            return datos
+        catch error as Exception:
+            Logger.LogError("BiomaMarisma: Error agregando vegetación - " + error.Message)
+            return datos
+
+# =============================================================================
+# CLASE: GeneradorBiomas
+# =============================================================================
+class GeneradorBiomas:
+    # seed_mundo eliminada - ahora usa SessionData.Instance.seed_mundo
+    
+    function ActualizarSeed():
+        # Función para notificar cambios de seed si es necesario
+        pass
+    
+    function DeterminarTipoBioma(coord: CoordenadaGlobal): TipoBioma
+        try:
+            # Usar coordenadas y ruido para determinar bioma
+            altitud = ObtenerAltitudBaseConSeed(coord, SessionData.Instance.seed_mundo)
+            humedad = ObtenerHumedadBaseConSeed(coord, SessionData.Instance.seed_mundo)
+            temperatura = ObtenerTemperaturaBaseConSeed(coord, SessionData.Instance.seed_mundo)
+            
+            # Lógica de determinación de bioma con nuevo rango de alturas
+            if altitud < -20:      # Aguas poco profundas a profundas
+                if humedad > 0.8:
+                    resultado = TipoBioma.OCEANO
+                else:
+                    resultado = TipoBioma.RIO
+            elif altitud < 0:       # Aguas poco profundas y costas
+                if humedad > 0.6:
+                    resultado = TipoBioma.MARISMA
+                else:
+                    resultado = TipoBioma.ISLA
+            elif altitud < 50:      # Terrenos bajos
+                if humedad < 0.2 and temperatura > 25:
+                    resultado = TipoBioma.DESIERTO
+                elif humedad > 0.7 and temperatura > 15:
+                    resultado = TipoBioma.JUNGLA
+                elif humedad > 0.5:
+                    resultado = TipoBioma.BOSQUE
+                else:
+                    resultado = TipoBioma.PRADERA
+            elif altitud < 200:     # Colinas y terrenos elevados
+                if humedad > 0.6 and temperatura > 10:
+                    resultado = TipoBioma.BOSQUE
+                elif humedad > 0.3:
+                    resultado = TipoBioma.PRADERA
+                else:
+                    resultado = TipoBioma.DESIERTO
+            elif altitud < 500:     # Montañas bajas
+                if temperatura < 5:
+                    resultado = TipoBioma.TUNDRA
+                elif humedad > 0.4:
+                    resultado = TipoBioma.BOSQUE
+                else:
+                    resultado = TipoBioma.DESIERTO
+            elif altitud < 800:     # Montañas medias
+                if temperatura < 0:
+                    resultado = TipoBioma.TUNDRA
+                elif humedad > 0.3:
+                    resultado = TipoBioma.BOSQUE
+                else:
+                    resultado = TipoBioma.DESIERTO
+            else:                   # Montañas altas (800+ metros)
+                if temperatura < -5:
+                    resultado = TipoBioma.TUNDRA
+                elif humedad > 0.2:
+                    resultado = TipoBioma.BOSQUE
+                else:
+                    resultado = TipoBioma.DESIERTO
+            
+            Logger.LogInfo("GeneradorBiomas: Tipo de bioma determinado")
+            return resultado
+        catch error as Exception:
+            Logger.LogError("GeneradorBiomas: Error determinando tipo de bioma - " + error.Message)
+            return TipoBioma.PRADERA  # Por defecto seguro
+    
+    function ObtenerAltitudBaseConSeed(coord: CoordenadaGlobal, seed: int): float
+        try:
+            # Generador de ruido con seed específica
+            generador = new GeneradorPerlin(seed + 100)  # Offset para biomas
+            
+            # Generar altura usando coordenadas globales
+            x_global = coord.chunk_x * 10 + coord.local_x
+            z_global = coord.chunk_z * 10 + coord.local_z
+            
+            # Combinar múltiples octavas para variación natural
+            ruido_1 = generador.Noise2D(x_global * 0.01, z_global * 0.01) * 50.0
+            ruido_2 = generador.Noise2D(x_global * 0.02, z_global * 0.02) * 25.0
+            ruido_3 = generador.Noise2D(x_global * 0.005, z_global * 0.005) * 10.0
+            
+            # Combinar ruidos para terreno complejo
+            altura_base = ruido_1 + ruido_2 + ruido_3
+            
+            # Normalizar a rango -100 a 1000 metros
+            altura_normalizada = (altura_base + 1.0) * 0.5
+            altura_final = altura_normalizada * 1100.0 - 100.0
+            
+            return clamp(altura_final, -100.0, 1000.0)
+        catch error as Exception:
+            Logger.LogError("GeneradorBiomas: Error obteniendo altitud base - " + error.Message)
+            return 0.0  # Por defecto: nivel del mar
+    
+    function ObtenerHumedadBaseConSeed(coord: CoordenadaGlobal, seed: int): float
+        try:
+            generador = new GeneradorPerlin(seed + 2000)  # Offset para humedad
+            
+            x_global = coord.chunk_x * 10 + coord.local_x
+            z_global = coord.chunk_z * 10 + coord.local_z
+            
+            humedad_base = generador.Noise2D(x_global * 0.05, z_global * 0.05)
+            
+            # Normalizar a rango [0, 1]
+            return (humedad_base + 1.0) * 0.5
+        catch error as Exception:
+            Logger.LogError("GeneradorBiomas: Error obteniendo humedad base - " + error.Message)
+            return 0.5  # Por defecto: humedad media
+    
+    function ObtenerTemperaturaBaseConSeed(coord: CoordenadaGlobal, seed: int): float
+        try:
+            generador = new GeneradorPerlin(seed + 3000)  # Offset para temperatura
+            
+            x_global = coord.chunk_x * 10 + coord.local_x
+            z_global = coord.chunk_z * 10 + coord.local_z
+            
+            temperatura_base = generador.Noise2D(x_global * 0.03, z_global * 0.03)
+            
+            # Normalizar a rango [0, 40] grados Celsius
+            return (temperatura_base + 1.0) * 20.0
+        catch error as Exception:
+            Logger.LogError("GeneradorBiomas: Error obteniendo temperatura base - " + error.Message)
+            return 20.0  # Por defecto: temperatura ambiente
+
+
+# =============================================================================
+# FUNCIONES AUXILIARES DE GENERACIÓN
+# =============================================================================
+
+function GenerarRuidoPerlinConSeed(x: int, z: int, frecuencia: float, seed: int): float
+    try:
+        # Generador de ruido con seed específica para reproducibilidad
+        generador = new GeneradorPerlin(seed)
+        return generador.Noise2D(x * frecuencia, z * frecuencia)
+    catch error as Exception:
+        Logger.LogError("GeneradorRuido: Error generando ruido Perlin - " + error.Message)
+        return 0.0  # Por defecto: sin ruido
+
+function ValidarElementoVegetacion(elemento: ElementoVegetacion): bool
+    try:
+        # Validar integridad básica del elemento
+        if elemento == null:
+            return false
+        
+        # Validar coordenadas
+        if elemento.x < 0 or elemento.x > 9 or elemento.z < 0 or elemento.z > 9:
+            return false
+        
+        # Validar tipo
+        if elemento.tipo == null or elemento.tipo == "":
+            return false
+        
+        return true
+    catch error as Exception:
+        Logger.LogError("Validacion: Error validando elemento vegetación - " + error.Message)
+        return false
+
+function ValidarElementoRecurso(elemento: ElementoRecurso): bool
+    try:
+        # Validar integridad básica del elemento
+        if elemento == null:
+            return false
+        
+        # Validar coordenadas
+        if elemento.x < 0 or elemento.x > 9 or elemento.z < 0 or elemento.z > 9:
+            return false
+        
+        # Validar tipo
+        if elemento.tipo == null or elemento.tipo == "":
+            return false
+        
+        # Validar cantidad (si aplica)
+        if elemento.cantidad < 0 or elemento.cantidad > 100:
+            return false
+        
+        return true
+    catch error as Exception:
+        Logger.LogError("Validacion: Error validando elemento recurso - " + error.Message)
+        return false

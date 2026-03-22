@@ -1,0 +1,1252 @@
+# =============================================================================
+# SISTEMA DE PERSISTENCIA SERVIDOR-CLIENTE
+# =============================================================================
+# Archivo: persistence.pseudo
+# Descripción: Sistema de persistencia continua en servidor con archivos .dat
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaPersistenciaServidor
+# =============================================================================
+class SistemaPersistenciaServidor:
+    # Singleton para acceso global (solo en servidor)
+    static instance: SistemaPersistenciaServidor
+    
+    # Propiedades principales
+    directorio_mundos: string
+    mundo_actual: string
+    es_servidor: bool
+    cola_transacciones: Queue<TransaccionPersistencia>
+    hilo_persistencia: Thread
+    ejecutando: bool = true
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema (solo servidor)
+    static function InicializarServidor(directorio: string = "worlds/"):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaPersistenciaServidor: SessionData no inicializado")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("inicializacion_fallida")
+            
+            if instance == null:
+                instance = new SistemaPersistenciaServidor()
+            
+            SessionData.Instance.directorio_mundos = directorio
+            SessionData.Instance.es_servidor = true
+            instance.cola_transacciones = new Queue()
+            
+            # Crear directorio si no existe
+            instance.CrearDirectorioMundos()
+            
+            # Iniciar hilo de persistencia
+            instance.IniciarHiloPersistencia()
+            
+            Logger.LogInfo("SistemaPersistenciaServidor: Servidor inicializado")
+            return true
+        }, "SistemaPersistenciaServidor.InicializarServidor", true)
+    
+    # Inicialización para clientes (sin persistencia local)
+    static function InicializarCliente():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Los clientes no manejan persistencia local
+            # Solo envían transacciones al servidor
+            if SessionData.Instance != null:
+                SessionData.Instance.es_servidor = false
+            Logger.LogInfo("SistemaPersistenciaServidor: Cliente inicializado")
+            return true
+        }, "SistemaPersistenciaServidor.InicializarCliente", false)
+    
+    # =============================================================================
+    # FUNCIONES DE PERSISTENCIA CONTINUA (SOLO SERVIDOR)
+    # =============================================================================
+    
+    static function CrearMundo(nombre_mundo: string, configuracion: ConfiguracionMundo): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaPersistenciaServidor: SessionData no inicializado")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("resultado_fallido")
+            
+            if not SessionData.Instance.es_servidor:
+                Logger.LogError("SistemaPersistenciaServidor: Solo el servidor puede crear mundos")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("resultado_fallido")
+            
+            return instance.CrearNuevoMundo(nombre_mundo, configuracion)
+        }, "SistemaPersistenciaServidor.CrearMundo", false)
+    
+    static function ConectarMundo(nombre_mundo: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaPersistenciaServidor: SessionData no inicializado")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("resultado_fallido")
+            
+            if not SessionData.Instance.es_servidor:
+                Logger.LogError("SistemaPersistenciaServidor: Solo el servidor puede conectar mundos")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("resultado_fallido")
+            
+            return instance.ConectarAMundo(nombre_mundo)
+        }, "SistemaPersistenciaServidor.ConectarMundo", false)
+    
+    static function DesconectarMundo():
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance != null and SessionData.Instance.es_servidor:
+                instance.DesconectarDeMundo()
+            return true
+        }, "SistemaPersistenciaServidor.DesconectarMundo", false)
+    
+    # =============================================================================
+    # FUNCIONES DE GUARDADO (SOLO SERVIDOR)
+    # =============================================================================
+    
+    static function PersistirJugador(jugador: JugadorLocal):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance != null and SessionData.Instance.es_servidor:
+                transaccion = new TransaccionJugador(jugador)
+                instance.AgregarTransaccion(transaccion)
+            else:
+                # Cliente envía transacción al servidor
+                if GetSistemaRed() != null:
+                    GetSistemaRed().EnviarTransaccionJugador(jugador)
+                else:
+                    Logger.LogWarning("SistemaPersistenciaServidor: SistemaRed no disponible")
+            return true
+        }, "SistemaPersistenciaServidor.PersistirJugador", false)
+    
+    static function PersistirChunk(chunk: Chunk):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance != null and SessionData.Instance.es_servidor:
+                transaccion = new TransaccionChunk(chunk)
+                instance.AgregarTransaccion(transaccion)
+            else:
+                # Cliente envía transacción al servidor
+                if GetSistemaRed() != null:
+                    GetSistemaRed().EnviarTransaccionChunk(chunk)
+                else:
+                    Logger.LogWarning("SistemaPersistenciaServidor: SistemaRed no disponible")
+            return true
+        }, "SistemaPersistenciaServidor.PersistirChunk", false)
+    
+    static function PersistirAccionJugador(accion: AccionJugador):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance != null and SessionData.Instance.es_servidor:
+                transaccion = new TransaccionAccion(accion)
+                instance.AgregarTransaccion(transaccion)
+            else:
+                # Cliente envía transacción al servidor
+                if GetSistemaRed() != null:
+                    GetSistemaRed().EnviarTransaccionAccion(accion)
+                else:
+                    Logger.LogWarning("SistemaPersistenciaServidor: SistemaRed no disponible")
+            return true
+        }, "SistemaPersistenciaServidor.PersistirAccionJugador", false)
+    
+    static function PersistirModificacionTerreno(modificacion: ModificacionTerreno):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance != null and SessionData.Instance.es_servidor:
+                transaccion = new TransaccionTerreno(modificacion)
+                instance.AgregarTransaccion(transaccion)
+            else:
+                # Cliente envía transacción al servidor
+                if GetSistemaRed() != null:
+                    GetSistemaRed().EnviarTransaccionTerreno(modificacion)
+                else:
+                    Logger.LogWarning("SistemaPersistenciaServidor: SistemaRed no disponible")
+            return true
+        }, "SistemaPersistenciaServidor.PersistirModificacionTerreno", false)
+    
+    static function PersistirInventario(inventario: Inventario):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance != null and SessionData.Instance.es_servidor:
+                transaccion = new TransaccionInventario(inventario)
+                instance.AgregarTransaccion(transaccion)
+            else:
+                # Cliente envía transacción al servidor
+                if GetSistemaRed() != null:
+                    GetSistemaRed().EnviarTransaccionInventario(inventario)
+                else:
+                    Logger.LogWarning("SistemaPersistenciaServidor: SistemaRed no disponible")
+            return true
+        }, "SistemaPersistenciaServidor.PersistirInventario", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroPersistencia
+# =============================================================================
+class EstadoSeguroPersistencia:
+    static valores_por_defecto: Dictionary<string, object>
+    
+    static function Inicializar():
+        valores_por_defecto = new Dictionary()
+        # Valores seguros para cada sistema
+        valores_por_defecto["directorio_mundos"] = "worlds/"
+        valores_por_defecto["mundo_actual"] = null
+        valores_por_defecto["es_servidor"] = false
+        valores_por_defecto["cola_transacciones_vacia"] = null
+        valores_por_defecto["hilo_persistencia_nulo"] = null
+        valores_por_defecto["ejecutando"] = true
+        valores_por_defecto["metadatos_nulos"] = null
+        valores_por_defecto["configuracion_defecto"] = null
+        valores_por_defecto["resultado_exitoso"] = null
+        valores_por_defecto["resultado_fallido"] = null
+        valores_por_defecto["datos_chunk_nulos"] = null
+        valores_por_defecto["datos_personaje_nulos"] = null
+        valores_por_defecto["ruta_vacia"] = ""
+        valores_por_defecto["bytes_vacios"] = null
+        valores_por_defecto["serializacion_fallida"] = null
+        valores_por_defecto["deserializacion_fallida"] = null
+        valores_por_defecto["inicializacion_fallida"] = false
+        valores_por_defecto["crear_mundo_fallido"] = false
+        valores_por_defecto["conectar_mundo_fallido"] = false
+        valores_por_defecto["desconectar_mundo_fallido"] = false
+        valores_por_defecto["persistir_jugador_fallido"] = false
+        valores_por_defecto["persistir_chunk_fallido"] = false
+        valores_por_defecto["persistir_accion_fallido"] = false
+        valores_por_defecto["persistir_terreno_fallido"] = false
+        valores_por_defecto["persistir_inventario_fallido"] = false
+        valores_por_defecto["obtener_estado_jugador_fallido"] = null
+        valores_por_defecto["obtener_estado_chunk_fallido"] = null
+        valores_por_defecto["obtener_lista_mundos_fallida"] = null
+        valores_por_defecto["existe_mundo_fallido"] = false
+        valores_por_defecto["crear_nuevo_mundo_fallido"] = false
+        valores_por_defecto["conectar_a_mundo_fallido"] = false
+        valores_por_defecto["desconectar_de_mundo_fallido"] = false
+        valores_por_defecto["agregar_transaccion_fallida"] = false
+        valores_por_defecto["iniciar_hilo_fallido"] = false
+        valores_por_defecto["bucle_persistencia_fallido"] = false
+        valores_por_defecto["procesar_transaccion_fallida"] = false
+        valores_por_defecto["procesar_jugador_fallido"] = false
+        valores_por_defecto["procesar_chunk_fallido"] = false
+        valores_por_defecto["procesar_accion_fallida"] = false
+        valores_por_defecto["procesar_terreno_fallido"] = false
+        valores_por_defecto["procesar_inventario_fallido"] = false
+        valores_por_defecto["crear_directorio_fallido"] = false
+        valores_por_defecto["crear_estructura_fallida"] = false
+        valores_por_defecto["obtener_ruta_jugador_fallida"] = ""
+        valores_por_defecto["obtener_ruta_chunk_fallida"] = ""
+        valores_por_defecto["obtener_ruta_log_fallida"] = ""
+        valores_por_defecto["obtener_ruta_eventos_fallida"] = ""
+        valores_por_defecto["obtener_ruta_seed_fallida"] = ""
+        valores_por_defecto["obtener_ruta_metadata_fallida"] = ""
+        valores_por_defecto["procesar_todas_fallido"] = false
+        valores_por_defecto["generar_semilla_fallida"] = 0
+    
+    static function ObtenerValorPorDefecto(contexto: string): object
+        if valores_por_defecto.ContainsKey(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroPersistencia: Sin valor por defecto para: " + contexto)
+            return null  # Fallback seguro
+
+# =============================================================================
+# FUNCIONES DE CONSULTA (SOLO SERVIDOR)
+# =============================================================================
+    
+    static function ObtenerEstadoJugador(nombre_jugador: string): EstadoJugadorPersistido
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaPersistenciaServidor: SessionData no inicializado")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("obtener_estado_jugador_fallido")
+            
+            if not SessionData.Instance.es_servidor:
+                Logger.LogError("SistemaPersistenciaServidor: Solo el servidor puede consultar estados")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("obtener_estado_jugador_fallido")
+            
+            return instance.CargarEstadoJugador(nombre_jugador)
+        }, "SistemaPersistenciaServidor.ObtenerEstadoJugador", false)
+    
+    static function ObtenerEstadoChunk(coordenada: CoordenadaGlobal): DatosChunk
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaPersistenciaServidor: SessionData no inicializado")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("obtener_estado_chunk_fallido")
+            
+            if not SessionData.Instance.es_servidor:
+                Logger.LogError("SistemaPersistenciaServidor: Solo el servidor puede consultar estados")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("obtener_estado_chunk_fallido")
+            
+            return instance.CargarEstadoChunk(coordenada)
+        }, "SistemaPersistenciaServidor.ObtenerEstadoChunk", false)
+    
+    static function ObtenerListaMundos(): List<Mundo>
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaPersistenciaServidor: SessionData no inicializado")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("obtener_lista_mundos_fallida")
+            
+            if not SessionData.Instance.es_servidor:
+                Logger.LogError("SistemaPersistenciaServidor: Solo el servidor puede listar mundos")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("obtener_lista_mundos_fallida")
+            
+            return instance.CargarListaMundos()
+        }, "SistemaPersistenciaServidor.ObtenerListaMundos", false)
+    
+    static function ExisteMundo(nombre_mundo: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaPersistenciaServidor: SessionData no inicializado")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("existe_mundo_fallido")
+            
+            if not SessionData.Instance.es_servidor:
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("existe_mundo_fallido")
+            
+            ruta_mundo = Path.Combine(SessionData.Instance.directorio_mundos, nombre_mundo)
+            return Directory.Exists(ruta_mundo)
+        }, "SistemaPersistenciaServidor.ExisteMundo", false)
+    
+    # =============================================================================
+    # FUNCIONES INTERNAS
+    # =============================================================================
+    
+    function CrearNuevoMundo(nombre_mundo: string, configuracion: ConfiguracionMundo): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            ruta_mundo = Path.Combine(SessionData.Instance.directorio_mundos, nombre_mundo)
+            
+            if Directory.Exists(ruta_mundo):
+                Logger.LogError("SistemaPersistenciaServidor: El mundo ya existe: " + nombre_mundo)
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("crear_nuevo_mundo_fallido")
+            
+            # Crear directorio del mundo
+            Directory.CreateDirectory(ruta_mundo)
+            
+            # Crear metadatos del mundo
+            metadatos = new MetadatosMundo()
+            metadatos.nombre = nombre_mundo
+            metadatos.fecha_creacion = DateTime.Now()
+            metadatos.configuracion = configuracion
+            metadatos.semilla = GenerarSemilla()
+            
+            GuardarMetadatosMundo(ruta_mundo, metadatos)
+            
+            # Crear estructura inicial
+            CrearEstructuraMundo(ruta_mundo)
+            
+            Logger.LogInfo("SistemaPersistenciaServidor: Mundo creado exitosamente: " + nombre_mundo)
+            return true
+        }, "SistemaPersistenciaServidor.CrearNuevoMundo", false)
+    
+    function ConectarAMundo(nombre_mundo: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            ruta_mundo = Path.Combine(SessionData.Instance.directorio_mundos, nombre_mundo)
+            
+            if not Directory.Exists(ruta_mundo):
+                Logger.LogError("SistemaPersistenciaServidor: El mundo no existe: " + nombre_mundo)
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("conectar_a_mundo_fallido")
+            
+            # Cargar metadatos
+            metadatos = CargarMetadatosMundo(ruta_mundo)
+            
+            # Establecer mundo actual
+            SessionData.Instance.mundo_actual = nombre_mundo
+            
+            # Inicializar persistencia para este mundo
+            InicializarPersistenciaMundo(ruta_mundo)
+            
+            Logger.LogInfo("SistemaPersistenciaServidor: Conectado al mundo: " + nombre_mundo)
+            return true
+        }, "SistemaPersistenciaServidor.ConectarAMundo", false)
+    
+    function DesconectarDeMundo():
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.mundo_actual != null:
+                # Procesar todas las transacciones pendientes
+                ProcesarTodasTransacciones()
+                
+                SessionData.Instance.mundo_actual = null
+                Logger.LogInfo("SistemaPersistenciaServidor: Desconectado del mundo")
+            return true
+        }, "SistemaPersistenciaServidor.DesconectarDeMundo", false)
+    
+    function AgregarTransaccion(transaccion: TransaccionPersistencia):
+        return ManejoErrores.EjecutarConManejo(() => {
+            lock(cola_transacciones):
+                cola_transacciones.Enqueue(transaccion)
+            return true
+        }, "SistemaPersistenciaServidor.AgregarTransaccion", false)
+    
+    function IniciarHiloPersistencia():
+        return ManejoErrores.EjecutarConManejo(() => {
+            hilo_persistencia = Thread.Start(function():
+                BuclePersistencia()
+            end)
+            return true
+        }, "SistemaPersistenciaServidor.IniciarHiloPersistencia", false)
+    
+    function BuclePersistencia():
+        return ManejoErrores.EjecutarConManejo(() => {
+            while SessionData.Instance.ejecutando:
+                try:
+                    # Procesar transacciones en cola
+                    while cola_transacciones.length() > 0:
+                        transaccion = null
+                        
+                        lock(cola_transacciones):
+                            if cola_transacciones.length() > 0:
+                                transaccion = cola_transacciones.Dequeue()
+                        
+                        if transaccion != null:
+                            ProcesarTransaccion(transaccion)
+                    
+                    # Pequeña pausa para no sobrecargar CPU
+                    Thread.Sleep(1)  # 1ms
+                    
+                except error:
+                    Logger.LogError("SistemaPersistenciaServidor: Error en bucle de persistencia: " + error.message)
+            return true
+        }, "SistemaPersistenciaServidor.BuclePersistencia", false)
+    
+    function ProcesarTransaccion(transaccion: TransaccionPersistencia):
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch transaccion.tipo:
+                case TipoTransaccion.JUGADOR:
+                    ProcesarTransaccionJugador(transaccion as TransaccionJugador)
+                case TipoTransaccion.CHUNK:
+                    ProcesarTransaccionChunk(transaccion as TransaccionChunk)
+                case TipoTransaccion.ACCION:
+                    ProcesarTransaccionAccion(transaccion as TransaccionAccion)
+                case TipoTransaccion.TERRENO:
+                    ProcesarTransaccionTerreno(transaccion as TransaccionTerreno)
+                case TipoTransaccion.INVENTARIO:
+                    ProcesarTransaccionInventario(transaccion as TransaccionInventario)
+            return true
+        }, "SistemaPersistenciaServidor.ProcesarTransaccion", false)
+    
+    function ProcesarTransaccionJugador(transaccion: TransaccionJugador):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Obtener ID del personaje desde el jugador
+            id_personaje = transaccion.jugador.id_personaje
+            
+            if id_personaje == "":
+                Logger.LogError("SistemaPersistenciaServidor: Jugador sin ID de personaje")
+                return EstadoSeguroPersistencia.ObtenerValorPorDefecto("procesar_jugador_fallido")
+            
+            # Generar ruta específica para este personaje en este mundo
+            ruta_jugador = ObtenerRutaJugador(id_personaje)
+            
+            # Crear directorio del personaje si no existe
+            if not Directory.Exists(ruta_jugador):
+                Directory.CreateDirectory(ruta_jugador)
+            
+            # Serializar datos específicos del mundo
+            datos_mundo = ObtenerDatosPersonajeMundo(id_personaje, SessionData.Instance.mundo_actual)
+            datos_mundo.vida = transaccion.jugador.vida
+            datos_mundo.vida_maxima = transaccion.jugador.vida_maxima
+            datos_mundo.hambre = transaccion.jugador.hambre
+            datos_mundo.sed = transaccion.jugador.sed
+            datos_mundo.posicion = transaccion.jugador.posicion
+            datos_mundo.rotacion = transaccion.jugador.rotacion
+            datos_mundo.ultima_conexion = DateTime.Now
+            
+            # Guardar en archivos JSON según estructura
+            GuardarDatosPersonajeJson(ruta_jugador, datos_mundo)
+            
+            # Registrar en mundo.log
+            LogMundo("Jugador actualizado: " + id_personaje + " en posición " + transaccion.jugador.posicion.ToString())")
+            
+            # Registrar en eventos.json
+            RegistrarEventoJugador("ACTUALIZACION_JUGADOR", id_personaje, "Datos de personaje guardados", {
+                "posicion": transaccion.jugador.posicion.ToString(),
+                "vida": transaccion.jugador.vida,
+                "hambre": transaccion.jugador.hambre,
+                "sed": transaccion.jugador.sed
+            })
+            
+            # Actualizar también datos locales del cliente
+            ActualizarDatosPersonajeCliente(id_personaje, datos_mundo)
+            return true
+        }, "SistemaPersistenciaServidor.ProcesarTransaccionJugador", false)
+    
+    function ProcesarTransaccionChunk(transaccion: TransaccionChunk):
+        return ManejoErrores.EjecutarConManejo(() => {
+            ruta_chunk = ObtenerRutaChunk(transaccion.chunk.coordenada)
+            
+            # Serializar chunk a formato binario .dat
+            datos_chunk = SerializarChunkADat(transaccion.chunk)
+            
+            # Guardar en archivo .dat
+            File.WriteAllBytes(ruta_chunk, datos_chunk)
+            
+            # Registrar en mundo.log
+            LogMundo("Chunk actualizado: " + transaccion.chunk.coordenada.AClaveString())
+            
+            # Registrar en eventos.json
+            RegistrarEventoJugador("ACTUALIZACION_CHUNK", "sistema", "Chunk guardado", {
+                "coordenada": transaccion.chunk.coordenada.AClaveString(),
+                "tamaño": datos_chunk.length()
+            })
+            return true
+        }, "SistemaPersistenciaServidor.ProcesarTransaccionChunk", false)
+    
+    function ProcesarTransaccionAccion(transaccion: TransaccionAccion):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Las acciones se registran en mundo.log y eventos.json
+            linea_accion = FormatearAccionParaLog(transaccion.accion)
+            LogMundo(linea_accion)
+            
+            RegistrarEventoJugador("ACCION_JUGADOR", transaccion.accion.id_jugador, "Acción registrada", {
+                "tipo_accion": transaccion.accion.tipo_accion.ToString(),
+                "timestamp": transaccion.accion.timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ")
+            })
+            return true
+        }, "SistemaPersistenciaServidor.ProcesarTransaccionAccion", false)
+    
+    function ProcesarTransaccionTerreno(transaccion: TransaccionTerreno):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Las modificaciones de terreno se guardan en el chunk correspondiente
+            coord_chunk = new CoordenadaChunk(
+                transaccion.modificacion.coordenada.chunk_x,
+                transaccion.modificacion.coordenada.chunk_z
+            )
+            
+            # Cargar chunk existente si hay
+            ruta_chunk = ObtenerRutaChunk(transaccion.modificacion.coordenada)
+            chunk_datos = new DatosChunk()
+            
+            if File.Exists(ruta_chunk):
+                chunk_bytes = File.ReadAllBytes(ruta_chunk)
+                chunk_datos = DeserializarChunkDesdeDat(chunk_bytes)
+            
+            # Aplicar modificación
+            chunk_datos = AplicarModificacionTerreno(chunk_datos, transaccion.modificacion)
+            
+            # Guardar chunk actualizado
+            chunk_bytes_actualizado = SerializarChunkADat(chunk_datos)
+            File.WriteAllBytes(ruta_chunk, chunk_bytes_actualizado)
+            
+            # Registrar en mundo.log
+            LogMundo("Terreno modificado: " + transaccion.modificacion.coordenada.AClaveString())
+            
+            # Registrar en eventos.json
+            RegistrarEventoJugador("MODIFICACION_TERRENO", "sistema", "Terreno modificado", {
+                "coordenada": transaccion.modificacion.coordenada.AClaveString(),
+                "tipo_modificacion": transaccion.modificacion.tipo_modificacion.ToString()
+            })
+            return true
+        }, "SistemaPersistenciaServidor.ProcesarTransaccionTerreno", false)
+    
+    function ProcesarTransaccionInventario(transaccion: TransaccionInventario):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # El inventario se guarda junto con los datos del jugador
+            # Esta transacción se procesa junto con la del jugador
+            return EstadoSeguroPersistencia.ObtenerValorPorDefecto("procesar_inventario_fallido")
+        }, "SistemaPersistenciaServidor.ProcesarTransaccionInventario", false)
+    
+    # =============================================================================
+    # FUNCIONES DE UTILIDAD
+    # =============================================================================
+    
+    function CrearDirectorioMundos():
+        return ManejoErrores.EjecutarConManejo(() => {
+            if not Directory.Exists(SessionData.Instance.directorio_mundos):
+                Directory.CreateDirectory(SessionData.Instance.directorio_mundos)
+            return true
+        }, "SistemaPersistenciaServidor.CrearDirectorioMundos", false)
+    
+    function CrearEstructuraMundo(ruta_mundo: string):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Crear subdirectorios para archivos .dat
+            Directory.CreateDirectory(Path.Combine(ruta_mundo, "chunks"))
+            Directory.CreateDirectory(Path.Combine(ruta_mundo, "personajes"))
+            Directory.CreateDirectory(Path.Combine(ruta_mundo, "logs"))
+            
+            # Crear seed.txt
+            seed_txt = Path.Combine(ruta_mundo, "seed.txt")
+            File.WriteAllText(seed_txt, metadatos.semilla.ToString())
+            
+            # Crear metadata.json
+            metadata_json = Path.Combine(ruta_mundo, "metadata.json")
+            metadata_content = {
+                "seed": metadatos.semilla,
+                "nombre": metadatos.nombre,
+                "fecha_creacion": metadatos.fecha_creacion.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                "ultimo_acceso": DateTime.Now().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                "version": "2.0.0",
+                "estadisticas": {
+                    "chunks_generados": 0,
+                    "jugadores_visitantes": 0,
+                    "horas_jugadas": 0.0,
+                    "fecha_ultimo_guardado": DateTime.Now().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                },
+                "configuracion": {
+                    "calidad_render": "Medium",
+                    "distancia_render": 1000,
+                    "tiempo_dia": 12.5,
+                    "clima_actual": "Despejado"
+                }
+            }
+            File.WriteAllText(metadata_json, JsonConvert.SerializeObject(metadata_content, Formatting.Indented))
+            
+            # Crear mundo.log
+            mundo_log = Path.Combine(ruta_mundo, "logs", "mundo.log")
+            File.WriteAllText(mundo_log, "# Mundo log for " + metadatos.nombre + "\n")
+            
+            # Crear eventos.json
+            eventos_json = Path.Combine(ruta_mundo, "logs", "eventos.json")
+            File.WriteAllText(eventos_json, "{\"eventos_recientes\": []}")
+            return true
+        }, "SistemaPersistenciaServidor.CrearEstructuraMundo", false)
+    
+    function ObtenerRutaJugador(id_jugador_md5: string): string
+        return ManejoErrores.EjecutarConManejo(() => {
+            return Path.Combine(SessionData.Instance.directorio_mundos, SessionData.Instance.mundo_actual, "personajes", id_jugador_md5)
+        }, "SistemaPersistenciaServidor.ObtenerRutaJugador", false)
+    
+    function ObtenerRutaChunk(coordenada: CoordenadaGlobal): string
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Formato: chunk_x_chunk_z.dat
+            clave = coordenada.chunk_x.ToString() + "_" + coordenada.chunk_z.ToString()
+            return Path.Combine(SessionData.Instance.directorio_mundos, SessionData.Instance.mundo_actual, "chunks", clave + ".dat")
+        }, "SistemaPersistenciaServidor.ObtenerRutaChunk", false)
+    
+    function ObtenerRutaMundoLog(): string
+        return ManejoErrores.EjecutarConManejo(() => {
+            return Path.Combine(SessionData.Instance.directorio_mundos, SessionData.Instance.mundo_actual, "logs", "mundo.log")
+        }, "SistemaPersistenciaServidor.ObtenerRutaMundoLog", false)
+    
+    function ObtenerRutaEventosJson(): string
+        return ManejoErrores.EjecutarConManejo(() => {
+            return Path.Combine(SessionData.Instance.directorio_mundos, SessionData.Instance.mundo_actual, "logs", "eventos.json")
+        }, "SistemaPersistenciaServidor.ObtenerRutaEventosJson", false)
+    
+    function ObtenerRutaSeedTxt(): string
+        return ManejoErrores.EjecutarConManejo(() => {
+            return Path.Combine(SessionData.Instance.directorio_mundos, SessionData.Instance.mundo_actual, "seed.txt")
+        }, "SistemaPersistenciaServidor.ObtenerRutaSeedTxt", false)
+    
+    function ObtenerRutaMetadataJson(): string
+        return ManejoErrores.EjecutarConManejo(() => {
+            return Path.Combine(SessionData.Instance.directorio_mundos, SessionData.Instance.mundo_actual, "metadata.json")
+        }, "SistemaPersistenciaServidor.ObtenerRutaMetadataJson", false)
+    
+    function ProcesarTodasTransacciones():
+        return ManejoErrores.EjecutarConManejo(() => {
+            while cola_transacciones.length() > 0:
+                Thread.Sleep(10)  # Esperar a que se procesen
+            return true
+        }, "SistemaPersistenciaServidor.ProcesarTodasTransacciones", false)
+    
+    function GenerarSemilla(): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            return Random.Range(0, 2147483647)
+        }, "SistemaPersistenciaServidor.GenerarSemilla", false)
+
+# =============================================================================
+# CLASES DE TRANSACCIONES
+# =============================================================================
+
+class TransaccionPersistencia:
+    id: string
+    tipo: TipoTransaccion
+    timestamp: DateTime
+    
+    function Constructor(tipo: TipoTransaccion):
+        self.id = Guid.NewGuid().ToString()
+        self.tipo = tipo
+        self.timestamp = DateTime.Now()
+
+class TransaccionJugador extends TransaccionPersistencia:
+    jugador: JugadorLocal
+    
+    function Constructor(jugador: JugadorLocal):
+        super.Constructor(TipoTransaccion.JUGADOR)
+        self.jugador = jugador
+
+class TransaccionChunk extends TransaccionPersistencia:
+    chunk: Chunk
+    
+    function Constructor(chunk: Chunk):
+        super.Constructor(TipoTransaccion.CHUNK)
+        self.chunk = chunk
+
+class TransaccionAccion extends TransaccionPersistencia:
+    accion: AccionJugador
+    
+    function Constructor(accion: AccionJugador):
+        super.Constructor(TipoTransaccion.ACCION)
+        self.accion = accion
+
+class TransaccionTerreno extends TransaccionPersistencia:
+    modificacion: ModificacionTerreno
+    
+    function Constructor(modificacion: ModificacionTerreno):
+        super.Constructor(TipoTransaccion.TERRENO)
+        self.modificacion = modificacion
+
+class TransaccionInventario extends TransaccionPersistencia:
+    inventario: Inventario
+    
+    function Constructor(inventario: Inventario):
+        super.Constructor(TipoTransaccion.INVENTARIO)
+        self.inventario = inventario
+
+# =============================================================================
+# CLASES DE DATOS
+# =============================================================================
+
+class ConfiguracionMundo:
+    nombre: string
+    modo_juego: ModoJuego
+    dificultad: Dificultad
+    pvp: bool
+    max_jugadores: int
+
+class MetadatosMundo:
+    nombre: string
+    fecha_creacion: DateTime
+    fecha_ultimo_acceso: DateTime
+    configuracion: ConfiguracionMundo
+    semilla: int
+    version_juego: string
+
+class MundoInfo:
+    nombre: string
+    fecha_creacion: DateTime
+    fecha_ultimo_acceso: DateTime
+    jugadores_conectados: int
+    tamaño_estimado: long
+
+class EstadoJugadorPersistido:
+    nombre: string
+    posicion: Vector3
+    rotacion: Vector3
+    vida: float
+    inventario: DatosInventario
+    ultima_conexion: DateTime
+
+class AccionJugador:
+    id_jugador: string
+    tipo_accion: TipoAccion
+    datos_accion: object
+    timestamp: DateTime
+
+class ModificacionTerreno:
+    coordenada: CoordenadaGlobal
+    tipo_modificacion: TipoModificacion
+    datos_modificacion: object
+    timestamp: DateTime
+
+# =============================================================================
+# ENUMS
+# =============================================================================
+
+class TipoTransaccion:
+    static JUGADOR = 0
+    static CHUNK = 1
+    static ACCION = 2
+    static TERRENO = 3
+    static INVENTARIO = 4
+
+class ModoJuego:
+    static SUPERVIVENCIA = 0
+    static CREATIVO = 1
+    static AVENTURA = 2
+    static ESPECTADOR = 3
+
+class TipoAccion:
+    static MOVIMIENTO = 0
+    static INTERACCION = 1
+    static CONSTRUCCION = 2
+    static DESTRUCCION = 3
+    static COMBATE = 4
+
+class TipoModificacion:
+    static ALTITUD = 0
+    static BIOMA = 1
+    static VEGETACION = 2
+    static RECURSO = 3
+    static ESTRUCTURA = 4
+
+function ObtenerDatosPersonajeMundo(id_personaje: string, nombre_mundo: string): DatosPersonajeMundo
+        ruta_jugador = ObtenerRutaJugador(id_personaje)
+        
+        # Verificar si existe el directorio del personaje
+        if not Directory.Exists(ruta_jugador):
+            # Crear datos por defecto para nuevo personaje en este mundo
+            return CrearDatosPersonajePorDefecto(id_personaje, nombre_mundo)
+        
+        # Intentar cargar datos_mundo.json
+        ruta_datos = Path.Combine(ruta_jugador, "datos_mundo.json")
+        if File.Exists(ruta_datos):
+            datos_json = File.ReadAllText(ruta_datos)
+            return JsonConvert.DeserializeObject<DatosPersonajeMundo>(datos_json)
+        else:
+            # Crear datos por defecto si no existe
+            return CrearDatosPersonajePorDefecto(id_personaje, nombre_mundo)
+    
+    function CrearDatosPersonajePorDefecto(id_personaje: string, nombre_mundo: string): DatosPersonajeMundo
+        datos_mundo = new DatosPersonajeMundo()
+        datos_mundo.id_personaje = id_personaje
+        datos_mundo.nombre_mundo = nombre_mundo
+        datos_mundo.fecha_primera_vez = DateTime.Now()
+        datos_mundo.ultima_conexion = DateTime.Now
+        datos_mundo.vida = 100.0
+        datos_mundo.vida_maxima = 100.0
+        datos_mundo.hambre = 100.0
+        datos_mundo.sed = 100.0
+        datos_mundo.posicion = Vector3(0, 10, 0)
+        datos_mundo.rotacion = Vector3.ZERO
+        datos_mundo.nivel = 1
+        datos_mundo.experiencia = 0
+        datos_mundo.habilidades = new Dictionary()
+        
+        # Guardar datos por defecto
+        ruta_jugador = ObtenerRutaJugador(id_personaje)
+        if not Directory.Exists(ruta_jugador):
+            Directory.CreateDirectory(ruta_jugador)
+        GuardarDatosPersonajeJson(ruta_jugador, datos_mundo)
+        
+        return datos_mundo
+    
+    function GuardarDatosPersonajeJson(ruta_jugador: string, datos: DatosPersonajeMundo):
+        # Guardar datos_mundo.json
+        ruta_datos = Path.Combine(ruta_jugador, "datos_mundo.json")
+        datos_json = JsonConvert.SerializeObject(datos, Formatting.Indented)
+        File.WriteAllText(ruta_datos, datos_json)
+        
+        # Guardar inventario.json
+        ruta_inventario = Path.Combine(ruta_jugador, "inventario.json")
+        inventario_json = JsonConvert.SerializeObject(datos.inventario, Formatting.Indented)
+        File.WriteAllText(ruta_inventario, inventario_json)
+        
+        # Guardar equipamiento.json
+        ruta_equipamiento = Path.Combine(ruta_jugador, "equipamiento.json")
+        equipamiento_json = JsonConvert.SerializeObject(datos.equipamiento, Formatting.Indented)
+        File.WriteAllText(ruta_equipamiento, equipamiento_json)
+    
+    function ActualizarDatosPersonajeCliente(id_personaje: string, datos_mundo: DatosPersonajeMundo):
+        # Actualizar datos locales del cliente si está disponible
+        gestor_personajes = GetGestorPersonajes()
+        if gestor_personajes != null:
+            gestor_personajes.ActualizarDatosPersonajeMundo(id_personaje, mundo_actual, datos_mundo)
+    
+    function ObtenerListaPersonajesMundo(nombre_mundo: string): List<string>
+        personajes = new List()
+        ruta_personajes = Path.Combine(directorio_mundos, nombre_mundo, "personajes")
+        
+        if Directory.Exists(ruta_personajes):
+            directorios = Directory.GetDirectories(ruta_personajes)
+            for directorio in directorios:
+                nombre_directorio = Path.GetFileName(directorio)
+                personajes.Add(nombre_directorio)
+        
+        return personajes
+    
+    function EliminarDatosPersonajeMundo(id_personaje: string, nombre_mundo: string): bool
+        try:
+            ruta_jugador = Path.Combine(directorio_mundos, nombre_mundo, "personajes", id_personaje)
+            if Directory.Exists(ruta_jugador):
+                Directory.Delete(ruta_jugador, true)
+                LogInfo("Datos de personaje eliminados: " + id_personaje + " en mundo " + nombre_mundo)
+                return true
+        catch error:
+            LogError("Error eliminando datos de personaje: " + error.message)
+        
+        return false
+
+function GenerarMD5(texto: string): string
+    return MD5.Hash(texto)
+
+function SerializarDatosPersonajeMundo(datos: DatosPersonajeMundo): byte[]
+    writer = new BinaryWriter()
+    
+    # Metadatos
+    writer.Write(datos.id_personaje)
+    writer.Write(datos.nombre_mundo)
+    writer.Write(datos.fecha_primera_vez.ToBinary())
+    writer.Write(datos.ultima_conexion.ToBinary())
+    writer.Write(datos.tiempo_jugado.Ticks)
+    
+    # Estadísticas
+    writer.Write(datos.vida)
+    writer.Write(datos.vida_maxima)
+    writer.Write(datos.hambre)
+    writer.Write(datos.sed)
+    
+    # Posición
+    writer.Write(datos.posicion.x)
+    writer.Write(datos.posicion.y)
+    writer.Write(datos.posicion.z)
+    writer.Write(datos.rotacion.x)
+    writer.Write(datos.rotacion.y)
+    writer.Write(datos.rotacion.z)
+    
+    # Progreso
+    writer.Write(datos.nivel)
+    writer.Write(datos.experiencia)
+    
+    # Serializar inventario
+    inventario_bytes = SerializarInventarioADat(datos.inventario)
+    writer.Write(inventario_bytes.length())
+    writer.Write(inventario_bytes)
+    
+    # Serializar equipamiento
+    writer.Write(datos.equipamiento.length())
+    for slot, item in datos.equipamiento:
+        writer.Write((int)slot)
+        item_bytes = SerializarItemADat(item)
+        writer.Write(item_bytes.length())
+        writer.Write(item_bytes)
+    
+    # Serializar habilidades
+    writer.Write(datos.habilidades.length())
+    for habilidad, nivel in datos.habilidades:
+        writer.Write(habilidad)
+        writer.Write(nivel)
+    
+    return writer.ToArray()
+
+function DeserializarDatosPersonajeMundo(datos: byte[]): DatosPersonajeMundo
+    reader = new BinaryReader(datos)
+    datos_mundo = new DatosPersonajeMundo()
+    
+    # Metadatos
+    datos_mundo.id_personaje = reader.ReadString()
+    datos_mundo.nombre_mundo = reader.ReadString()
+    datos_mundo.fecha_primera_vez = DateTime.FromBinary(reader.ReadInt64())
+    datos_mundo.ultima_conexion = DateTime.FromBinary(reader.ReadInt64())
+    datos_mundo.tiempo_jugado = TimeSpan.FromTicks(reader.ReadInt64())
+    
+    # Estadísticas
+    datos_mundo.vida = reader.ReadSingle()
+    datos_mundo.vida_maxima = reader.ReadSingle()
+    datos_mundo.hambre = reader.ReadSingle()
+    datos_mundo.sed = reader.ReadSingle()
+    
+    # Posición
+    datos_mundo.posicion = Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle())
+    datos_mundo.rotacion = Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle())
+    
+    # Progreso
+    datos_mundo.nivel = reader.ReadInt32()
+    datos_mundo.experiencia = reader.ReadInt64()
+    
+    # Deserializar inventario
+    inventario_size = reader.ReadInt32()
+    inventario_bytes = reader.ReadBytes(inventario_size)
+    datos_mundo.inventario = DeserializarInventarioDesdeDat(inventario_bytes)
+    
+    # Deserializar equipamiento
+    equipamiento_count = reader.ReadInt32()
+    datos_mundo.equipamiento = new Dictionary()
+    for i in 0..equipamiento_count-1:
+        slot = (EquipmentSlot)reader.ReadInt32()
+        item_size = reader.ReadInt32()
+        item_bytes = reader.ReadBytes(item_size)
+        datos_mundo.equipamiento[slot] = DeserializarItemDesdeDat(item_bytes)
+    
+    # Deserializar habilidades
+    habilidades_count = reader.ReadInt32()
+    datos_mundo.habilidades = new Dictionary()
+    for i in 0..habilidades_count-1:
+        habilidad = reader.ReadString()
+        nivel = reader.ReadInt32()
+        datos_mundo.habilidades[habilidad] = nivel
+    
+    return datos_mundo
+
+function SerializarItemADat(item: ItemData): byte[]
+    writer = new BinaryWriter()
+    writer.Write(item.id)
+    writer.Write(item.nombre)
+    writer.Write((int)item.tipo)
+    writer.Write(item.cantidad)
+    writer.Write(item.peso)
+    writer.Write(item.durabilidad)
+    return writer.ToArray()
+
+function DeserializarItemDesdeDat(datos: byte[]): ItemData
+    reader = new BinaryReader(datos)
+    item = new ItemData()
+    item.id = reader.ReadString()
+    item.nombre = reader.ReadString()
+    item.tipo = (ItemType)reader.ReadInt32()
+    item.cantidad = reader.ReadInt32()
+    item.peso = reader.ReadSingle()
+    item.durabilidad = reader.ReadSingle()
+    return item
+
+function SerializarInventarioADat(inventario: CharacterInventory): byte[]
+    writer = new BinaryWriter()
+    
+    # Items en inventario
+    writer.Write(inventario.items.length())
+    for item in inventario.items:
+        item_bytes = SerializarItemADat(item)
+        writer.Write(item_bytes.length())
+        writer.Write(item_bytes)
+    
+    # Items equipados
+    writer.Write(inventario.equipped_items.length())
+    for slot, item in inventario.equipped_items:
+        writer.Write((int)slot)
+        item_bytes = SerializarItemADat(item)
+        writer.Write(item_bytes.length())
+        writer.Write(item_bytes)
+    
+    # Propiedades
+    writer.Write(inventario.max_weight)
+    writer.Write(inventario.max_slots)
+    
+    return writer.ToArray()
+
+function DeserializarInventarioDesdeDat(datos: byte[]): CharacterInventory
+    reader = new BinaryReader(datos)
+    inventario = new CharacterInventory()
+    
+    # Items en inventario
+    items_count = reader.ReadInt32()
+    inventario.items = new List()
+    for i in 0..items_count-1:
+        item_size = reader.ReadInt32()
+        item_bytes = reader.ReadBytes(item_size)
+        inventario.items.Add(DeserializarItemDesdeDat(item_bytes))
+    
+    # Items equipados
+    equipped_count = reader.ReadInt32()
+    inventario.equipped_items = new Dictionary()
+    for i in 0..equipped_count-1:
+        slot = (EquipmentSlot)reader.ReadInt32()
+        item_size = reader.ReadInt32()
+        item_bytes = reader.ReadBytes(item_size)
+        inventario.equipped_items[slot] = DeserializarItemDesdeDat(item_bytes)
+    
+    # Propiedades
+    inventario.max_weight = reader.ReadSingle()
+    inventario.max_slots = reader.ReadInt32()
+    
+    return inventario
+
+function SerializarChunkADat(chunk: Chunk): byte[]
+    writer = new BinaryWriter()
+    writer.Write(chunk.coordenada.chunk_x)
+    writer.Write(chunk.coordenada.chunk_z)
+    
+    # Serializar alturas 10x10
+    for x in 0..9:
+        for z in 0..9:
+            writer.Write(chunk.datos.altitudes[x, z])
+    
+    # Serializar tipo de terreno
+    for x in 0..9:
+        for z in 0..9:
+            writer.Write(chunk.datos.tipo_terreno[x, z])
+    
+    # Serializar vegetación
+    writer.Write(chunk.datos.vegetacion.length())
+    for vegetacion in chunk.datos.vegetacion:
+        writer.Write(vegetacion.tipo)
+        writer.Write(vegetacion.posicion.x)
+        writer.Write(vegetacion.posicion.y)
+        writer.Write(vegetacion.posicion.z)
+    
+    return writer.ToArray()
+
+function SerializarWorldDat(metadatos: MetadatosMundo): byte[]
+    writer = new BinaryWriter()
+    writer.Write(metadatos.nombre)
+    writer.Write(metadatos.fecha_creacion.ToBinary())
+    writer.Write(metadatos.semilla)
+    writer.Write(metadatos.version_juego)
+    return writer.ToArray()
+
+function DeserializarChunkDesdeDat(datos: byte[]): DatosChunk
+    reader = new BinaryReader(datos)
+    chunk_datos = new DatosChunk()
+    
+    chunk_datos.chunk_x = reader.ReadInt32()
+    chunk_datos.chunk_z = reader.ReadInt32()
+    
+    # Leer altitudes 10x10
+    for x in 0..9:
+        for z in 0..9:
+            chunk_datos.altitudes[x, z] = reader.ReadSingle()
+    
+    # Leer tipo de terreno
+    for x in 0..9:
+        for z in 0..9:
+            chunk_datos.tipo_terreno[x, z] = reader.ReadInt32()
+    
+    return chunk_datos
+
+function LogMundo(mensaje: string):
+    return ManejoErrores.EjecutarConManejo(() => {
+        ruta_log = ObtenerRutaMundoLog()
+        timestamp = DateTime.Now().ToString("yyyy-MM-dd HH:mm:ss")
+        linea = timestamp + " [INFO] " + mensaje
+        File.AppendAllText(ruta_log, linea + "\n")
+        Logger.LogInfo("SistemaPersistenciaServidor: " + mensaje)
+    }, "LogMundo", false)
+
+function LogErrorMundo(mensaje: string):
+    return ManejoErrores.EjecutarConManejo(() => {
+        ruta_log = ObtenerRutaMundoLog()
+        timestamp = DateTime.Now().ToString("yyyy-MM-dd HH:mm:ss")
+        linea = timestamp + " [ERROR] " + mensaje
+        File.AppendAllText(ruta_log, linea + "\n")
+        Logger.LogError("SistemaPersistenciaServidor: " + mensaje)
+    }, "LogErrorMundo", false)
+
+function RegistrarEventoJugador(tipo: string, jugador: string, descripcion: string, detalles: object):
+    return ManejoErrores.EjecutarConManejo(() => {
+        ruta_eventos = ObtenerRutaEventosJson()
+        
+        # Cargar eventos existentes
+        eventos_actuales = []
+        if File.Exists(ruta_eventos):
+            eventos_json = File.ReadAllText(ruta_eventos)
+            eventos_actuales = JsonConvert.DeserializeObject(eventos_json)["eventos_recientes"]
+        
+        # Crear nuevo evento
+        nuevo_evento = {
+            "timestamp": DateTime.Now().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            "tipo": tipo,
+            "jugador": jugador,
+            "descripcion": descripcion,
+            "detalles": detalles
+        }
+        
+        # Agregar a la lista (máximo 100 eventos recientes)
+        eventos_actuales.Insert(0, nuevo_evento)
+        if eventos_actuales.length() > 100:
+            eventos_actuales.RemoveAt(eventos_actuales.length() - 1)
+        
+        # Guardar eventos actualizados
+        eventos_completos = {
+            "eventos_recientes": eventos_actuales
+        }
+        File.WriteAllText(ruta_eventos, JsonConvert.SerializeObject(eventos_completos, Formatting.Indented))
+        Logger.LogInfo("SistemaPersistenciaServidor: Evento registrado: " + tipo + " - " + descripcion)
+    }, "RegistrarEventoJugador", false)
+
+function FormatearAccionParaLog(accion: AccionJugador): string
+    return ManejoErrores.EjecutarConManejo(() => {
+        timestamp = accion.timestamp.ToString("yyyy-MM-dd HH:mm:ss")
+        return timestamp + " [ACTION] " + accion.id_jugador + ": " + accion.tipo_accion.ToString()
+    }, "FormatearAccionParaLog", false)
+
+function SerializarInventarioADat(inventario: Inventario): byte[]
+    # Implementar serialización de inventario
+    pass
+
+function AplicarModificacionTerreno(chunk_datos: DatosChunk, modificacion: ModificacionTerreno): DatosChunk
+    # Aplicar modificación al chunk
+    return chunk_datos
+
+# =============================================================================
+# FUNCIONES GLOBALES DE ACCESO RÁPIDO
+# =============================================================================
+function CrearMundo(nombre: string, seed: int, descripcion: string): Resultado
+    return ManejoErrores.EjecutarConManejo(() => {
+        config = new ConfiguracionMundo()
+        config.nombre = nombre
+        config.modo_juego = ModoJuego.SUPERVIVENCIA
+        config.dificultad = Dificultad.NORMAL
+        config.pvp = false
+        config.max_jugadores = 32
+        
+        exito = SistemaPersistenciaServidor.CrearMundo(nombre, config)
+        if exito:
+            Logger.LogInfo("SistemaPersistenciaServidor: Mundo creado exitosamente: " + nombre)
+            return new Resultado(true)
+        else:
+            Logger.LogError("SistemaPersistenciaServidor: Error creando mundo: " + nombre)
+            return EstadoSeguroPersistencia.ObtenerValorPorDefecto("resultado_fallido")
+    }, "CrearMundo", false)
+
+function ConectarMundo(nombre: string): Resultado
+    return ManejoErrores.EjecutarConManejo(() => {
+        exito = SistemaPersistenciaServidor.ConectarMundo(nombre)
+        if exito:
+            Logger.LogInfo("SistemaPersistenciaServidor: Conectado exitosamente: " + nombre)
+            return new Resultado(true)
+        else:
+            Logger.LogError("SistemaPersistenciaServidor: Error conectando: " + nombre)
+            return EstadoSeguroPersistencia.ObtenerValorPorDefecto("resultado_fallido")
+    }, "ConectarMundo", false)
+
+function DesconectarMundo():
+    return ManejoErrores.EjecutarConManejo(() => {
+        SistemaPersistenciaServidor.DesconectarMundo()
+        Logger.LogInfo("SistemaPersistenciaServidor: Desconectado del mundo")
+        return true
+    }, "DesconectarMundo", false)
+
+function PersistirJugador(jugador: JugadorLocal):
+    return ManejoErrores.EjecutarConManejo(() => {
+        SistemaPersistenciaServidor.PersistirJugador(jugador)
+        return true
+    }, "PersistirJugador", false)
+
+function PersistirChunk(chunk: Chunk):
+    return ManejoErrores.EjecutarConManejo(() => {
+        SistemaPersistenciaServidor.PersistirChunk(chunk)
+        return true
+    }, "PersistirChunk", false)
+
+function GetMundoActual(): string
+    return ManejoErrores.EjecutarConManejo(() => {
+        if SessionData.Instance != null:
+            return SessionData.Instance.mundo_actual
+        else:
+            return EstadoSeguroPersistencia.ObtenerValorPorDefecto("mundo_actual")
+    }, "GetMundoActual", false)
+
+function EstaConectadoMundo(): bool
+    return ManejoErrores.EjecutarConManejo(() => {
+        if SessionData.Instance != null:
+            return SessionData.Instance.mundo_actual != null
+        else:
+            return EstadoSeguroPersistencia.ObtenerValorPorDefecto("existe_mundo_fallido")
+    }, "EstaConectadoMundo", false)
+
+function GetMundosDisponibles(): List<Mundo>
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaPersistenciaServidor.ObtenerListaMundos()
+    }, "GetMundosDisponibles", false)
+
+# =============================================================================
+# CLASES DE DATOS ADICIONALES
+# =============================================================================
+class DatosChunk:
+    chunk_x: int
+    chunk_z: int
+    altitudes: float[10, 10]
+    tipo_terreno: int[10, 10]
+    vegetacion: List<ElementoVegetacion>
+
+class ElementoVegetacion:
+    tipo: int
+    posicion: Vector3
+
+class DatosPersonajeMundo:
+    id_personaje: string
+    nombre_mundo: string
+    fecha_primera_vez: DateTime
+    ultima_conexion: DateTime
+    tiempo_jugado: TimeSpan
+    vida: float
+    vida_maxima: float
+    hambre: float
+    sed: float
+    posicion: Vector3
+    rotacion: Vector3
+    nivel: int
+    experiencia: long
+    inventario: Inventario
+    equipamiento: Dictionary<EquipmentSlot, ItemData>
+    habilidades: Dictionary<string, int>
+
+class Resultado:
+    exito: bool
+    error: string
+    
+    function Constructor(exito: bool, error: string = ""):
+        self.exito = exito
+        self.error = error
+
+class Mundo:
+    nombre: string
+    seed: int
+    fecha_creacion: DateTime
+    ultimo_acceso: DateTime

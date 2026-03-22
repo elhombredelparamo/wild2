@@ -1,0 +1,60 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "args": ["build", "Wild.csproj"],
+      "type": "process",
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "silent"
+      }
+    },
+    {
+      "label": "Play Wild",
+      "type": "process",
+      "command": "C:/Godot/Godot_v4.6.1-stable_mono_win64.exe",
+      "args": ["--path", "${workspaceFolder}"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "dependsOn": "build"
+    },
+    {
+      "label": "Reimportar Assets",
+      "type": "shell",
+      "command": "C:\\Godot\\Godot_v4.6.1-stable_win64_console.exe",
+      "args": [
+        "--headless",
+        "--editor",
+        "--quit-after",
+        "2"
+      ],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "Reimporta todos los assets del proyecto Wild v2.0"
+    }
+  ]
+}

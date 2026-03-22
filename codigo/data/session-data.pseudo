@@ -1,0 +1,465 @@
+# =============================================================================
+# SESSION DATA - DATOS GLOBALES DE SESIÓN
+# =============================================================================
+# Sistema centralizado de datos globales para Wild v2.0
+# Evita referencias cruzadas y centraliza configuración
+# =============================================================================
+
+class_name SessionData
+extends Node
+
+# =============================================================================
+# SINGLETON AUTOINSTANCIABLE
+# =============================================================================
+
+static Instance: SessionData = null
+
+# =============================================================================
+# VARIABLES GLOBALES DE SESIÓN
+# =============================================================================
+
+# Configuración del Mundo Actual
+var seed_mundo: int = 0
+var nombre_mundo: string = ""
+var ruta_mundo: string = ""
+
+# Configuración de Red
+var es_servidor: bool = false
+var ip_servidor: string = "localhost"
+var puerto_servidor: int = 7777
+var id_cliente: int = -1
+var id_session: string = ""
+
+# Estado del Jugador Local
+var id_personaje: string = ""
+var posicion_jugador: Vector3 = Vector3.ZERO
+var rotacion_jugador: Vector3 = Vector3.ZERO
+var estado_jugador: EstadoJugador = EstadoJugador.CONECTANDO
+
+# Configuración de Calidad y Rendimiento
+var nivel_calidad: QualityLevel = QualityLevel.Medium
+var render_distance: float = 500.0
+var target_fps: int = 60
+var vsync_enabled: bool = true
+
+# Estado de Conexión
+var conectado: bool = false
+var timestamp_ultima_conexion: float = 0.0
+var ping_actual: int = 0
+var paquetes_perdidos: int = 0
+
+# Configuración de UI
+var ui_visible: bool = true
+var menu_activo: string = ""
+var notificaciones_pendientes: Array = []
+
+# Métricas en Tiempo Real
+var fps_actual: int = 60
+var chunks_cargados: int = 0
+var chunks_visibles: int = 0
+var memoria_usada: int = 0
+var tiempo_jugado: float = 0.0
+
+# Estado del Terreno
+var coordenada_central: CoordenadaGlobal = null
+var chunks_generados: Set = Set()
+var biomas_descubiertos: Set = Set()
+
+# Configuración de Audio
+var volumen_master: float = 1.0
+var volumen_musica: float = 0.8
+var volumen_efectos: float = 0.9
+var audio_habilitado: bool = true
+
+# Estado del Juego
+var juego_pausado: bool = false
+var tiempo_dia: float = 12.0  # 24h format
+var clima_actual: TipoClima = TipoClima.DESPEJADO
+var modo_debug: bool = false
+
+# =============================================================================
+# INICIALIZACIÓN
+# =============================================================================
+
+func _ready():
+    return ManejoErrores.EjecutarConManejo(() => {
+        if Instance == null:
+            Instance = self
+            _InicializarValoresPorDefecto()
+            Logger.LogInfo("SessionData: SessionData inicializado correctamente")
+        else:
+            Logger.LogWarning("SessionData: Intento de duplicar SessionData - eliminando instancia")
+            queue_free()
+        return true
+    }, "SessionData._ready", true)
+
+func _InicializarValoresPorDefecto():
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Valores iniciales seguros
+        seed_mundo = EstadoSeguroSessionData.ObtenerValorPorDefecto("seed_mundo")
+        nombre_mundo = EstadoSeguroSessionData.ObtenerValorPorDefecto("nombre_mundo")
+        ruta_mundo = EstadoSeguroSessionData.ObtenerValorPorDefecto("ruta_mundo")
+        
+        # Configuración de red por defecto
+        es_servidor = EstadoSeguroSessionData.ObtenerValorPorDefecto("es_servidor")
+        ip_servidor = EstadoSeguroSessionData.ObtenerValorPorDefecto("ip_servidor")
+        puerto_servidor = EstadoSeguroSessionData.ObtenerValorPorDefecto("puerto_servidor")
+        
+        # Configuración de calidad detectada
+        nivel_calidad = DetectarCalidadHardware()
+        render_distance = ObtenerRenderDistancePorCalidad(nivel_calidad)
+        
+        # Estado inicial del jugador
+        estado_jugador = EstadoSeguroSessionData.ObtenerValorPorDefecto("estado_jugador")
+        
+        # Timestamp de inicio
+        timestamp_ultima_conexion = Time.get_unix_time_from_system()
+        
+        Logger.LogInfo("SessionData: Valores por defecto inicializados")
+        return true
+    }, "SessionData._InicializarValoresPorDefecto", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroSessionData
+# =============================================================================
+class EstadoSeguroSessionData:
+    static valores_por_defecto: Dictionary
+    
+    static function _init():
+        valores_por_defecto = {
+            "seed_mundo": 0,
+            "nombre_mundo": "MundoPorDefecto",
+            "ruta_mundo": "worlds/MundoPorDefecto",
+            "es_servidor": false,
+            "ip_servidor": "localhost",
+            "puerto_servidor": 7777,
+            "id_cliente": -1,
+            "id_session": "",
+            "id_personaje": "",
+            "posicion_jugador": Vector3.ZERO,
+            "rotacion_jugador": Vector3.ZERO,
+            "estado_jugador": EstadoJugador.CONECTANDO,
+            "nivel_calidad": QualityLevel.Medium,
+            "render_distance": 500.0,
+            "target_fps": 60,
+            "vsync_enabled": true,
+            "conectado": false,
+            "timestamp_ultima_conexion": 0.0,
+            "ping_actual": 0,
+            "paquetes_perdidos": 0,
+            "ui_visible": true,
+            "menu_activo": "",
+            "notificaciones_pendientes": [],
+            "fps_actual": 60,
+            "chunks_cargados": 0,
+            "chunks_visibles": 0,
+            "memoria_usada": 0,
+            "tiempo_jugado": 0.0,
+            "coordenada_central": null,
+            "chunks_generados": null,
+            "biomas_descubiertos": null,
+            "volumen_master": 1.0,
+            "volumen_musica": 0.8,
+            "volumen_efectos": 0.9,
+            "audio_habilitado": true,
+            "juego_pausado": false,
+            "tiempo_dia": 12.0,
+            "clima_actual": TipoClima.DESPEJADO,
+            "modo_debug": false,
+            "directorio_mundos": "worlds/",
+            "mundo_actual": null,
+            "ejecutando": true,
+            "inicializacion_fallida": false,
+            "establecer_mundo_fallido": false,
+            "configuracion_red_fallida": false,
+            "actualizar_estado_fallido": false,
+            "actualizar_posicion_fallida": false,
+            "establecer_calidad_fallida": false,
+            "actualizar_metricas_fallidas": false,
+            "guardar_estado_fallido": false,
+            "cargar_estado_fallido": false,
+            "resetear_sesion_fallida": false,
+            "imprimir_estado_fallido": false
+        }
+    
+    static function ObtenerValorPorDefecto(contexto: String):
+        if valores_por_defecto.has(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroSessionData: Sin valor por defecto para: " + contexto)
+            return null  # Fallback seguro
+
+# =============================================================================
+# ACCESO CONTROLADO A VARIABLES
+# =============================================================================
+
+# Configuración del Mundo
+func EstablecerMundo(seed: int, nombre: String):
+    return ManejoErrores.EjecutarConManejo(() => {
+        seed_mundo = seed
+        nombre_mundo = nombre
+        ruta_mundo = "worlds/" + nombre
+        
+        Logger.LogInfo("SessionData: Mundo establecido: " + nombre + " (seed: " + str(seed) + ")")
+        return true
+    }, "SessionData.EstablecerMundo", false)
+
+func ObtenerConfiguracionMundo(): Dictionary:
+    return {
+        "seed": seed_mundo,
+        "nombre": nombre_mundo,
+        "ruta": ruta_mundo
+    }
+
+# Configuración de Red
+func EstablecerConfiguracionRed(ip: String, puerto: int, servidor: bool = false):
+    return ManejoErrores.EjecutarConManejo(() => {
+        ip_servidor = ip
+        puerto_servidor = puerto
+        es_servidor = servidor
+        
+        Logger.LogInfo("SessionData: Configuración red actualizada: " + ip + ":" + str(puerto))
+        return true
+    }, "SessionData.EstablecerConfiguracionRed", false)
+
+func ObtenerConfiguracionRed(): Dictionary:
+    return {
+        "es_servidor": es_servidor,
+        "ip": ip_servidor,
+        "puerto": puerto_servidor,
+        "id_cliente": id_cliente
+    }
+
+# Estado del Jugador
+func ActualizarEstadoJugador(estado: EstadoJugador):
+    return ManejoErrores.EjecutarConManejo(() => {
+        estado_jugador = estado
+        
+        if estado == EstadoJugador.CONECTADO:
+            conectado = true
+            timestamp_ultima_conexion = Time.get_unix_time_from_system()
+        elif estado == EstadoJugador.DESCONECTADO:
+            conectado = false
+        
+        Logger.LogInfo("SessionData: Estado jugador actualizado: " + str(estado))
+        return true
+    }, "SessionData.ActualizarEstadoJugador", false)
+
+func ActualizarPosicionJugador(posicion: Vector3, rotacion: Vector3):
+    return ManejoErrores.EjecutarConManejo(() => {
+        posicion_jugador = posicion
+        rotacion_jugador = rotacion
+        
+        # Convertir a coordenada global
+        coordenada_central = Vector3AGlobal(posicion)
+        
+        Logger.LogDebug("SessionData: Posición jugador actualizada: " + posicion.ToString())
+        return true
+    }, "SessionData.ActualizarPosicionJugador", false)
+
+# Configuración de Calidad
+func EstablecerCalidad(calidad: QualityLevel):
+    return ManejoErrores.EjecutarConManejo(() => {
+        nivel_calidad = calidad
+        render_distance = ObtenerRenderDistancePorCalidad(calidad)
+        target_fps = ObtenerTargetFPSPorCalidad(calidad)
+        
+        Logger.LogInfo("SessionData: Calidad actualizada: " + str(calidad))
+        return true
+    }, "SessionData.EstablecerCalidad", false)
+
+# =============================================================================
+# FUNCIONES AUXILIARES
+# =============================================================================
+
+func DetectarCalidadHardware(): QualityLevel:
+    # Lógica de detección automática
+    var ram_gb = OS.get_static_memory_usage_by_type()[0] / (1024 * 1024 * 1024)
+    
+    if ram_gb < 4:
+        return QualityLevel.Low
+    elif ram_gb < 8:
+        return QualityLevel.Medium
+    elif ram_gb < 16:
+        return QualityLevel.High
+    else:
+        return QualityLevel.Ultra
+
+func ObtenerRenderDistancePorCalidad(calidad: QualityLevel) -> float:
+    match calidad:
+        QualityLevel.Toaster: return 200.0
+        QualityLevel.Low: return 300.0
+        QualityLevel.Medium: return 500.0
+        QualityLevel.High: return 800.0
+        QualityLevel.Ultra: return 1200.0
+        _: return 500.0
+
+func ObtenerTargetFPSPorCalidad(calidad: QualityLevel) -> int:
+    match calidad:
+        QualityLevel.Toaster: return 20
+        QualityLevel.Low: return 30
+        QualityLevel.Medium: return 60
+        QualityLevel.High: return 60
+        QualityLevel.Ultra: return 60
+        _: return 60
+
+# =============================================================================
+# MÉTRICAS Y MONITOREO
+# =============================================================================
+
+func ActualizarMetricasRendimiento():
+    return ManejoErrores.EjecutarConManejo(() => {
+        fps_actual = Engine.get_frames_per_second()
+        memoria_usada = OS.get_static_memory_usage_by_type()[0]
+        
+        # Actualizar tiempo jugado
+        if conectado:
+            tiempo_jugado += get_process_delta_time()
+        
+        Logger.LogDebug("SessionData: Métricas actualizadas - " + str(fps_actual) + " FPS")
+        return true
+    }, "SessionData.ActualizarMetricasRendimiento", false)
+
+func ObtenerMetricasActuales(): Dictionary:
+    return {
+        "fps": fps_actual,
+        "memoria_mb": memoria_usada / (1024 * 1024),
+        "chunks_cargados": chunks_cargados,
+        "chunks_visibles": chunks_visibles,
+        "ping": ping_actual,
+        "tiempo_jugado": tiempo_jugado
+    }
+
+# =============================================================================
+# PERSISTENCIA
+# =============================================================================
+
+func GuardarEstadoSesion():
+    return ManejoErrores.EjecutarConManejo(() => {
+        var datos_sesion = {
+            "nombre_mundo": nombre_mundo,
+            "seed_mundo": seed_mundo,
+            "nivel_calidad": str(nivel_calidad),
+            "render_distance": render_distance,
+            "tiempo_jugado": tiempo_jugado,
+            "timestamp_guardado": Time.get_unix_time_from_system()
+        }
+        
+        var archivo = FileAccess.open("user://last_session.json", FileAccess.WRITE)
+        if archivo:
+            archivo.store_string(JSON.stringify(datos_sesion))
+            archivo.close()
+            
+            Logger.LogInfo("SessionData: Estado de sesión guardado")
+        else:
+            Logger.LogError("SessionData: Error guardando estado de sesión")
+            return EstadoSeguroSessionData.ObtenerValorPorDefecto("guardar_estado_fallido")
+        return true
+    }, "SessionData.GuardarEstadoSesion", false)
+
+func CargarEstadoSesion():
+    return ManejoErrores.EjecutarConManejo(() => {
+        var archivo = FileAccess.open("user://last_session.json", FileAccess.READ)
+        if archivo:
+            var contenido = archivo.get_as_text()
+            archivo.close()
+            
+            var json = JSON.new()
+            var resultado = json.parse(contenido)
+            
+            if resultado == OK:
+                var datos = json.data
+                nombre_mundo = datos.get("nombre_mundo", "")
+                seed_mundo = datos.get("seed_mundo", 0)
+                nivel_calidad = QualityLevel[datos.get("nivel_calidad", "Medium")]
+                render_distance = datos.get("render_distance", 500.0)
+                tiempo_jugado = datos.get("tiempo_jugado", 0.0)
+                
+                ruta_mundo = "worlds/" + nombre_mundo
+                
+                Logger.LogInfo("SessionData: Estado de sesión cargado")
+            else:
+                Logger.LogError("SessionData: Error parseando JSON de sesión")
+                return EstadoSeguroSessionData.ObtenerValorPorDefecto("cargar_estado_fallido")
+        else:
+            Logger.LogWarning("SessionData: No hay archivo de sesión previa")
+            return EstadoSeguroSessionData.ObtenerValorPorDefecto("cargar_estado_fallido")
+        return true
+    }, "SessionData.CargarEstadoSesion", false)
+
+# =============================================================================
+# DEBUG Y UTILIDADES
+# =============================================================================
+
+func ImprimirEstadoActual():
+    return ManejoErrores.EjecutarConManejo(() => {
+        Logger.LogInfo("SessionData: === ESTADO ACTUAL DE SESIÓN ===")
+        Logger.LogInfo("SessionData: Mundo: " + nombre_mundo + " (seed: " + str(seed_mundo) + ")")
+        Logger.LogInfo("SessionData: Red: " + ip_servidor + ":" + str(puerto_servidor) + " (servidor: " + str(es_servidor) + ")")
+        Logger.LogInfo("SessionData: Jugador: " + id_personaje + " (estado: " + str(estado_jugador) + ")")
+        Logger.LogInfo("SessionData: Calidad: " + str(nivel_calidad) + " (render: " + str(render_distance) + "m)")
+        Logger.LogInfo("SessionData: Métricas: " + str(fps_actual) + " FPS, " + str(memoria_usada / (1024*1024)) + "MB RAM")
+        return true
+    }, "SessionData.ImprimirEstadoActual", false)
+
+func ResetearSesion():
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Resetear variables críticas
+        conectado = EstadoSeguroSessionData.ObtenerValorPorDefecto("conectado")
+        estado_jugador = EstadoSeguroSessionData.ObtenerValorPorDefecto("estado_jugador")
+        id_cliente = EstadoSeguroSessionData.ObtenerValorPorDefecto("id_cliente")
+        id_personaje = EstadoSeguroSessionData.ObtenerValorPorDefecto("id_personaje")
+        posicion_jugador = EstadoSeguroSessionData.ObtenerValorPorDefecto("posicion_jugador")
+        coordenada_central = EstadoSeguroSessionData.ObtenerValorPorDefecto("coordenada_central")
+        
+        # Limpiar sets
+        chunks_generados.clear()
+        biomas_descubiertos.clear()
+        
+        Logger.LogInfo("SessionData: Sesion reseteada")
+        return true
+    }, "SessionData.ResetearSesion", false)
+
+# =============================================================================
+# ENUMS Y TIPOS
+# =============================================================================
+
+enum EstadoJugador {
+    CONECTANDO,
+    CONECTADO,
+    JUGANDO,
+    PAUSADO,
+    DESCONECTANDO,
+    DESCONECTADO,
+    ERROR
+}
+
+enum QualityLevel {
+    Toaster,
+    Low,
+    Medium,
+    High,
+    Ultra
+}
+
+enum TipoClima {
+    DESPEJADO,
+    NUBLADO,
+    LLUVIA,
+    TORMENTA,
+    NIEVE,
+    NEBLINA
+}
+
+# =============================================================================
+# FINALIZACIÓN
+# =============================================================================
+
+func _exit_tree():
+    return ManejoErrores.EjecutarConManejo(() => {
+        if Instance == self:
+            GuardarEstadoSesion()
+            Instance = null
+            Logger.LogInfo("SessionData: SessionData finalizado")
+        return true
+    }, "SessionData._exit_tree", false)

@@ -1,0 +1,125 @@
+# =============================================================================
+# SISTEMA DE LOGGING - Wild v2.0
+# =============================================================================
+# Archivo: logger.pseudo
+# Descripción: Sistema de logging estático simple y funcional
+# Autor: Cascade
+# Fecha: 2026-03-13
+# Versión: 1.0 - Implementación básica
+
+# =============================================================================
+# CLASE PRINCIPAL: Logger (Estática)
+# =============================================================================
+namespace Wild.Utils:
+    class Logger:
+        # -------------------------------------------------------------------------
+        # INICIAR LOGGING PROPIO - Limpiar log anterior
+        # -------------------------------------------------------------------------
+        static function Inicializar():
+            try:
+                # Obtener ruta del directorio de datos de usuario de Godot
+                userDataPath = OS.GetUserDataDir()
+                logPath = System.IO.Path.Combine(userDataPath, "latest.log")
+                
+                # Si existe un log anterior, eliminarlo
+                if System.IO.File.Exists(logPath):
+                    System.IO.File.Delete(logPath)
+                
+                # Crear nuevo log con marca de inicio
+                timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                inicioLog = "[" + timestamp + "] [INFO] ===== INICIO DE EJECUCIÓN WILD v2.0 =====\n"
+                System.IO.File.WriteAllText(logPath, inicioLog)
+                
+                # También mostrar en consola para desarrollo
+                GD.Print("Logger: Sistema de logging propio iniciado correctamente")
+            catch ex:
+                GD.Print("ERROR iniciando logging: " + ex.Message)
+        
+        # -------------------------------------------------------------------------
+        # LOGGING PROPIO - Escribir mensaje en latest.log
+        # -------------------------------------------------------------------------
+        static function Log(mensaje: string):
+            try:
+                timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                logEntry = "[" + timestamp + "] [INFO] " + mensaje + "\n"
+                
+                # Usar el directorio de datos de usuario de Godot para nuestro propio log
+                userDataPath = OS.GetUserDataDir()
+                logPath = System.IO.Path.Combine(userDataPath, "latest.log")
+                
+                System.IO.File.AppendAllText(logPath, logEntry)
+            catch ex:
+                # Si falla el logging, no podemos hacer mucho
+                GD.Print("ERROR guardando log: " + ex.Message)
+        
+        # -------------------------------------------------------------------------
+        # LOGGING INFO - Escribir mensaje informativo en latest.log
+        # -------------------------------------------------------------------------
+        static function LogInfo(mensaje: string):
+            # Derivar directamente a Log() ya que usa [INFO] por defecto
+            Log(mensaje)
+        
+        # -------------------------------------------------------------------------
+        # LOGGING DEBUG - Escribir mensaje de debug en latest.log
+        # -------------------------------------------------------------------------
+        static function LogDebug(mensaje: string):
+            # Añadir cabecera de DEBUG y derivar a Log()
+            Log("[DEBUG] " + mensaje)
+        
+        # -------------------------------------------------------------------------
+        # LOGGING WARNING - Escribir mensaje de advertencia en latest.log
+        # -------------------------------------------------------------------------
+        static function LogWarning(mensaje: string):
+            # Añadir cabecera de WARNING y derivar a Log()
+            Log("[WARNING] " + mensaje)
+        
+        # -------------------------------------------------------------------------
+        # LOGGING ERROR - Escribir mensaje de error en latest.log
+        # -------------------------------------------------------------------------
+        static function LogError(mensaje: string):
+            # Añadir cabecera de ERROR y derivar a Log()
+            Log("[ERROR] " + mensaje)
+
+# =============================================================================
+# CARACTERÍSTICAS DEL SISTEMA
+# =============================================================================
+# - Estático: No requiere instanciación
+# - Simple: 4 niveles básicos de logging (Info, Debug, Warning, Error)
+# - Funcional: Escribe a latest.log en directorio de datos de usuario de Godot
+# - Robusto: Manejo básico de errores
+# - Centralizado: Todo el logging en una clase
+
+# =============================================================================
+# FORMATO DE LOG
+# =============================================================================
+# [timestamp] [INFO] mensaje
+# [timestamp] [INFO] [DEBUG] mensaje
+# [timestamp] [INFO] [WARNING] mensaje
+# [timestamp] [INFO] [ERROR] mensaje
+
+# =============================================================================
+# EJEMPLOS DE USO
+# =============================================================================
+# Logger.Inicializar()                    # Inicia el sistema (limpia log anterior)
+# Logger.LogInfo("Sistema iniciado")      # [timestamp] [INFO] Sistema iniciado
+# Logger.LogDebug("Variable x = 5")       # [timestamp] [INFO] [DEBUG] Variable x = 5
+# Logger.LogWarning("Memoria baja")       # [timestamp] [INFO] [WARNING] Memoria baja
+# Logger.LogError("Fallo al cargar")     # [timestamp] [INFO] [ERROR] Fallo al cargar
+
+# =============================================================================
+# INTEGRACIÓN CON WILD V2.0
+# =============================================================================
+# - MainMenu.cs: Inicializa Logger.Inicializar() en _Ready()
+# - Todas las UI: Usan Logger.LogInfo() y Logger.LogError()
+# - Splash screen: No usa logging (mantenido simple)
+# - Ubicación: latest.log en OS.GetUserDataDir()
+
+# =============================================================================
+# VENTAJAS
+# =============================================================================
+# ✅ Simple y fácil de usar
+# ✅ Sin dependencias complejas
+# ✅ Funciona en modo pantalla completa
+# ✅ Persistencia automática
+# ✅ Formato consistente
+# ✅ Reutilizable en todo el proyecto

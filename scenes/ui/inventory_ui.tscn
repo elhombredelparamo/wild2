@@ -1,0 +1,60 @@
+[gd_scene load_steps=2 format=3 uid="uid://inventoryui123"]
+
+[ext_resource type="Script" path="res://scripts/ui/InventoryUI.cs" id="1_inventory"]
+
+[node name="InventoryUI" type="CanvasLayer"]
+script = ExtResource("1_inventory")
+
+[node name="ContentPanel" type="ColorRect" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -200.0
+offset_right = 300.0
+offset_bottom = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.12549, 0.12549, 0.12549, 0.784314)
+
+[node name="Label" type="Label" parent="ContentPanel"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -100.0
+offset_top = 10.0
+offset_right = 100.0
+offset_bottom = 33.0
+grow_horizontal = 2
+text = "PANEL DE CONTENIDO"
+horizontal_alignment = 1
+
+[node name="BottomBar" type="ColorRect" parent="."]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -400.0
+offset_top = -120.0
+offset_right = 400.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+color = Color(0.156863, 0.156863, 0.156863, 0.862745)
+
+[node name="Label" type="Label" parent="BottomBar"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -150.0
+offset_top = 10.0
+offset_right = 150.0
+offset_bottom = 33.0
+grow_horizontal = 2
+text = "BARRA INFERIOR DE CONTENEDORES ACTIVOS"
+horizontal_alignment = 1

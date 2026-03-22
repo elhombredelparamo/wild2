@@ -1,0 +1,12 @@
+{
+    "godotTools.editorPath.executable": "C:/Godot/Godot_v4.6.1-stable_mono_win64.exe",
+    "godotTools.editorPath.editorPort": 6005,
+    "files.associations": {
+        "*.tscn": "xml",
+        "*.gd": "gdscript",
+        "*.cs": "csharp"
+    },
+    "csharp.semanticHighlighting.enabled": true,
+    "csharp.format.enable": true,
+    "omnisharp.enableRoslynAnalyzers": true
+}

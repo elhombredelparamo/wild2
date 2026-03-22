@@ -1,0 +1,1407 @@
+# =============================================================================
+# SISTEMA DE RENDER
+# =============================================================================
+# Archivo: render.pseudo
+# Descripción: Pipeline de renderizado y gestión gráfica
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaRender (Singleton)
+# =============================================================================
+class SistemaRender:
+    # Propiedades principales
+    # calidad_actual eliminada - ahora usa SessionData.Instance.nivel_calidad
+    camera_principal: Camera
+    sistema_luces: SistemaLuces
+    sistema_materiales: SistemaMateriales
+    sistema_shaders: SistemaShaders
+    sistema_lod: SistemaLOD
+    sistema_postprocesado: SistemaPostProcesado
+    resource_loader: DynamicResourceLoader
+    # seed_mundo eliminada - ahora usa SessionData.Instance.seed_mundo
+    
+    # Métricas de rendimiento
+    fps_actual: float = 60.0
+    frame_tiempo: float = 0.016667  # 60 FPS
+    draw_calls: int = 0
+    triangles_renderizados: int = 0
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema
+    function Inicializar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            _InicializarInterno()
+            Logger.LogInfo("SistemaRender: Sistema inicializado")
+            return true
+        }, "SistemaRender.Inicializar", true)
+    
+    # Inicialización interna
+    function _InicializarInterno():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Usar SessionData.Instance.seed_mundo
+            
+            # Crear cámara principal
+            camera_principal = new Camera()
+            camera_principal.ConfigurarCamera()
+            
+            # Inicializar subsistemas
+            sistema_luces = new SistemaLuces()
+            sistema_materiales = new SistemaMateriales()
+            sistema_shaders = new SistemaShaders()
+            sistema_lod = new SistemaLOD()
+            sistema_postprocesado = new SistemaPostProcesado()
+            
+            # Inicializar resource loader
+            # NOTA: Esto debe ser reemplazado por inyección de dependencias
+            if GameManager.instance != null:
+                calidad_inicial = GameManager.instance.sistema_calidad.calidad_actual
+                resource_loader = DynamicResourceLoader.Inicializar(calidad_inicial)
+            
+            # Configurar calidad inicial
+            calidad_actual = SessionData.Instance.nivel_calidad
+            ConfigurarCalidad(calidad_actual)
+            
+            Logger.LogInfo("SistemaRender: Inicializado con seed " + SessionData.Instance.seed_mundo.ToString() + " y calidad " + calidad_actual.ToString())
+            return true
+        }, "SistemaRender._InicializarInterno", false)
+    
+    # Renderizado del frame
+    function RenderFrame(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Iniciar métricas de rendimiento
+            frame_inicio = Time.GetTicksMsec()
+            draw_calls = 0
+            triangles_renderizados = 0
+            
+            # Limpiar buffers
+            LimpiarBuffers()
+            
+            # Actualizar cámara
+            ActualizarCamera(delta_time)
+            
+            # Preparar escena
+            PrepararEscena()
+            
+            # Renderizado principal
+            RenderEscenaPrincipal()
+            
+            # Post-procesado
+            if SessionData.Instance.nivel_calidad >= NivelCalidad.MEDIUM:
+                sistema_postprocesado.AplicarEfectos()
+                draw_calls += sistema_postprocesado.GetDrawCalls()
+            
+            # Renderizar UI
+            RenderUI()
+            draw_calls += GetUIDrawCalls()
+            
+            # Presentar frame
+            PresentarFrame()
+            
+            # Calcular métricas
+            frame_fin = Time.GetTicksMsec()
+            frame_tiempo = (frame_fin - frame_inicio) / 1000.0
+            fps_actual = 1.0 / frame_tiempo
+            
+            # Log de rendimiento (cada segundo)
+            if randf() < frame_tiempo:  # Probabilidad de log ~1 vez por segundo
+                LogPerformance("RenderFrame", frame_tiempo)
+            
+            return true
+        }, "SistemaRender.RenderFrame", false)
+    
+    # =============================================================================
+    # FUNCIONES DE CONFIGURACIÓN
+    # =============================================================================
+    
+    function ConfigurarCalidad(calidad: NivelCalidad):
+        return ManejoErrores.EjecutarConManejo(() => {
+            calidad_anterior = SessionData.Instance.nivel_calidad
+            SessionData.Instance.nivel_calidad = calidad
+            calidad_actual = calidad
+            
+            # Configurar cámara
+            camera_principal.ConfigurarCalidad(calidad)
+            
+            # Configurar luces
+            sistema_luces.ConfigurarCalidad(calidad)
+            
+            # Configurar materiales
+            sistema_materiales.ConfigurarCalidad(calidad)
+            
+            # Configurar shaders
+            sistema_shaders.ConfigurarCalidad(calidad)
+            
+            # Configurar LOD
+            sistema_lod.ConfigurarCalidad(calidad)
+            
+            # Configurar post-procesado
+            sistema_postprocesado.ConfigurarCalidad(calidad)
+            
+            # Actualizar resource loader
+            if resource_loader != null:
+                resource_loader.ActualizarCalidad(calidad)
+            
+            Logger.LogInfo("SistemaRender: Calidad cambiada de " + calidad_anterior.ToString() + " a " + calidad.ToString())
+            return true
+        }, "SistemaRender.ConfigurarCalidad", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroRender
+# =============================================================================
+class EstadoSeguroRender:
+    static valores_por_defecto: Dictionary<string, object>
+    
+    static function Inicializar():
+        valores_por_defecto = new Dictionary()
+        # Valores seguros para cada sistema
+        valores_por_defecto["fps_actual"] = 60.0
+        valores_por_defecto["frame_tiempo"] = 0.016667
+        valores_por_defecto["draw_calls"] = 0
+        valores_por_defecto["triangles_renderizados"] = 0
+        valores_por_defecto["calidad_actual"] = NivelCalidad.MEDIUM
+        valores_por_defecto["fov"] = 60.0
+        valores_por_defecto["lejos"] = 1000.0
+        valores_por_defecto["max_luces_punto"] = 8
+        valores_por_defecto["max_luces_spot"] = 4
+        valores_por_defecto["distancias_lod"] = [10.0, 25.0, 50.0, 100.0, 200.0]
+        valores_por_defecto["render_nulo"] = null
+        valores_por_defecto["material_nulo"] = null
+        valores_por_defecto["shader_nulo"] = null
+        valores_por_defecto["modelo_nulo"] = null
+        valores_por_defecto["camara_nula"] = null
+        valores_por_defecto["efectos_vacios"] = null
+        valores_por_defecto["estadisticas_vacias"] = null
+    
+    static function ObtenerValorPorDefecto(contexto: string): object
+        if valores_por_defecto.ContainsKey(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroRender: Sin valor por defecto para: " + contexto)
+            return null  # Fallback seguro
+
+# =============================================================================
+# FUNCIONES DE RENDERIZADO
+# =============================================================================
+    
+    function RenderEscenaPrincipal():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Configurar viewport
+            ConfigurarViewport()
+            
+            # Renderizar terreno
+            RenderTerreno()
+            
+            # Renderizar objetos
+            RenderObjetos()
+            
+            # Renderizar jugadores
+            RenderJugadores()
+            
+            # Renderizar vegetación
+            RenderVegetacion()
+            
+            # Renderizar partículas
+            if SessionData.Instance.nivel_calidad >= NivelCalidad.LOW:
+                RenderParticulas()
+            return true
+        }, "SistemaRender.RenderEscenaPrincipal", false)
+    
+    function RenderTerreno():
+        return ManejoErrores.EjecutarConManejo(() => {
+            chunks_activos = GetSistemaTerreno().chunks_activos
+            
+            for coord, chunk in chunks_activos:
+                if chunk.esta_activo and chunk.malla != null:
+                    # Determinar LOD
+                    lod = sistema_lod.ObtenerLOD(chunk, camera_principal.posicion)
+                    
+                    # Seleccionar material según calidad y LOD
+                    material = sistema_materiales.ObtenerMaterialTerreno(lod, SessionData.Instance.nivel_calidad)
+                    
+                    # Renderizar chunk
+                    if RenderChunk(chunk, material, lod):
+                        draw_calls++
+                        triangles_renderizados += chunk.malla.GetTriangleCount()
+            return true
+        }, "SistemaRender.RenderTerreno", false)
+    
+    function RenderJugadores():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Renderizar jugador local
+            # NOTA: Esto debe ser reemplazado por inyección de dependencias
+            if GameManager.instance != null:
+                jugador_local = GameManager.instance.sistema_jugador.GetJugadorLocal()
+                if jugador_local.esta_activo:
+                    if RenderJugador(jugador_local):
+                        draw_calls++
+                
+                # Renderizar jugadores remotos
+                jugadores_remotos = GameManager.instance.sistema_jugador.jugadores_remotos
+                for id, jugador in jugadores_remotos:
+                    if RenderJugador(jugador):
+                        draw_calls++
+            return true
+        }, "SistemaRender.RenderJugadores", false)
+    
+    function RenderJugador(jugador):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Validar jugador
+            if jugador == null or not jugador.esta_activo:
+                return EstadoSeguroRender.ObtenerValorPorDefecto("render_jugador_fallido")
+            
+            # Obtener modelo y animación usando resource loader
+            modelo = resource_loader.CargarModeloJugador(jugador.apariencia.modelo_path)
+            if modelo == null:
+                Logger.LogWarning("SistemaRender: Modelo de jugador no encontrado")
+                return EstadoSeguroRender.ObtenerValorPorDefecto("render_jugador_fallido")
+            
+            animacion = jugador.gestor_animaciones.GetAnimacionActual()
+            
+            # Validar posición (rango de alturas -100 a 1000)
+            if jugador.posicion.y < -100 or jugador.posicion.y > 1000:
+                Logger.LogWarning("SistemaRender: Posición de jugador fuera de rango")
+                return EstadoSeguroRender.ObtenerValorPorDefecto("render_jugador_fallido")
+            
+            # Configurar transform
+            transform = new Transform()
+            transform.posicion = jugador.posicion
+            transform.rotacion = jugador.rotacion
+            
+            # Renderizar
+            return RenderModelo(modelo, transform, animacion)
+        }, "SistemaRender.RenderJugador", false)
+    
+    # =============================================================================
+    # FUNCIONES DE CÁMARA
+    # =============================================================================
+    
+    function ActualizarCamera(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Seguir jugador local
+            # NOTA: Esto debe ser reemplazado por inyección de dependencias
+            if GameManager.instance != null:
+                jugador = GameManager.instance.sistema_jugador.GetJugadorLocal()
+                
+                if jugador != null and jugador.esta_activo:
+                    # Validar posición del jugador
+                    if jugador.posicion.y < -100 or jugador.posicion.y > 1000:
+                        Logger.LogWarning("SistemaRender: Posición de jugador fuera de rango en cámara")
+                        return EstadoSeguroRender.ObtenerValorPorDefecto("actualizar_camera_fallido")
+                    
+                    # Calcular posición objetivo
+                    offset_camera = Vector3(0, 5, -10)  # Tercera persona
+                    posicion_objetivo = jugador.posicion + offset_camera
+                    
+                    # Interpolar posición suave
+                    factor_interp = min(1.0, 5.0 * delta_time)
+                    camera_principal.posicion = camera_principal.posicion.lerp(posicion_objetivo, factor_interp)
+                    
+                    # Mirar al jugador
+                    camera_principal.MirarA(jugador.posicion)
+                    
+                    Logger.LogDebug("SistemaRender: Cámara actualizada - Jugador: " + jugador.nombre)
+            return true
+        }, "SistemaRender.ActualizarCamera", false)
+    
+    # =============================================================================
+    # FUNCIONES AUXILIARES
+    # =============================================================================
+    
+    function LimpiarBuffers():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Limpiar color y depth
+            ClearColor(COLOR_CIELO)
+            ClearDepth(1.0)
+            return true
+        }, "SistemaRender.LimpiarBuffers", false)
+    
+    function PrepararEscena():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Actualizar matrices de transformación
+            ActualizarMatrices()
+            
+            # Preparar luces para el frame
+            sistema_luces.PrepararFrame()
+            return true
+        }, "SistemaRender.PrepararEscena", false)
+    
+    function ConfigurarViewport():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Configurar viewport principal
+            SetViewport(0, 0, GetAnchoPantalla(), GetAltoPantalla())
+            return true
+        }, "SistemaRender.ConfigurarViewport", false)
+    
+    function RenderChunk(chunk, material, lod):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Validar chunk y material
+            if chunk == null or chunk.malla == null or material == null:
+                return EstadoSeguroRender.ObtenerValorPorDefecto("render_chunk_fallido")
+            
+            # Bind material
+            material.Bind()
+            
+            # Setear uniforms
+            material.SetUniform("matriz_mvp", GetMatrixMVP(chunk.transform))
+            material.SetUniform("lod", lod)
+            material.SetUniform("posicion_camera", camera_principal.posicion)
+            material.SetUniform("seed_mundo", SessionData.Instance.seed_mundo)
+            
+            # Renderizar malla
+            chunk.malla.Render()
+            triangles_renderizados += chunk.malla.GetTriangleCount()
+            
+            # Unbind material
+            material.Unbind()
+            
+            return true
+        }, "SistemaRender.RenderChunk", false)
+    
+    function RenderModelo(modelo, transform, animacion):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Validar modelo y transform
+            if modelo == null or transform == null:
+                return EstadoSeguroRender.ObtenerValorPorDefecto("render_modelo_fallido")
+            
+            # Configurar animación
+            if animacion != null:
+                modelo.SetAnimacion(animacion)
+            
+            # Renderizar mallas del modelo
+            for malla in modelo.mallas:
+                if malla != null and malla.material != null:
+                    material = malla.material
+                    material.Bind()
+                    
+                    material.SetUniform("matriz_mvp", GetMatrixMVP(transform))
+                    material.SetUniform("matriz_transform", transform.GetMatrix())
+                    material.SetUniform("seed_mundo", SessionData.Instance.seed_mundo)
+                    
+                    malla.Render()
+                    triangles_renderizados += malla.GetTriangleCount()
+                    
+                    material.Unbind()
+            
+            return true
+        }, "SistemaRender.RenderModelo", false)
+    
+    function PresentarFrame():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Intercambiar buffers
+            SwapBuffers()
+            return true
+        }, "SistemaRender.PresentarFrame", false)
+    
+    # =============================================================================
+    # FUNCIONES DE MÉTRICAS
+    # =============================================================================
+    
+    function GetFPSActual(): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            return fps_actual
+        }, "SistemaRender.GetFPSActual", false)
+    
+    function GetDrawCalls(): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            return draw_calls
+        }, "SistemaRender.GetDrawCalls", false)
+    
+    function GetTrianglesRenderizados(): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            return triangles_renderizados
+        }, "SistemaRender.GetTrianglesRenderizados", false)
+    
+    function GetCalidadActual(): NivelCalidad
+        return ManejoErrores.EjecutarConManejo(() => {
+            return SessionData.Instance.nivel_calidad
+        }, "SistemaRender.GetCalidadActual", false)
+    
+    function ObtenerEstadisticas(): Dictionary<string, object>
+        return ManejoErrores.EjecutarConManejo(() => {
+            stats = new Dictionary()
+            stats["fps"] = fps_actual
+            stats["frame_tiempo"] = frame_tiempo
+            stats["draw_calls"] = draw_calls
+            stats["triangles"] = triangles_renderizados
+            stats["calidad"] = SessionData.Instance.nivel_calidad.ToString()
+            stats["chunks_renderizados"] = GetSistemaTerreno().chunks_activos.length()
+            return stats
+        }, "SistemaRender.ObtenerEstadisticas", false)
+
+# =============================================================================
+# CLASE: Camera (Mejorada)
+# =============================================================================
+class Camera:
+    posicion: Vector3
+    rotacion: Vector3
+    fov: float = 60.0
+    cerca: float = 0.1
+    lejos: float = 1000.0
+    matriz_proyeccion: Matrix4
+    matriz_vista: Matrix4
+    seed_mundo: int
+    
+    function ConfigurarCamera():
+        return ManejoErrores.EjecutarConManejo(() => {
+            ActualizarMatrizProyeccion()
+            ActualizarMatrizVista()
+            Logger.LogDebug("Camera: Cámara configurada")
+            return true
+        }, "Camera.ConfigurarCamera", false)
+    
+    function ConfigurarCalidad(calidad: NivelCalidad):
+        return ManejoErrores.EjecutarConManejo(() => {
+            try:
+                switch calidad:
+                    case NivelCalidad.TOASTER:
+                        fov = 45.0
+                        lejos = 500.0
+                    case NivelCalidad.LOW:
+                        fov = 50.0
+                        lejos = 750.0
+                    case NivelCalidad.MEDIUM:
+                        fov = 60.0
+                        lejos = 1000.0
+                    case NivelCalidad.HIGH:
+                        fov = 70.0
+                        lejos = 1500.0
+                    case NivelCalidad.ULTRA:
+                        fov = 75.0
+                        lejos = 2000.0
+                
+                # Validar rango de alturas (-100 a 1000)
+                if lejos > 2000:
+                    Logger.LogWarning("Camera: Distancia de renderizado muy alta: " + lejos.ToString())
+                    lejos = 2000.0
+                
+                ActualizarMatrizProyeccion()
+                Logger.LogInfo("Camera: Calidad configurada - FOV: " + fov.ToString() + ", Lejos: " + lejos.ToString())
+                return true
+            catch error as Exception:
+                Logger.LogError("Camera: Error configurando calidad: " + error.Message)
+                return EstadoSeguroRender.ObtenerValorPorDefecto("configurar_calidad_fallido")
+        }, "Camera.ConfigurarCalidad", false)
+    
+    function MirarA(objetivo: Vector3):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Validar objetivo
+            if objetivo.y < -100 or objetivo.y > 1000:
+                Logger.LogWarning("Camera: Objetivo fuera de rango de alturas")
+                return EstadoSeguroRender.ObtenerValorPorDefecto("mirar_a_fallido")
+            
+            direccion = (objetivo - posicion).normalized()
+            if direccion.length() > 0:
+                rotacion = Quaternion.LookRotation(direccion)
+                ActualizarMatrizVista()
+            return true
+        }, "Camera.MirarA", false)
+    
+    function ActualizarMatrizProyeccion():
+        return ManejoErrores.EjecutarConManejo(() => {
+            aspect_ratio = GetAspectRatio()
+            if aspect_ratio <= 0:
+                aspect_ratio = 16.0 / 9.0  # Fallback
+            
+            matriz_proyeccion = Matrix4.Perspective(fov, aspect_ratio, cerca, lejos)
+            return true
+        }, "Camera.ActualizarMatrizProyeccion", false)
+    
+    function ActualizarMatrizVista():
+        return ManejoErrores.EjecutarConManejo(() => {
+            matriz_vista = Matrix4.LookAt(posicion, posicion + forward, up)
+            return true
+        }, "Camera.ActualizarMatrizVista", false)
+    
+    function SetSeed(seed: int):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Usar SessionData.Instance.seed_mundo en lugar de variable local
+            Logger.LogInfo("Camera: Seed configurada: " + SessionData.Instance.seed_mundo.ToString())
+            return true
+        }, "Camera.SetSeed", false)
+    
+    function GetPosicion(): Vector3
+        return ManejoErrores.EjecutarConManejo(() => {
+            return posicion
+        }, "Camera.GetPosicion", false)
+    
+    function GetFOV(): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            return fov
+        }, "Camera.GetFOV", false)
+    
+    function GetDistanciaLejos(): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            return lejos
+        }, "Camera.GetDistanciaLejos", false)
+
+# =============================================================================
+# CLASE: SistemaLuces (Mejorada)
+# =============================================================================
+class SistemaLuces:
+    luz_direccional: LuzDireccional
+    luces_punto: List<LuzPunto>
+    luces_spot: List<LuzSpot>
+    max_luces_punto: int = 8
+    max_luces_spot: int = 4
+    seed_mundo: int
+    
+    function Inicializar(seed: int = 0):
+        try:
+            seed_mundo = seed
+            
+            # Crear luz direccional (sol)
+            luz_direccional = new LuzDireccional()
+            luz_direccional.color = COLOR_SOL
+            luz_direccional.direccion = Vector3(0.5, -1.0, 0.3).normalized()
+            luz_direccional.intensidad = 1.0
+            
+            luces_punto = new List()
+            luces_spot = new List()
+            
+            Logger.LogInfo("SistemaLuces: Inicializado con seed " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaLuces: Error inicializando: " + error.Message)
+    
+    function ConfigurarCalidad(calidad: NivelCalidad):
+        try:
+            switch calidad:
+                case NivelCalidad.TOASTER:
+                    SetMaxLucesPunto(2)
+                    SetMaxLucesSpot(1)
+                case NivelCalidad.LOW:
+                    SetMaxLucesPunto(4)
+                    SetMaxLucesSpot(2)
+                case NivelCalidad.MEDIUM:
+                    SetMaxLucesPunto(8)
+                    SetMaxLucesSpot(4)
+                case NivelCalidad.HIGH:
+                    SetMaxLucesPunto(16)
+                    SetMaxLucesSpot(8)
+                case NivelCalidad.ULTRA:
+                    SetMaxLucesPunto(32)
+                    SetMaxLucesSpot(16)
+            
+            Logger.LogInfo("SistemaLuces: Calidad configurada - Puntos: " + max_luces_punto.ToString() + ", Spots: " + max_luces_spot.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaLuces: Error configurando calidad: " + error.Message)
+    
+    function SetMaxLucesPunto(maximo: int):
+        try:
+            if maximo >= 0 and maximo <= 64:
+                max_luces_punto = maximo
+                # Limitar luces existentes
+                while luces_punto.length() > max_luces_punto:
+                    luces_punto.RemoveAt(0)
+        catch error as Exception:
+            Logger.LogError("SistemaLuces: Error configurando máximas luces punto: " + error.Message)
+    
+    function SetMaxLucesSpot(maximo: int):
+        try:
+            if maximo >= 0 and maximo <= 32:
+                max_luces_spot = maximo
+                # Limitar luces existentes
+                while luces_spot.length() > max_luces_spot:
+                    luces_spot.RemoveAt(0)
+        catch error as Exception:
+            Logger.LogError("SistemaLuces: Error configurando máximas luces spot: " + error.Message)
+    
+    function PrepararFrame():
+        try:
+            # Actualizar luces dinámicas
+            ActualizarLucesDinamicas()
+            
+            # Enviar datos al shader
+            EnviarDatosLucesShader()
+        catch error as Exception:
+            Logger.LogError("SistemaLuces: Error preparando frame: " + error.Message)
+    
+    function ActualizarLucesDinamicas():
+        try:
+            # Simulación de actualización de luces dinámicas
+            # (Aquí iría la implementación real)
+        catch error as Exception:
+            Logger.LogError("SistemaLuces: Error actualizando luces dinámicas: " + error.Message)
+    
+    function EnviarDatosLucesShader():
+        try:
+            # Enviar datos de luces al shader
+            # (Aquí iría la implementación real)
+        catch error as Exception:
+            Logger.LogError("SistemaLuces: Error enviando datos a shader: " + error.Message)
+    
+    function AgregarLuzPunto(luz: LuzPunto):
+        try:
+            if luces_punto.length() < max_luces_punto:
+                luces_punto.Add(luz)
+                Logger.LogDebug("SistemaLuces: Luz punto agregada")
+            else:
+                Logger.LogWarning("SistemaLuces: Límite de luces punto alcanzado")
+        catch error as Exception:
+            Logger.LogError("SistemaLuces: Error agregando luz punto: " + error.Message)
+    
+    function AgregarLuzSpot(luz: LuzSpot):
+        try:
+            if luces_spot.length() < max_luces_spot:
+                luces_spot.Add(luz)
+                Logger.LogDebug("SistemaLuces: Luz spot agregada")
+            else:
+                Logger.LogWarning("SistemaLuces: Límite de luces spot alcanzado")
+        catch error as Exception:
+            Logger.LogError("SistemaLuces: Error agregando luz spot: " + error.Message)
+
+# =============================================================================
+# CLASE: SistemaLOD (Mejorada)
+# =============================================================================
+class SistemaLOD:
+    distancias_lod: List<float> = [10.0, 25.0, 50.0, 100.0, 200.0]
+    seed_mundo: int
+    
+    function Inicializar(seed: int = 0):
+        try:
+            seed_mundo = seed
+            Logger.LogInfo("SistemaLOD: Inicializado con seed " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaLOD: Error inicializando: " + error.Message)
+    
+    function ObtenerLOD(chunk, posicion_camera): int
+        try:
+            # Validar chunk y posición
+            if chunk == null or posicion_camera == null:
+                return 0  # LOD más alto por defecto
+            
+            # Validar posición (rango de alturas -100 a 1000)
+            if posicion_camera.y < -100 or posicion_camera.y > 1000:
+                Logger.LogWarning("SistemaLOD: Posición de cámara fuera de rango")
+                return 0
+            
+            distancia = (chunk.posicion - posicion_camera).length()
+            
+            # Usar seed para consistencia en cálculos de LOD
+            distancia_ajustada = distancia * (1.0 + (seed_mundo % 100) / 1000.0)
+            
+            for i, dist in distancias_lod:
+                if distancia_ajustada < dist:
+                    return i
+            
+            return distancias_lod.length() - 1
+        catch error as Exception:
+            Logger.LogError("SistemaLOD: Error obteniendo LOD: " + error.Message)
+            return 0
+    
+    function ConfigurarCalidad(calidad: NivelCalidad):
+        try:
+            switch calidad:
+                case NivelCalidad.TOASTER:
+                    distancias_lod = [5.0, 15.0, 30.0]
+                case NivelCalidad.LOW:
+                    distancias_lod = [8.0, 20.0, 40.0, 80.0]
+                case NivelCalidad.MEDIUM:
+                    distancias_lod = [10.0, 25.0, 50.0, 100.0]
+                case NivelCalidad.HIGH:
+                    distancias_lod = [15.0, 35.0, 70.0, 140.0, 250.0]
+                case NivelCalidad.ULTRA:
+                    distancias_lod = [20.0, 45.0, 90.0, 180.0, 350.0, 500.0]
+            
+            Logger.LogInfo("SistemaLOD: Calidad configurada - Niveles LOD: " + distancias_lod.length().ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaLOD: Error configurando calidad: " + error.Message)
+    
+    function GetDistanciasLOD(): List<float>
+        try:
+            return distancias_lod
+        catch error as Exception:
+            Logger.LogError("SistemaLOD: Error obteniendo distancias LOD: " + error.Message)
+            return [10.0, 25.0, 50.0, 100.0, 200.0]
+    
+    function SetSeed(seed: int):
+        try:
+            seed_mundo = seed
+            Logger.LogInfo("SistemaLOD: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaLOD: Error configurando seed: " + error.Message)
+
+# =============================================================================
+# CLASE: SistemaPostProcesado (Mejorada)
+# =============================================================================
+class SistemaPostProcesado:
+    efectos_activos: Dictionary<string, bool>
+    calidad_actual: NivelCalidad
+    draw_calls: int = 0
+    seed_mundo: int
+    
+    function Inicializar(seed: int = 0):
+        try:
+            seed_mundo = seed
+            efectos_activos = new Dictionary()
+            
+            # Configurar efectos por defecto
+            efectos_activos["bloom"] = false
+            efectos_activos["vignette"] = true
+            efectos_activos["color_correction"] = true
+            efectos_activos["motion_blur"] = false
+            efectos_activos["ssao"] = false
+            
+            Logger.LogInfo("SistemaPostProcesado: Inicializado con seed " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error inicializando: " + error.Message)
+    
+    function ConfigurarCalidad(calidad: NivelCalidad):
+        try:
+            calidad_anterior = calidad_actual
+            calidad_actual = calidad
+            
+            switch calidad:
+                case NivelCalidad.TOASTER:
+                    efectos_activos["bloom"] = false
+                    efectos_activos["vignette"] = false
+                    efectos_activos["color_correction"] = false
+                    efectos_activos["motion_blur"] = false
+                    efectos_activos["ssao"] = false
+                case NivelCalidad.LOW:
+                    efectos_activos["bloom"] = false
+                    efectos_activos["vignette"] = true
+                    efectos_activos["color_correction"] = true
+                    efectos_activos["motion_blur"] = false
+                    efectos_activos["ssao"] = false
+                case NivelCalidad.MEDIUM:
+                    efectos_activos["bloom"] = false
+                    efectos_activos["vignette"] = true
+                    efectos_activos["color_correction"] = true
+                    efectos_activos["motion_blur"] = false
+                    efectos_activos["ssao"] = false
+                case NivelCalidad.HIGH:
+                    efectos_activos["bloom"] = true
+                    efectos_activos[vignette"] = true
+                    efectos_activos["color_correction"] = true
+                    efectos_activos["motion_blur"] = true
+                    efectos_activos["ssao"] = false
+                case NivelCalidad.ULTRA:
+                    efectos_activos["bloom"] = true
+                    efectos_activos["vignette"] = true
+                    efectos_activos["color_correction"] = true
+                    efectos_activos["motion_blur"] = true
+                    efectos_activos["ssao"] = true
+            
+            Logger.LogInfo("SistemaPostProcesado: Calidad cambiada de " + calidad_anterior.ToString() + " a " + calidad.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error configurando calidad: " + error.Message)
+    
+    function AplicarEfectos():
+        try:
+            draw_calls = 0
+            
+            # Aplicar efectos activos
+            if efectos_activos["bloom"]:
+                AplicarBloom()
+                draw_calls += 2
+            
+            if efectos_activos["vignette"]:
+                AplicarVignette()
+                draw_calls += 1
+            
+            if efectos_activos["color_correction"]:
+                AplicarColorCorrection()
+                draw_calls += 1
+            
+            if efectos_activos["motion_blur"]:
+                AplicarMotionBlur()
+                draw_calls += 3
+            
+            if efectos_activos["ssao"]:
+                AplicarSSAO()
+                draw_calls += 4
+            
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error aplicando efectos: " + error.Message)
+    
+    function GetDrawCalls(): int
+        try:
+            return draw_calls
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error obteniendo draw calls: " + error.Message)
+            return 0
+    
+    function AplicarBloom():
+        try:
+            # Implementación de bloom
+            # (Aquí iría la implementación real)
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error aplicando bloom: " + error.Message)
+    
+    function AplicarVignette():
+        try:
+            # Implementación de vignette
+            # (Aquí iría la implementación real)
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error aplicando vignette: " + error.Message)
+    
+    function AplicarColorCorrection():
+        try:
+            # Implementación de corrección de color
+            # (Aquí iría la implementación real)
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error aplicando corrección de color: " + error.Message)
+    
+    function AplicarMotionBlur():
+        try:
+            # Implementación de motion blur
+            # (Aquí iría la implementación real)
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error aplicando motion blur: " + error.Message)
+    
+    function AplicarSSAO():
+        try:
+            # Implementación de SSAO
+            # (Aquí iría la implementación real)
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error aplicando SSAO: " + error.Message)
+    
+    function SetSeed(seed: int):
+        try:
+            seed_mundo = seed
+            Logger.LogInfo("SistemaPostProcesado: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error configurando seed: " + error.Message)
+    
+    function GetEfectosActivos(): Dictionary<string, bool>
+        try:
+            return efectos_activos
+        catch error as Exception:
+            Logger.LogError("SistemaPostProcesado: Error obteniendo efectos activos: " + error.Message)
+            return new Dictionary()
+
+# =============================================================================
+# CLASES AUXILIARES (Mejoradas)
+# =============================================================================
+class LuzDireccional:
+    color: Color
+    direccion: Vector3
+    intensidad: float
+    seed_mundo: int
+    
+    function Constructor(seed: int = 0):
+        try:
+            seed_mundo = seed
+            color = COLOR_SOL
+            direccion = Vector3(0.5, -1.0, 0.3).normalized()
+            intensidad = 1.0
+        catch error as Exception:
+            Logger.LogError("LuzDireccional: Error en constructor: " + error.Message)
+    
+    function SetSeed(seed: int):
+        try:
+            seed_mundo = seed
+            # Ajustar dirección basada en seed
+            offset = (seed % 360) * PI / 180.0
+            direccion = Vector3(
+                sin(offset) * 0.5,
+                -1.0,
+                cos(offset) * 0.3
+            ).normalized()
+            Logger.LogInfo("LuzDireccional: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("LuzDireccional: Error configurando seed: " + error.Message)
+
+class LuzPunto:
+    color: Color
+    posicion: Vector3
+    intensidad: float
+    radio: float
+    seed_mundo: int
+    
+    function Constructor(pos: Vector3, seed: int = 0):
+        try:
+            seed_mundo = seed
+            color = COLOR_BLANCO
+            posicion = pos
+            intensidad = 1.0
+            radio = 10.0
+            
+            # Validar posición (rango de alturas -100 a 1000)
+            if posicion.y < -100 or posicion.y > 1000:
+                Logger.LogWarning("LuzPunto: Posición fuera de rango de alturas")
+                posicion.y = clamp(posicion.y, -100, 1000)
+        catch error as Exception:
+            Logger.LogError("LuzPunto: Error en constructor: " + error.Message)
+
+class LuzSpot:
+    color: Color
+    posicion: Vector3
+    direccion: Vector3
+    intensidad: float
+    radio: float
+    angulo: float
+    seed_mundo: int
+    
+    function Constructor(pos: Vector3, dir: Vector3, seed: int = 0):
+        try:
+            seed_mundo = seed
+            color = COLOR_BLANCO
+            posicion = pos
+            direccion = dir.normalized()
+            intensidad = 1.0
+            radio = 15.0
+            angulo = 45.0
+            
+            # Validar posición y dirección
+            if posicion.y < -100 or posicion.y > 1000:
+                Logger.LogWarning("LuzSpot: Posición fuera de rango de alturas")
+                posicion.y = clamp(posicion.y, -100, 1000)
+        catch error as Exception:
+            Logger.LogError("LuzSpot: Error en constructor: " + error.Message)
+
+# =============================================================================
+# CLASES DE MATERIALES Y SHADERS (Mejoradas)
+# =============================================================================
+class SistemaMateriales:
+    materiales_terreno: Dictionary<int, Material>
+    materiales_jugador: Dictionary<string, Material>
+    calidad_actual: NivelCalidad
+    seed_mundo: int
+    
+    function Inicializar(seed: int = 0):
+        try:
+            seed_mundo = seed
+            materiales_terreno = new Dictionary()
+            materiales_jugador = new Dictionary()
+            
+            # Cargar materiales base
+            CargarMaterialesBase()
+            
+            Logger.LogInfo("SistemaMateriales: Inicializado con seed " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error inicializando: " + error.Message)
+    
+    function ConfigurarCalidad(calidad: NivelCalidad):
+        try:
+            calidad_anterior = calidad_actual
+            calidad_actual = calidad
+            
+            # Recargar materiales con nueva calidad
+            RecargarMateriales()
+            
+            Logger.LogInfo("SistemaMateriales: Calidad cambiada de " + calidad_anterior.ToString() + " a " + calidad.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error configurando calidad: " + error.Message)
+    
+    function ObtenerMaterialTerreno(lod: int, calidad: NivelCalidad): Material
+        try:
+            clave = "lod_" + lod.ToString() + "_" + calidad.ToString()
+            if materiales_terreno.ContainsKey(clave):
+                return materiales_terreno[clave]
+            else:
+                # Generar material dinámicamente
+                material = GenerarMaterialTerreno(lod, calidad)
+                materiales_terreno[clave] = material
+                return material
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error obteniendo material terreno: " + error.Message)
+            return GetMaterialPorDefecto()
+    
+    function ObtenerModeloJugador(ruta: string): Modelo
+        try:
+            # Usar resource loader para cargar modelo
+            loader = GetSistemaRender().resource_loader
+            if loader != null:
+                modelo = loader.CargarModelo(ruta)
+                if modelo != null:
+                    return modelo
+            
+            # Fallback: modelo por defecto
+            return GetModeloJugadorPorDefecto()
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error obteniendo modelo jugador: " + error.Message)
+            return GetModeloJugadorPorDefecto()
+    
+    function CargarMaterialesBase():
+        try:
+            # Cargar materiales base según calidad
+            # (Aquí iría la implementación real)
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error cargando materiales base: " + error.Message)
+    
+    function RecargarMateriales():
+        try:
+            # Recargar todos los materiales
+            materiales_terreno.Clear()
+            materiales_jugador.Clear()
+            CargarMaterialesBase()
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error recargando materiales: " + error.Message)
+    
+    function GenerarMaterialTerreno(lod: int, calidad: NivelCalidad): Material
+        try:
+            # Generar material dinámicamente
+            material = new Material()
+            
+            # Configurar según LOD y calidad
+            material.SetShader("terrain_shader")
+            material.SetUniform("lod", lod)
+            material.SetUniform("calidad", calidad)
+            material.SetUniform("seed", seed_mundo)
+            
+            return material
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error generando material terreno: " + error.Message)
+            return GetMaterialPorDefecto()
+    
+    function GetMaterialPorDefecto(): Material
+        try:
+            # Material por defecto simple
+            material = new Material()
+            material.SetShader("basic_shader")
+            material.SetUniform("color", COLOR_GRIS)
+            return material
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error obteniendo material por defecto: " + error.Message)
+            return null
+    
+    function GetModeloJugadorPorDefecto(): Modelo
+        try:
+            # Modelo simple por defecto
+            modelo = new Modelo()
+            modelo.CargarDesdeMemoria("player_default")
+            return modelo
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error obteniendo modelo por defecto: " + error.Message)
+            return null
+    
+    function SetSeed(seed: int):
+        try:
+            seed_mundo = seed
+            RecargarMateriales()
+            Logger.LogInfo("SistemaMateriales: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaMateriales: Error configurando seed: " + error.Message)
+
+class SistemaShaders:
+    shaders_cargados: Dictionary<string, Shader>
+    calidad_actual: NivelCalidad
+    seed_mundo: int
+    
+    function Inicializar(seed: int = 0):
+        try:
+            seed_mundo = seed
+            shaders_cargados = new Dictionary()
+            
+            # Cargar shaders base
+            CargarShadersBase()
+            
+            Logger.LogInfo("SistemaShaders: Inicializado con seed " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaShaders: Error inicializando: " + error.Message)
+    
+    function ConfigurarCalidad(calidad: NivelCalidad):
+        try:
+            calidad_anterior = calidad_actual
+            calidad_actual = calidad
+            
+            # Recompilar shaders con nueva calidad
+            RecompilarShaders()
+            
+            Logger.LogInfo("SistemaShaders: Calidad cambiada de " + calidad_anterior.ToString() + " a " + calidad.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaShaders: Error configurando calidad: " + error.Message)
+    
+    function CargarShadersBase():
+        try:
+            # Cargar shaders base
+            shaders_cargados["terrain"] = CargarShader("terrain_shader")
+            shaders_cargados["player"] = CargarShader("player_shader")
+            shaders_cargados["vegetation"] = CargarShader("vegetation_shader")
+            shaders_cargados["water"] = CargarShader("water_shader")
+        catch error as Exception:
+            Logger.LogError("SistemaShaders: Error cargando shaders base: " + error.Message)
+    
+    function RecompilarShaders():
+        try:
+            # Recompilar todos los shaders
+            for nombre, shader in shaders_cargados:
+                shader.RecompilarConCalidad(calidad_actual)
+        catch error as Exception:
+            Logger.LogError("SistemaShaders: Error recompilando shaders: " + error.Message)
+    
+    function CargarShader(ruta: string): Shader
+        try:
+            # Cargar shader desde archivo
+            shader = new Shader()
+            shader.CargarDesdeArchivo(ruta)
+            shader.SetSeed(seed_mundo)
+            return shader
+        catch error as Exception:
+            Logger.LogError("SistemaShaders: Error cargando shader: " + error.Message)
+            return GetShaderPorDefecto()
+    
+    function GetShaderPorDefecto(): Shader
+        try:
+            # Shader simple por defecto
+            shader = new Shader()
+            shader.CargarDesdeMemoria("basic_shader")
+            return shader
+        catch error as Exception:
+            Logger.LogError("SistemaShaders: Error obteniendo shader por defecto: " + error.Message)
+            return null
+    
+    function SetSeed(seed: int):
+        try:
+            seed_mundo = seed
+            RecompilarShaders()
+            Logger.LogInfo("SistemaShaders: Seed configurada: " + seed.ToString())
+        catch error as Exception:
+            Logger.LogError("SistemaShaders: Error configurando seed: " + error.Message)
+
+# =============================================================================
+# FUNCIONES AUXILIARES (Mejoradas)
+# =============================================================================
+function GetMatrixMVP(transform): Matrix4
+    try:
+        sistema = GetSistemaRender()
+        if sistema != null and sistema.camera_principal != null:
+            return sistema.camera_principal.matriz_proyeccion * sistema.camera_principal.matriz_vista * transform.GetMatrix()
+        else:
+            Logger.LogWarning("GetMatrixMVP: SistemaRender o cámara no disponible")
+            return Matrix4.IDENTITY
+    catch error as Exception:
+        Logger.LogError("GetMatrixMVP: Error calculando MVP: " + error.Message)
+        return Matrix4.IDENTITY
+
+function ActualizarMatrices():
+    try:
+        sistema = GetSistemaRender()
+        if sistema != null and sistema.camera_principal != null:
+            sistema.camera_principal.ActualizarMatrizProyeccion()
+            sistema.camera_principal.ActualizarMatrizVista()
+        else:
+            Logger.LogWarning("ActualizarMatrices: SistemaRender o cámara no disponible")
+    catch error as Exception:
+        Logger.LogError("ActualizarMatrices: Error actualizando matrices: " + error.Message)
+
+function SetViewport(x, y, ancho, alto):
+    try:
+        # Validar parámetros
+        if ancho <= 0 or alto <= 0:
+            Logger.LogWarning("SetViewport: Dimensiones inválidas")
+            return
+        
+        # Configurar viewport
+        RenderingServer.viewport_set_size(0, ancho, alto)
+        RenderingServer.viewport_set_position(0, x, y)
+        
+        Logger.LogDebug("SetViewport: Viewport configurado - " + ancho.ToString() + "x" + alto.ToString())
+    catch error as Exception:
+        Logger.LogError("SetViewport: Error configurando viewport: " + error.Message)
+
+function ClearColor(color):
+    try:
+        # Limpiar color de fondo
+        RenderingServer.clear_default_color(color)
+    catch error as Exception:
+        Logger.LogError("ClearColor: Error limpiando color: " + error.Message)
+
+function ClearDepth(valor):
+    try:
+        # Limpiar buffer de profundidad
+        RenderingServer.clear_depth_buffer()
+    catch error as Exception:
+        Logger.LogError("ClearDepth: Error limpiando depth: " + error.Message)
+
+function GetAnchoPantalla(): int
+    try:
+        return DisplayServer.screen_get_size().x
+    catch error as Exception:
+        Logger.LogError("GetAnchoPantalla: Error obteniendo ancho: " + error.Message)
+        return 1920  # Fallback
+
+function GetAltoPantalla(): int
+    try:
+        return DisplayServer.screen_get_size().y
+    catch error as Exception:
+        Logger.LogError("GetAltoPantalla: Error obteniendo alto: " + error.Message)
+        return 1080  # Fallback
+
+function GetAspectRatio(): float
+    try:
+        ancho = GetAnchoPantalla()
+        alto = GetAltoPantalla()
+        if alto > 0:
+            return float(ancho) / float(alto)
+        else:
+            return 16.0 / 9.0  # Fallback
+    catch error as Exception:
+        Logger.LogError("GetAspectRatio: Error obteniendo aspect ratio: " + error.Message)
+        return 16.0 / 9.0
+
+function SwapBuffers():
+    try:
+        # Intercambiar buffers
+        RenderingServer.frame_draw()
+    catch error as Exception:
+        Logger.LogError("SwapBuffers: Error intercambiando buffers: " + error.Message)
+
+function RenderParticulas():
+    try:
+        sistema = GetSistemaRender()
+        if sistema != null:
+            # Renderizar partículas según calidad
+            calidad = sistema.GetCalidadActual()
+            
+            if calidad >= NivelCalidad.LOW:
+                # Renderizar partículas
+                # (Aquí iría la implementación real)
+                Logger.LogDebug("RenderParticulas: Partículas renderizadas")
+    catch error as Exception:
+        Logger.LogError("RenderParticulas: Error renderizando partículas: " + error.Message)
+
+function RenderUI():
+    try:
+        # Renderizar UI
+        # (Aquí iría la implementación real)
+        Logger.LogDebug("RenderUI: UI renderizada")
+    catch error as Exception:
+        Logger.LogError("RenderUI: Error renderizando UI: " + error.Message)
+
+function RenderObjetos():
+    try:
+        # Renderizar objetos del mundo
+        # (Aquí iría la implementación real)
+        Logger.LogDebug("RenderObjetos: Objetos renderizados")
+    catch error as Exception:
+        Logger.LogError("RenderObjetos: Error renderizando objetos: " + error.Message)
+
+function RenderVegetacion():
+    try:
+        # Renderizar vegetación
+        # (Aquí iría la implementación real)
+        Logger.LogDebug("RenderVegetacion: Vegetación renderizada")
+    catch error as Exception:
+        Logger.LogError("RenderVegetacion: Error renderizando vegetación: " + error.Message)
+
+function GetUIDrawCalls(): int
+    try:
+        # Obtener draw calls de UI
+        # (Aquí iría la implementación real)
+        return 10  # Estimación
+    catch error as Exception:
+        Logger.LogError("GetUIDrawCalls: Error obteniendo draw calls UI: " + error.Message)
+        return 0
+
+# =============================================================================
+# FUNCIONES GLOBALES DE ACCESO RÁPIDO
+# =============================================================================
+# FUNCIONES DE ACCESO (DEPRECATED)
+# =============================================================================
+# NOTA: Estas funciones están obsoletas y violan el principio de evitar referencias circulares
+# Se deben eliminar y reemplazar por inyección de dependencias desde GameManager
+# =============================================================================
+
+function GetSistemaRender(): SistemaRender
+    return ManejoErrores.EjecutarConManejo(() => {
+        if GameManager.instance == null:
+            Logger.LogError("GetSistemaRender: GameManager no inicializado")
+            return EstadoSeguroRender.ObtenerValorPorDefecto("render_nulo")
+        return GameManager.instance.sistema_render
+    }, "GetSistemaRender", false)
+
+function InicializarRender(seed: int = 0): SistemaRender
+    # NOTA: Esta función está obsoleta y viola el principio de evitar referencias circulares
+    # Se debe usar GameManager.instance.sistema_render.Inicializar()
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = new SistemaRender()
+        sistema.Inicializar()
+        if sistema != null:
+            Logger.LogInfo("Render: Sistema inicializado correctamente")
+        return sistema
+    }, "InicializarRender", false)
+
+function CambiarCalidadRender(calidad: NivelCalidad):
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = GetSistemaRender()
+        if sistema != null:
+            sistema.ConfigurarCalidad(calidad)
+            Logger.LogInfo("Render: Calidad cambiada a " + calidad.ToString())
+        else:
+            Logger.LogError("Render: No se pudo cambiar calidad - SistemaRender no disponible")
+        return true
+    }, "CambiarCalidadRender", false)
+
+function ObtenerEstadisticasRender(): Dictionary<string, object>
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = GetSistemaRender()
+        if sistema != null:
+            return sistema.ObtenerEstadisticas()
+        else:
+            return EstadoSeguroRender.ObtenerValorPorDefecto("estadisticas_vacias")
+    }, "ObtenerEstadisticasRender", false)
+
+function ObtenerFPS(): float
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = GetSistemaRender()
+        if sistema != null:
+            return sistema.GetFPSActual()
+        else:
+            return EstadoSeguroRender.ObtenerValorPorDefecto("fps_actual")
+    }, "ObtenerFPS", false)
+
+# =============================================================================
+# FUNCIONES DE OPTIMIZACIÓN Y MONITOREO
+# =============================================================================
+function LogPerformance(contexto: string, tiempo: float):
+    return ManejoErrores.EjecutarConManejo(() => {
+        mensaje = "[PERF] " + contexto + ": " + tiempo.ToString("F3") + "s"
+        if tiempo > 0.016:  # Más de 16.67ms (60 FPS)
+            Logger.LogWarning(mensaje)
+        else:
+            Logger.LogDebug(mensaje)
+        return true
+    }, "LogPerformance", false)
+
+function LogMemoriaRender(contexto: string, memoria: int):
+    return ManejoErrores.EjecutarConManejo(() => {
+        memoria_mb = memoria / (1024 * 1024)
+        mensaje = "[MEM] " + contexto + ": " + memoria_mb.ToString("F1") + "MB"
+        if memoria_mb > 500:  # Más de 500MB
+            Logger.LogWarning(mensaje)
+        else:
+            Logger.LogDebug(mensaje)
+        return true
+    }, "LogMemoriaRender", false)
+
+function LogRender(contexto: string, estado: string):
+    return ManejoErrores.EjecutarConManejo(() => {
+        mensaje = "[RENDER] " + contexto + ": " + estado
+        Logger.LogInfo(mensaje)
+        return true
+    }, "LogRender", false)
+
+# =============================================================================
+# CONSTANTES Y CONFIGURACIÓN
+# =============================================================================
+const COLOR_CIELO = Color(0.5, 0.7, 1.0, 1.0)  # Azul cielo
+const COLOR_SOL = Color(1.0, 0.9, 0.7, 1.0)     # Amarillo sol
+const COLOR_BLANCO = Color(1.0, 1.0, 1.0, 1.0)   # Blanco
+const COLOR_GRIS = Color(0.5, 0.5, 0.5, 1.0)    # Gris
+
+# Niveles de calidad (deben coincidir con SistemaCalidad)
+class NivelCalidad:
+    static TOASTER = 0    # Mínimo
+    static LOW = 1        # Bajo
+    static MEDIUM = 2     # Medio
+    static HIGH = 3       # Alto
+    static ULTRA = 4      # Ultra
+
+# Tipos de renderizado
+class TipoRenderizado:
+    static FORWARD = 0    # Forward rendering
+    static DEFERRED = 1    # Deferred rendering
+    static FORWARD_PLUS = 2  # Forward+
+
+# Estados de renderizado
+class EstadoRender:
+    static INACTIVO = 0    # No renderizando
+    static ACTIVO = 1     # Renderizando
+    static PAUSADO = 2     # Renderizado pausado
+    static ERROR = 3       # Error en renderizado

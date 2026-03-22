@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "xvaZgdy8m3k=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\MGA-ADMIN\\Desktop\\wild-new\\Wild.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\MGA-ADMIN\\.nuget\\packages\\godot.sourcegenerators\\4.2.1\\godot.sourcegenerators.4.2.1.nupkg.sha512",
+    "C:\\Users\\MGA-ADMIN\\.nuget\\packages\\godotsharp\\4.2.1\\godotsharp.4.2.1.nupkg.sha512",
+    "C:\\Users\\MGA-ADMIN\\.nuget\\packages\\godotsharpeditor\\4.2.1\\godotsharpeditor.4.2.1.nupkg.sha512"
+  ],
+  "logs": []
+}

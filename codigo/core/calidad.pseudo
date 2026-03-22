@@ -1,0 +1,862 @@
+# =============================================================================
+# SISTEMA DE CALIDAD DINÁMICA
+# =============================================================================
+# Archivo: calidad.pseudo
+# Descripción: Adaptación automática de calidad según hardware
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaCalidad (Singleton)
+# =============================================================================
+class SistemaCalidad:
+    static instance: SistemaCalidad
+    
+    # Propiedades principales
+    calidad_actual: NivelCalidad
+    hardware_info: HardwareInfo
+    metricas_rendimiento: MetricasRendimiento
+    sistema_render: SistemaRender
+    resource_loader: DynamicResourceLoader
+    quality_settings: QualitySettings
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del singleton
+    static function Inicializar(): SistemaCalidad
+        return ManejoErrores.EjecutarConManejo(() => {
+            if instance == null:
+                instance = new SistemaCalidad()
+                instance._InicializarInterno()
+                Logger.LogInfo("SistemaCalidad: Singleton inicializado")
+            return instance
+        }, "SistemaCalidad.Inicializar", true)
+    
+    # Inicialización interna
+    function _InicializarInterno():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Detectar hardware
+            hardware_info = DetectarHardware()
+            
+            # Cargar configuración persistente
+            quality_settings = QualitySettings.Cargar()
+            
+            # Establecer calidad inicial
+            if quality_settings.auto_detectar:
+                calidad_actual = DeterminarCalidadInicial(hardware_info)
+                quality_settings.calidad_actual = calidad_actual
+            else:
+                calidad_actual = quality_settings.calidad_actual
+            
+            # Inicializar métricas
+            metricas_rendimiento = new MetricasRendimiento()
+            
+            # Inicializar cargador dinámico
+            resource_loader = new DynamicResourceLoader()
+            resource_loader.Inicializar(calidad_actual)
+            
+            # Aplicar configuración inicial
+            AplicarConfiguracionCalidad(calidad_actual)
+            
+            Logger.LogInfo("SistemaCalidad: Inicializado con calidad " + calidad_actual.ToString())
+            return true
+        }, "SistemaCalidad._InicializarInterno", true)
+    
+    # Actualización continua
+    function Actualizar(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Recopilar métricas de rendimiento
+            metricas_rendimiento.Actualizar(delta_time)
+            
+            # Evaluar si necesita ajuste
+            if quality_settings.auto_ajustar and DebeAjustarCalidad():
+                AjustarCalidad()
+            return true
+        }, "SistemaCalidad.Actualizar", false)
+    
+    # Ajuste automático de calidad
+    function AjustarCalidad():
+        return ManejoErrores.EjecutarConManejo(() => {
+            nueva_calidad = CalcularCalidadOptima()
+            
+            if nueva_calidad != calidad_actual:
+                calidad_anterior = calidad_actual
+                calidad_actual = nueva_calidad
+                quality_settings.calidad_actual = calidad_actual
+                quality_settings.Guardar()
+                
+                # Aplicar nueva configuración
+                AplicarConfiguracionCalidad(calidad_actual)
+                
+                # Invalidar cache del cargador
+                resource_loader.InvalidarCacheCalidad(calidad_anterior)
+                
+                # Reiniciar juego para aplicar cambios
+                ReiniciarJuego()
+                
+                Logger.LogInfo("SistemaCalidad: Calidad ajustada " + calidad_anterior.ToString() + " → " + calidad_actual.ToString())
+            return true
+        }, "SistemaCalidad.AjustarCalidad", false)
+    
+    # Reinicio del juego
+    function ReiniciarJuego():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Verificar que no haya menús abiertos (regla de menús sin pausa)
+            if SistemaUI.HayMenusAbiertos():
+                Logger.LogWarning("SistemaCalidad: No se puede reiniciar con menús abiertos")
+                return false
+            
+            # Guardar estado actual
+            GuardarEstadoActual()
+            
+            # Recargar escena actual
+            GetTree().ReloadCurrentScene()
+            
+            Logger.LogInfo("SistemaCalidad: Juego reiniciado para aplicar nueva calidad")
+            return true
+        }, "SistemaCalidad.ReiniciarJuego", false)
+    
+    # =============================================================================
+    # FUNCIONES DE CONFIGURACIÓN
+    # =============================================================================
+    
+    function AplicarConfiguracionCalidad(calidad: NivelCalidad):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Configurar render según calidad
+            sistema_render.ConfigurarCalidad(calidad)
+            
+            # Configurar terreno
+            ConfigurarCalidadTerreno(calidad)
+            
+            # Configurar efectos
+            ConfigurarCalidadEfectos(calidad)
+            
+            # Configurar UI
+            ConfigurarCalidadUI(calidad)
+            
+            # Configurar cargador de recursos
+            resource_loader.ActualizarCalidad(calidad)
+            
+            Logger.LogInfo("SistemaCalidad: Configuración aplicada para calidad " + calidad.ToString())
+            return true
+        }, "SistemaCalidad.AplicarConfiguracionCalidad", false)
+    
+    function ConfigurarCalidadTerreno(calidad: NivelCalidad):
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch calidad:
+                case NivelCalidad.TOASTER:
+                    SetDistanciaCarga(2)
+                    SetResolucionChunks(5)  # 5x5 en lugar de 10x10
+                    SetLODMaximo(1)
+                case NivelCalidad.LOW:
+                    SetDistanciaCarga(3)
+                    SetResolucionChunks(7)
+                    SetLODMaximo(2)
+                case NivelCalidad.MEDIUM:
+                    SetDistanciaCarga(5)
+                    SetResolucionChunks(10)
+                    SetLODMaximo(3)
+                case NivelCalidad.HIGH:
+                    SetDistanciaCarga(7)
+                    SetResolucionChunks(15)
+                    SetLODMaximo(4)
+                case NivelCalidad.ULTRA:
+                    SetDistanciaCarga(10)
+                    SetResolucionChunks(20)
+                    SetLODMaximo(5)
+            
+            Logger.LogInfo("SistemaCalidad: Terreno configurado para calidad " + calidad.ToString())
+            return true
+        }, "SistemaCalidad.ConfigurarCalidadTerreno", false)
+    
+    # =============================================================================
+    # FUNCIONES DE EVALUACIÓN
+    # =============================================================================
+    
+    function DebeAjustarCalidad(): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            fps_actual = metricas_rendimiento.GetFPS()
+            uso_memoria = metricas_rendimiento.GetUsoMemoria()
+            uso_gpu = metricas_rendimiento.GetUsoGPU()
+            
+            # Reglas de ajuste
+            if fps_actual < 30 and calidad_actual > NivelCalidad.TOASTER:
+                Logger.LogWarning("SistemaCalidad: FPS bajo (" + fps_actual.ToString() + "), bajando calidad")
+                return true  # Bajar calidad
+            elif fps_actual > 60 and uso_memoria < 0.7 and calidad_actual < NivelCalidad.ULTRA:
+                Logger.LogInfo("SistemaCalidad: Rendimiento bueno, subiendo calidad")
+                return true  # Subir calidad
+            
+            return false
+        }, "SistemaCalidad.DebeAjustarCalidad", false)
+    
+    function CalcularCalidadOptima(): NivelCalidad
+        return ManejoErrores.EjecutarConManejo(() => {
+            fps_actual = metricas_rendimiento.GetFPSPromedio()
+            uso_memoria = metricas_rendimiento.GetUsoMemoria()
+            
+            # Lógica de cálculo
+            if fps_actual < 25:
+                resultado = max(NivelCalidad.TOASTER, calidad_actual - 1)
+                Logger.LogWarning("SistemaCalidad: FPS muy bajo, bajando a " + resultado.ToString())
+            elif fps_actual > 55 and uso_memoria < 0.6:
+                resultado = min(NivelCalidad.ULTRA, calidad_actual + 1)
+                Logger.LogInfo("SistemaCalidad: Rendimiento excelente, subiendo a " + resultado.ToString())
+            else:
+                resultado = calidad_actual
+            
+            return resultado
+        }, "SistemaCalidad.CalcularCalidadOptima", false)
+    
+    # =============================================================================
+    # FUNCIONES AUXILIARES
+    # =============================================================================
+    
+    function DetectarHardware(): HardwareInfo
+        return ManejoErrores.EjecutarConManejo(() => {
+            info = new HardwareInfo()
+            info.cpu = ObtenerInfoCPU()
+            info.gpu = ObtenerInfoGPU()
+            info.ram = ObtenerInfoRAM()
+            info.vram = ObtenerInfoVRAM()
+            info.nucleos = ObtenerNumeroNucleos()
+            info.frecuencia = ObtenerFrecuenciaCPU()
+            
+            Logger.LogInfo("SistemaCalidad: Hardware detectado - CPU: " + info.cpu + ", GPU: " + info.gpu + ", RAM: " + info.ram.ToString() + "MB")
+            return info
+        }, "SistemaCalidad.DetectarHardware", false)
+    
+    function DeterminarCalidadInicial(hardware: HardwareInfo): NivelCalidad
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Puntuación del hardware
+            puntuacion = CalcularPuntuacionHardware(hardware)
+            
+            # Asignar calidad según puntuación
+            if puntuacion < 1000:
+                resultado = NivelCalidad.TOASTER
+            elif puntuacion < 3000:
+                resultado = NivelCalidad.LOW
+            elif puntuacion < 6000:
+                resultado = NivelCalidad.MEDIUM
+            elif puntuacion < 10000:
+                resultado = NivelCalidad.HIGH
+            else:
+                resultado = NivelCalidad.ULTRA
+            
+            Logger.LogInfo("SistemaCalidad: Calidad inicial determinada: " + resultado.ToString() + " (puntuación: " + puntuacion.ToString() + ")")
+            return resultado
+        }, "SistemaCalidad.DeterminarCalidadInicial", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroCalidad
+# =============================================================================
+class EstadoSeguroCalidad:
+    static valores_por_defecto: Dictionary<string, object>
+    
+    static function Inicializar():
+        valores_por_defecto = new Dictionary()
+        # Valores seguros para cada sistema
+        valores_por_defecto["calidad_actual"] = NivelCalidad.MEDIUM
+        valores_por_defecto["auto_detectar"] = true
+        valores_por_defecto["auto_ajustar"] = true
+        valores_por_defecto["vsync_activado"] = true
+        valores_por_defecto["fps_objetivo"] = 60
+        valores_por_defecto["escala_render"] = 0.8
+        valores_por_defecto["sombras_activadas"] = true
+        valores_por_defecto["particulas_activadas"] = true
+        valores_por_defecto["post_procesado_activado"] = false
+        valores_por_defecto["limite_memoria"] = 500  # MB
+        valores_por_defecto["distancia_carga"] = 5
+        valores_por_defecto["resolucion_chunks"] = 10
+        valores_por_defecto["lod_maximo"] = 3
+        valores_por_defecto["tamaño_mesh"] = 1024
+        valores_por_defecto["tamaño_generico"] = 512
+        valores_por_defecto["recurso_nulo"] = null
+    
+    static function ObtenerValorPorDefecto(contexto: string): object
+        if valores_por_defecto.ContainsKey(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroCalidad: Sin valor por defecto para: " + contexto)
+            return NivelCalidad.MEDIUM  # Fallback seguro
+
+# =============================================================================
+# CLASE: HardwareInfo
+# =============================================================================
+class HardwareInfo:
+    cpu: string
+    gpu: string
+    ram: int  # MB
+    vram: int  # MB
+    nucleos: int
+    frecuencia: float  # GHz
+
+# =============================================================================
+# CLASE: MetricasRendimiento
+# =============================================================================
+class MetricasRendimiento:
+    fps_actual: float
+    fps_promedio: float
+    uso_memoria: float  # 0-1
+    uso_gpu: float  # 0-1
+    tiempo_frame: float
+    historial_fps: List<float>
+    
+    function Actualizar(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            tiempo_frame = delta_time
+            fps_actual = 1.0 / delta_time
+            ActualizarFPSPromedio()
+            ActualizarUsoMemoria()
+            ActualizarUsoGPU()
+            
+            # Mantener historial para promedios
+            historial_fps.Add(fps_actual)
+            if historial_fps.Count() > 60:  # Mantener 60 frames
+                historial_fps.RemoveAt(0)
+            return true
+        }, "MetricasRendimiento.Actualizar", false)
+    
+    function GetFPS(): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            return fps_actual
+        }, "MetricasRendimiento.GetFPS", false)
+    
+    function GetFPSPromedio(): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            if historial_fps.Count() > 0:
+                suma = 0.0
+                for fps in historial_fps:
+                    suma += fps
+                return suma / historial_fps.Count()
+            return fps_actual
+        }, "MetricasRendimiento.GetFPSPromedio", false)
+    
+    function GetUsoMemoria(): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            return uso_memoria
+        }, "MetricasRendimiento.GetUsoMemoria", false)
+    
+    function GetUsoGPU(): float
+        return ManejoErrores.EjecutarConManejo(() => {
+            return uso_gpu
+        }, "MetricasRendimiento.GetUsoGPU", false)
+    
+    function ActualizarFPSPromedio():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Calcular promedio móvil
+            if historial_fps.Count() >= 30:
+                suma = 0.0
+                for i in range(30):
+                    suma += historial_fps[historial_fps.Count() - 30 + i]
+                fps_promedio = suma / 30.0
+            else:
+                fps_promedio = fps_actual
+            return true
+        }, "MetricasRendimiento.ActualizarFPSPromedio", false)
+    
+    function ActualizarUsoMemoria():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Obtener uso de memoria del sistema
+            uso_memoria = OS.GetStaticMemoryUsageByType()[OS.MEMORY_TYPE_STATIC] / OS.GetStaticMemoryUsageByType()[OS.MEMORY_TYPE_STATIC_MAX]
+            uso_memoria = clamp(uso_memoria, 0.0, 1.0)
+            return true
+        }, "MetricasRendimiento.ActualizarUsoMemoria", false)
+    
+    function ActualizarUsoGPU():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Obtener uso de GPU (implementación específica de Godot)
+            uso_gpu = RenderingServer.GetRenderingDevice().GetMemoryUsage()[0] / RenderingServer.GetRenderingDevice().GetTotalMemory()
+            uso_gpu = clamp(uso_gpu, 0.0, 1.0)
+            return true
+        }, "MetricasRendimiento.ActualizarUsoGPU", false)
+
+# =============================================================================
+# CLASE: QualitySettings (Persistencia)
+# =============================================================================
+class QualitySettings:
+    calidad_actual: NivelCalidad
+    auto_detectar: bool
+    auto_ajustar: bool
+    vsync_activado: bool
+    fps_objetivo: int
+    escala_render: float
+    sombras_activadas: bool
+    particulas_activadas: bool
+    post_procesado_activado: bool
+    
+    function Cargar(): QualitySettings
+        return ManejoErrores.EjecutarConManejo(() => {
+            ruta_config = "user://quality_settings.json"
+            
+            if not FileAccess.FileExists(ruta_config):
+                Logger.LogInfo("QualitySettings: Creando configuración por defecto")
+                return CrearPorDefecto()
+            
+            archivo = FileAccess.Open(ruta_config, FileAccess.ModeFlags.READ)
+            json_str = archivo.GetAsText()
+            archivo.Close()
+            
+            settings = JsonConvert.DeserializeObject<QualitySettings>(json_str)
+            Logger.LogInfo("QualitySettings: Configuración cargada exitosamente")
+            return settings
+        }, "QualitySettings.Cargar", false)
+    
+    function Guardar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            ruta_config = "user://quality_settings.json"
+            
+            json_str = JsonConvert.SerializeObject(self, Formatting.Indented)
+            
+            archivo = FileAccess.Open(ruta_config, FileAccess.ModeFlags.WRITE)
+            archivo.StoreString(json_str)
+            archivo.Close()
+            
+            Logger.LogInfo("QualitySettings: Configuración guardada exitosamente")
+            return true
+        }, "QualitySettings.Guardar", false)
+    
+    static function CrearPorDefecto(): QualitySettings
+        settings = new QualitySettings()
+        settings.calidad_actual = NivelCalidad.MEDIUM
+        settings.auto_detectar = true
+        settings.auto_ajustar = true
+        settings.vsync_activado = true
+        settings.fps_objetivo = 60
+        settings.escala_render = 1.0
+        settings.sombras_activadas = true
+        settings.particulas_activadas = true
+        settings.post_procesado_activado = false
+        return settings
+    
+    function AplicarPreset(calidad: NivelCalidad):
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch calidad:
+                case NivelCalidad.TOASTER:
+                    fps_objetivo = 20
+                    escala_render = 0.5
+                    sombras_activadas = false
+                    particulas_activadas = false
+                    post_procesado_activado = false
+                    vsync_activado = true
+                case NivelCalidad.LOW:
+                    fps_objetivo = 30
+                    escala_render = 0.7
+                    sombras_activadas = false
+                    particulas_activadas = true
+                    post_procesado_activado = false
+                    vsync_activado = true
+                case NivelCalidad.MEDIUM:
+                    fps_objetivo = 60
+                    escala_render = 0.8
+                    sombras_activadas = true
+                    particulas_activadas = true
+                    post_procesado_activado = false
+                    vsync_activado = true
+                case NivelCalidad.HIGH:
+                    fps_objetivo = 60
+                    escala_render = 0.9
+                    sombras_activadas = true
+                    particulas_activadas = true
+                    post_procesado_activado = true
+                    vsync_activado = true
+                case NivelCalidad.ULTRA:
+                    fps_objetivo = 0  # Sin límite
+                    escala_render = 1.0
+                    sombras_activadas = true
+                    particulas_activadas = true
+                    post_procesado_activado = true
+                    vsync_activado = false
+            
+            calidad_actual = calidad
+            Logger.LogInfo("QualitySettings: Preset aplicado para " + calidad.ToString())
+            return true
+        }, "QualitySettings.AplicarPreset", false)
+
+# =============================================================================
+# CLASE: DynamicResourceLoader
+# =============================================================================
+class DynamicResourceLoader:
+    cache_por_calidad: Dictionary<NivelCalidad, Dictionary<string, Resource>>
+    calidad_actual: NivelCalidad
+    limite_memoria: int  # MB
+    memoria_usada: int
+    uso_recursos: Dictionary<string, DateTime>
+    
+    function Inicializar(calidad: NivelCalidad):
+        return ManejoErrores.EjecutarConManejo(() => {
+            calidad_actual = calidad
+            cache_por_calidad = new Dictionary<NivelCalidad, Dictionary<string, Resource>>()
+            uso_recursos = new Dictionary<string, DateTime>()
+            limite_memoria = 500  # 500 MB límite
+            memoria_usada = 0
+            
+            # Inicializar cache para cada nivel de calidad
+            for nivel in [NivelCalidad.TOASTER, NivelCalidad.LOW, NivelCalidad.MEDIUM, NivelCalidad.HIGH, NivelCalidad.ULTRA]:
+                cache_por_calidad[nivel] = new Dictionary<string, Resource>()
+            
+            Logger.LogInfo("DynamicResourceLoader: Inicializado con calidad " + calidad.ToString())
+            return true
+        }, "DynamicResourceLoader.Inicializar", false)
+    
+    function CargarRecurso(ruta_base: string, tipo: ResourceType): Resource
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Construir ruta según calidad actual
+            ruta_calidad = ConstruirRutaCalidad(ruta_base, calidad_actual)
+            
+            # Verificar cache primero
+            recurso_cache = ObtenerRecursoCache(ruta_base, calidad_actual)
+            if recurso_cache != null:
+                return recurso_cache
+            
+            # Intentar cargar recurso de calidad actual
+            recurso = CargarRecursoDirecto(ruta_calidad)
+            
+            if recurso != null:
+                CacheRecurso(ruta_base, recurso, calidad_actual)
+                return recurso
+            else:
+                # Fallback a calidad inferior
+                return CargarConFallback(ruta_base, tipo)
+        }, "DynamicResourceLoader.CargarRecurso", false)
+    
+    function ConstruirRutaCalidad(ruta_base: string, calidad: NivelCalidad): string
+        return ManejoErrores.EjecutarConManejo(() => {
+            sufijo = ObtenerSufijoCalidad(calidad)
+            extension = ObtenerExtension(ruta_base)
+            ruta_sin_ext = ruta_base.Substring(0, ruta_base.Length() - extension.Length())
+            
+            return ruta_sin_ext + sufijo + extension
+        }, "DynamicResourceLoader.ConstruirRutaCalidad", false)
+    
+    function ObtenerSufijoCalidad(calidad: NivelCalidad): string
+        switch calidad:
+            case NivelCalidad.TOASTER: return "_toaster"
+            case NivelCalidad.LOW: return "_low"
+            case NivelCalidad.MEDIUM: return "_medium"
+            case NivelCalidad.HIGH: return "_high"
+            case NivelCalidad.ULTRA: return "_ultra"
+            default: return "_medium"
+    
+    function ObtenerExtension(ruta: string): string
+        return ManejoErrores.EjecutarConManejo(() => {
+            punto_index = ruta.LastIndexOf('.')
+            if punto_index >= 0:
+                return ruta.Substring(punto_index)
+            return ""  # Sin extensión
+        }, "DynamicResourceLoader.ObtenerExtension", false)
+    
+    function CargarRecursoDirecto(ruta: string): Resource
+        return ManejoErrores.EjecutarConManejo(() => {
+            if FileAccess.FileExists(ruta):
+                return ResourceLoader.Load(ruta)
+            return EstadoSeguroCalidad.ObtenerValorPorDefecto("recurso_nulo")
+        }, "DynamicResourceLoader.CargarRecursoDirecto", false)
+    
+    function CargarConFallback(ruta_base: string, tipo: ResourceType): Resource
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Intentar cargar en orden de calidad descendente
+            calidades_fallback = [NivelCalidad.HIGH, NivelCalidad.MEDIUM, NivelCalidad.LOW, NivelCalidad.TOASTER]
+            
+            for calidad in calidades_fallback:
+                if calidad < calidad_actual:  # Solo calidades inferiores
+                    ruta_fallback = ConstruirRutaCalidad(ruta_base, calidad)
+                    recurso = CargarRecursoDirecto(ruta_fallback)
+                    
+                    if recurso != null:
+                        CacheRecurso(ruta_base, recurso, calidad)
+                        Logger.LogWarning("DynamicResourceLoader: Fallback a " + calidad.ToString() + " para " + ruta_base)
+                        return recurso
+            
+            # Último recurso: error
+            Logger.LogError("DynamicResourceLoader: No se pudo cargar recurso: " + ruta_base)
+            return CrearRecursoPorDefecto(tipo)
+        }, "DynamicResourceLoader.CargarConFallback", false)
+    
+    function CacheRecurso(ruta_base: string, recurso: Resource, calidad: NivelCalidad):
+        try:
+            # Verificar límite de memoria
+            if memoria_usada >= limite_memoria:
+                LiberarMemoria()
+            
+            # Cache en nivel de calidad específico
+            if not cache_por_calidad.ContainsKey(calidad):
+                cache_por_calidad[calidad] = new Dictionary<string, Resource>()
+            
+            cache_por_calidad[calidad][ruta_base] = recurso
+            uso_recursos[ruta_base] = DateTime.Now()
+            memoria_usada += CalcularTamañoRecurso(recurso)
+        catch error as Exception:
+            ManejoErrores.ManejarError(error, "DynamicResourceLoader.CacheRecurso", false)
+    
+    function ObtenerRecursoCache(ruta_base: string, calidad: NivelCalidad): Resource
+        try:
+            if cache_por_calidad.ContainsKey(calidad):
+                if cache_por_calidad[calidad].ContainsKey(ruta_base):
+                    # Actualizar uso
+                    uso_recursos[ruta_base] = DateTime.Now()
+                    return cache_por_calidad[calidad][ruta_base]
+            
+            return null
+        catch error as Exception:
+            ManejoErrores.ManejarError(error, "DynamicResourceLoader.ObtenerRecursoCache", false)
+            return null
+    
+    function InvalidarCacheCalidad(calidad: NivelCalidad):
+        try:
+            if cache_por_calidad.ContainsKey(calidad):
+                for ruta in cache_por_calidad[calidad].Keys:
+                    recurso = cache_por_calidad[calidad][ruta]
+                    memoria_usada -= CalcularTamañoRecurso(recurso)
+                    uso_recursos.Remove(ruta)
+                
+                cache_por_calidad[calidad].Clear()
+                Logger.LogInfo("DynamicResourceLoader: Cache invalidada para calidad " + calidad.ToString())
+        catch error as Exception:
+            ManejoErrores.ManejarError(error, "DynamicResourceLoader.InvalidarCacheCalidad", false)
+    
+    function ActualizarCalidad(nueva_calidad: NivelCalidad):
+        try:
+            calidad_actual = nueva_calidad
+            Logger.LogInfo("DynamicResourceLoader: Calidad actualizada a " + nueva_calidad.ToString())
+        catch error as Exception:
+            ManejoErrores.ManejarError(error, "DynamicResourceLoader.ActualizarCalidad", false)
+    
+    function LiberarMemoria():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Liberar recursos menos usados (LRU)
+            recursos_ordenados = uso_recursos.OrderBy(x => x.Value)
+            
+            foreach (ruta, fecha) in recursos_ordenados.Take(10):
+                for calidad in cache_por_calidad.Keys:
+                    if cache_por_calidad[calidad].ContainsKey(ruta):
+                        recurso = cache_por_calidad[calidad][ruta]
+                        memoria_usada -= CalcularTamañoRecurso(recurso)
+                        cache_por_calidad[calidad].Remove(ruta)
+                        uso_recursos.Remove(ruta)
+                        break
+            return true
+        }, "DynamicResourceLoader.LiberarMemoria", false)
+    
+    function CalcularTamañoRecurso(recurso: Resource): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Estimación básica del tamaño del recurso
+            if recurso is Texture2D:
+                textura = recurso as Texture2D
+                return textura.GetWidth() * textura.GetHeight() * 4  # 4 bytes por píxel RGBA
+            elif recurso is Mesh:
+                return EstadoSeguroCalidad.ObtenerValorPorDefecto("tamaño_mesh")
+            else:
+                return EstadoSeguroCalidad.ObtenerValorPorDefecto("tamaño_generico")
+        }, "DynamicResourceLoader.CalcularTamañoRecurso", false)
+    
+    function CrearRecursoPorDefecto(tipo: ResourceType): Resource
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch tipo:
+                case ResourceType.MODELO_3D:
+                    # Crear cubo por defecto
+                    return CubeMesh.new()
+                case ResourceType.TEXTURA:
+                    # Crear textura blanca por defecto
+                    textura = ImageTexture.new()
+                    imagen = Image.Create(256, 256, false, Image.FORMAT_RGBA8)
+                    imagen.Fill(Color.WHITE)
+                    textura.SetImage(imagen)
+                    return textura
+                case ResourceType.AUDIO:
+                    # Crear audio silencioso por defecto
+                    return AudioStreamMP3.new()
+                default:
+                    return EstadoSeguroCalidad.ObtenerValorPorDefecto("recurso_nulo")
+        }, "DynamicResourceLoader.CrearRecursoPorDefecto", false)
+
+# =============================================================================
+# ENUM: NivelCalidad
+# =============================================================================
+class NivelCalidad:
+    static TOASTER = 0    # Mínimo, para hardware muy básico
+    static LOW = 1        # Bajo, para hardware limitado
+    static MEDIUM = 2     # Medio, configuración balanceada
+    static HIGH = 3       # Alto, hardware decente
+    static ULTRA = 4      # Ultra, hardware potente
+
+# =============================================================================
+# FUNCIONES AUXILIARES
+# =============================================================================
+function SetDistanciaCarga(distancia: int):
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Configurar distancia de carga de chunks
+        SistemaTerreno.SetDistanciaRender(distancia)
+        Logger.LogInfo("SistemaCalidad: Distancia de carga establecida a " + distancia.ToString() + " chunks")
+        return true
+    }, "SetDistanciaCarga", false)
+
+function SetResolucionChunks(resolucion: int):
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Configurar resolución de chunks
+        SistemaTerreno.SetResolucionChunks(resolucion)
+        Logger.LogInfo("SistemaCalidad: Resolución de chunks establecida a " + resolucion.ToString() + "x" + resolucion.ToString())
+        return true
+    }, "SetResolucionChunks", false)
+
+function SetLODMaximo(lod: int):
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Configurar nivel máximo de LOD
+        SistemaRender.SetLODMaximo(lod)
+        Logger.LogInfo("SistemaCalidad: LOD máximo establecido a " + lod.ToString())
+        return true
+    }, "SetLODMaximo", false)
+
+function ConfigurarCalidadEfectos(calidad: NivelCalidad):
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Configurar efectos según calidad
+        switch calidad:
+            case NivelCalidad.TOASTER:
+                SistemaRender.SetSombras(false)
+                SistemaRender.SetParticulas(false)
+                SistemaRender.SetPostProcesado(false)
+            case NivelCalidad.LOW:
+                SistemaRender.SetSombras(false)
+                SistemaRender.SetParticulas(true)
+                SistemaRender.SetPostProcesado(false)
+            case NivelCalidad.MEDIUM:
+                SistemaRender.SetSombras(true)
+                SistemaRender.SetParticulas(true)
+                SistemaRender.SetPostProcesado(false)
+            case NivelCalidad.HIGH:
+                SistemaRender.SetSombras(true)
+                SistemaRender.SetParticulas(true)
+                SistemaRender.SetPostProcesado(true)
+            case NivelCalidad.ULTRA:
+                SistemaRender.SetSombras(true)
+                SistemaRender.SetParticulas(true)
+                SistemaRender.SetPostProcesado(true)
+        
+        Logger.LogInfo("SistemaCalidad: Efectos configurados para calidad " + calidad.ToString())
+        return true
+    }, "ConfigurarCalidadEfectos", false)
+
+function ConfigurarCalidadUI(calidad: NivelCalidad):
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Configurar UI según calidad
+        switch calidad:
+            case NivelCalidad.TOASTER:
+                SistemaUI.SetCalidadTexturas(0.5)
+                SistemaUI.SetAnimaciones(false)
+            case NivelCalidad.LOW:
+                SistemaUI.SetCalidadTexturas(0.7)
+                SistemaUI.SetAnimaciones(false)
+            case NivelCalidad.MEDIUM:
+                SistemaUI.SetCalidadTexturas(0.8)
+                SistemaUI.SetAnimaciones(true)
+            case NivelCalidad.HIGH:
+                SistemaUI.SetCalidadTexturas(0.9)
+                SistemaUI.SetAnimaciones(true)
+            case NivelCalidad.ULTRA:
+                SistemaUI.SetCalidadTexturas(1.0)
+                SistemaUI.SetAnimaciones(true)
+        
+        Logger.LogInfo("SistemaCalidad: UI configurada para calidad " + calidad.ToString())
+        return true
+    }, "ConfigurarCalidadUI", false)
+
+function CalcularPuntuacionHardware(hardware: HardwareInfo): int
+    return ManejoErrores.EjecutarConManejo(() => {
+        puntuacion = 0
+        
+        # Puntuación por CPU
+        if hardware.nucleos >= 8:
+            puntuacion += 3000
+        elif hardware.nucleos >= 4:
+            puntuacion += 2000
+        elif hardware.nucleos >= 2:
+            puntuacion += 1000
+        
+        # Puntuación por frecuencia
+        puntuacion += hardware.frecuencia * 1000  # GHz * 1000
+        
+        # Puntuación por RAM
+        if hardware.ram >= 16384:  # 16GB+
+            puntuacion += 3000
+        elif hardware.ram >= 8192:   # 8GB+
+            puntuacion += 2000
+        elif hardware.ram >= 4096:   # 4GB+
+            puntuacion += 1000
+        
+        # Puntuación por VRAM
+        if hardware.vram >= 8192:    # 8GB+
+            puntuacion += 4000
+        elif hardware.vram >= 4096:  # 4GB+
+            puntuacion += 2500
+        elif hardware.vram >= 2048:  # 2GB+
+            puntuacion += 1500
+        elif hardware.vram >= 1024:  # 1GB+
+            puntuacion += 800
+        
+        Logger.LogInfo("SistemaCalidad: Puntuación hardware calculada: " + puntuacion.ToString())
+        return puntuacion
+    }, "CalcularPuntuacionHardware", false)
+
+function ObtenerInfoCPU(): string
+    return ManejoErrores.EjecutarConManejo(() => {
+        return OS.GetProcessorName()
+    }, "ObtenerInfoCPU", false)
+
+function ObtenerInfoGPU(): string
+    return ManejoErrores.EjecutarConManejo(() => {
+        return RenderingServer.GetDeviceName()
+    }, "ObtenerInfoGPU", false)
+
+function ObtenerInfoRAM(): int
+    return ManejoErrores.EjecutarConManejo(() => {
+        return OS.GetStaticMemoryUsageByType()[OS.MEMORY_TYPE_STATIC] / (1024 * 1024)  # Convertir a MB
+    }, "ObtenerInfoRAM", false)
+
+function ObtenerInfoVRAM(): int
+    return ManejoErrores.EjecutarConManejo(() => {
+        return RenderingServer.GetRenderingDevice().GetTotalMemory() / (1024 * 1024)  # Convertir a MB
+    }, "ObtenerInfoVRAM", false)
+
+function ObtenerNumeroNucleos(): int
+    return ManejoErrores.EjecutarConManejo(() => {
+        return OS.GetProcessorCount()
+    }, "ObtenerNumeroNucleos", false)
+
+function ObtenerFrecuenciaCPU(): float
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Obtener frecuencia en GHz (implementación específica)
+        return OS.GetProcessorSpeed() / 1000.0  # Convertir MHz a GHz
+    }, "ObtenerFrecuenciaCPU", false)
+
+function GuardarEstadoActual():
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Guardar estado actual del juego antes de reiniciar
+        estado = {
+            "jugador_posicion": SistemaJugador.GetJugadorLocal().posicion,
+            "tiempo_juego": SistemaTiempo.GetTiempoActual(),
+            "inventario": SistemaJugador.GetJugadorLocal().inventario,
+            "timestamp": DateTime.Now().ToString("O")
+        }
+        
+        ruta_estado = "user://temp_quality_state.json"
+        json_str = JsonConvert.SerializeObject(estado, Formatting.Indented)
+        
+        archivo = FileAccess.Open(ruta_estado, FileAccess.ModeFlags.WRITE)
+        archivo.StoreString(json_str)
+        archivo.Close()
+        
+        Logger.LogInfo("SistemaCalidad: Estado guardado antes de cambio de calidad")
+        return true
+    }, "GuardarEstadoActual", false)
+
+# =============================================================================
+# ENUM: ResourceType
+# =============================================================================
+class ResourceType:
+    static MODELO_3D = 0
+    static TEXTURA = 1
+    static AUDIO = 2
+    static MATERIAL = 3
+    static ESCENA = 4

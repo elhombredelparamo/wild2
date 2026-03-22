@@ -1,0 +1,715 @@
+# =============================================================================
+# SISTEMA DE JUGADOR
+# =============================================================================
+# Archivo: jugador.pseudo
+# Descripción: Gestión de entidades jugador y sus interacciones
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaJugador
+# =============================================================================
+class SistemaJugador:
+    # Propiedades principales
+    jugador_local: JugadorLocal
+    jugadores_remotos: Dictionary<int, JugadorRemoto>
+    gestor_input: GestorInput
+    gestor_inventario: GestorInventario
+    gestor_animaciones: GestorAnimaciones
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema
+    function Inicializar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            jugador_local = new JugadorLocal()
+            jugadores_remotos = new Dictionary()
+            gestor_input = new GestorInput()
+            gestor_inventario = new GestorInventario()
+            gestor_animaciones = new GestorAnimaciones()
+            
+            # Inicializar jugador local
+            jugador_local.Inicializar()
+            
+            Logger.LogInfo("SistemaJugador: Sistema inicializado")
+            return true
+        }, "SistemaJugador.Inicializar", true)
+    
+    # Actualización de todos los jugadores
+    function ActualizarJugadores(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Actualizar jugador local
+            if jugador_local.esta_activo:
+                ActualizarJugadorLocal(delta_time)
+            
+            # Actualizar jugadores remotos
+            for id, jugador in jugadores_remotos:
+                ActualizarJugadorRemoto(jugador, delta_time)
+            return true
+        }, "SistemaJugador.ActualizarJugadores", false)
+    
+    # =============================================================================
+    # FUNCIONES DE JUGADOR LOCAL
+    # =============================================================================
+    
+    function ActualizarJugadorLocal(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Procesar input
+            input_data = gestor_input.ProcesarInput()
+            
+            # Calcular movimiento
+            movimiento = CalcularMovimiento(input_data)
+            
+            # Aplicar física
+            jugador_local.AplicarMovimiento(movimiento, delta_time)
+            
+            # Procesar acciones
+            ProcesarAcciones(input_data)
+            
+            # Actualizar animaciones
+            ActualizarAnimacionesJugadorLocal()
+            
+            # Actualizar estadísticas del personaje
+            jugador_local.ActualizarEstadisticas(delta_time)
+            
+            # Enviar datos a red si es multijugador
+            if GetSistemaRed().esta_conectado:
+                EnviarDatosJugadorLocal()
+            return true
+        }, "SistemaJugador.ActualizarJugadorLocal", false)
+    
+    function CalcularMovimiento(input: InputData): Vector3
+        return ManejoErrores.EjecutarConManejo(() => {
+            movimiento = Vector3.ZERO
+            
+            # Movimiento básico
+            if input.movimiento_adelante:
+                movimiento += jugador_local.transform.forward
+            if input.movimiento_atras:
+                movimiento -= jugador_local.transform.forward
+            if input.movimiento_izquierda:
+                movimiento -= jugador_local.transform.right
+            if input.movimiento_derecha:
+                movimiento += jugador_local.transform.right
+            
+            # Normalizar movimiento
+            if movimiento.length() > 0:
+                movimiento = movimiento.normalized()
+            
+            # Aplicar velocidad de movimiento (la física maneja la gravedad automáticamente)
+            movimiento *= jugador_local.velocidad_movimiento
+            
+            # Actualizar estado de correr
+            jugador_local.esta_corriendo = input.correr
+            
+            return movimiento
+        }, "SistemaJugador.CalcularMovimiento", false)
+    
+    function ProcesarAcciones(input: InputData):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Salto
+            if input.salto and jugador_local.puede_saltar:
+                jugador_local.Saltar()
+            
+            # Interacción
+            if input.interactuar:
+                InteractuarConEntorno()
+            
+            # Acciones de inventario
+            if input.usar_objeto:
+                gestor_inventario.UsarObjetoActual()
+            
+            # Cambio de objeto
+            if input.cambiar_objeto_siguiente:
+                gestor_inventario.SiguienteObjeto()
+            elif input.cambiar_objeto_anterior:
+                gestor_inventario.AnteriorObjeto()
+            return true
+        }, "SistemaJugador.ProcesarAcciones", false)
+    
+    function InteractuarConEntorno():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Raycast para detectar objetos cercanos
+            punto impacto = RaycastDesdeJugador(5.0)
+            
+            if impacto.objeto != null:
+                if impacto.objeto.es_interactuable:
+                    impacto.objeto.Interactuar(jugador_local)
+            return true
+        }, "SistemaJugador.InteractuarConEntorno", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroJugador
+# =============================================================================
+class EstadoSeguroJugador:
+    static valores_por_defecto: Dictionary<string, object>
+    
+    static function Inicializar():
+        valores_por_defecto = new Dictionary()
+        # Valores seguros para cada sistema
+        valores_por_defecto["vida"] = 100.0
+        valores_por_defecto["vida_maxima"] = 100.0
+        valores_por_defecto["hambre"] = 100.0
+        valores_por_defecto["sed"] = 100.0
+        valores_por_defecto["posicion"] = Vector3.ZERO
+        valores_por_defecto["rotacion"] = Vector3.ZERO
+        valores_por_defecto["nivel"] = 1
+        valores_por_defecto["experiencia"] = 0
+        valores_por_defecto["velocidad_movimiento"] = 5.0
+        valores_por_defecto["fuerza_salto"] = 5.0
+        valores_por_defecto["masa"] = 70.0
+        valores_por_defecto["gravedad"] = 9.8
+        valores_por_defecto["friccion"] = 0.5
+        valores_por_defecto["velocidad_maxima"] = 8.0
+        valores_por_defecto["inventario"] = null  # Se inicializa dinámicamente
+        valores_por_defecto["equipamiento"] = null  # Se inicializa dinámicamente
+    
+    static function ObtenerValorPorDefecto(contexto: string): object
+        if valores_por_defecto.ContainsKey(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroJugador: Sin valor por defecto para: " + contexto)
+            return Vector3.ZERO  # Fallback seguro
+    
+    # =============================================================================
+    # FUNCIONES DE JUGADORES REMOTOS
+    # =============================================================================
+    
+    function ActualizarJugadorRemoto(jugador: JugadorRemoto, delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Interpolar posición
+            jugador.InterpolarPosicion(delta_time)
+            
+            # Actualizar animaciones según estado
+            ActualizarAnimacionesJugadorRemoto(jugador)
+            return true
+        }, "SistemaJugador.ActualizarJugadorRemoto", false)
+    
+    function ActualizarJugadorRemotoDesdeRed(id_jugador: int, posicion: Vector3, rotacion: Vector3):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if jugadores_remotos.ContainsKey(id_jugador):
+                jugador = jugadores_remotos[id_jugador]
+                jugador.ActualizarPosicionRed(posicion, rotacion)
+            return true
+        }, "SistemaJugador.ActualizarJugadorRemotoDesdeRed", false)
+    
+    # =============================================================================
+    # FUNCIONES DE GESTIÓN
+    # =============================================================================
+    
+    function AgregarJugadorRemoto(id: int, nombre: string):
+        return ManejoErrores.EjecutarConManejo(() => {
+            jugador = new JugadorRemoto(id, nombre)
+            jugadores_remotos[id] = jugador
+            Logger.LogInfo("SistemaJugador: Jugador remoto agregado: " + nombre)
+            return true
+        }, "SistemaJugador.AgregarJugadorRemoto", false)
+    
+    function EliminarJugadorRemoto(id: int):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if jugadores_remotos.ContainsKey(id):
+                jugador = jugadores_remotos[id]
+                nombre_jugador = jugador.nombre
+                jugador.Limpiar()
+                jugadores_remotos.Remove(id)
+                Logger.LogInfo("SistemaJugador: Jugador remoto eliminado: " + nombre_jugador)
+                return true
+            else:
+                Logger.LogWarning("SistemaJugador: Intentando eliminar jugador remoto inexistente: " + id.ToString())
+                return false
+        }, "SistemaJugador.EliminarJugadorRemoto", false)
+    
+    function GetJugadorLocal(): JugadorLocal
+        return ManejoErrores.EjecutarConManejo(() => {
+            return jugador_local
+        }, "SistemaJugador.GetJugadorLocal", false)
+    
+    function GetJugadorRemoto(id: int): JugadorRemoto
+        return ManejoErrores.EjecutarConManejo(() => {
+            if jugadores_remotos.ContainsKey(id):
+                return jugadores_remotos[id]
+            return EstadoSeguroJugador.ObtenerValorPorDefecto("jugador_remoto")
+        }, "SistemaJugador.GetJugadorRemoto", false)
+    
+    # =============================================================================
+    # FUNCIONES AUXILIARES
+    # =============================================================================
+    
+    function EnviarDatosJugadorLocal():
+        mensaje = new MensajePosicionJugador(
+            jugador_local.id,
+            jugador_local.posicion,
+            jugador_local.rotacion
+        )
+        GetSistemaRed().EnviarMensaje(mensaje)
+    
+    function ActualizarAnimacionesJugadorLocal():
+        estado = DeterminarEstadoAnimacion()
+        gestor_animaciones.ReproducirAnimacion(estado)
+    
+    function ActualizarAnimacionesJugadorRemoto(jugador: JugadorRemoto):
+        estado = DeterminarEstadoAnimacionRemoto(jugador)
+        jugador.gestor_animaciones.ReproducirAnimacion(estado)
+    
+    function DeterminarEstadoAnimacion(): EstadoAnimacion
+        velocidad = jugador_local.LinearVelocity.Length()
+        
+        if not jugador_local.IsOnFloor():
+            return EstadoAnimacion.SALTANDO
+        elif velocidad > 0.1:
+            if jugador_local.esta_corriendo:
+                return EstadoAnimacion.CORRIENDO
+            else:
+                return EstadoAnimacion.CAMINANDO
+        else:
+            return EstadoAnimacion.IDLE
+    
+    function DeterminarEstadoAnimacionRemoto(jugador: JugadorRemoto): EstadoAnimacion
+        velocidad = jugador.velocidad_actual.length()
+        
+        if not jugador.esta_en_tierra:
+            return EstadoAnimacion.SALTANDO
+        elif velocidad > 0.1:
+            return EstadoAnimacion.CAMINANDO
+        else:
+            return EstadoAnimacion.IDLE
+    
+    function GuardarDatos():
+        return ManejoErrores.EjecutarConManejo(() => {
+            jugador_local.GuardarDatos()
+            gestor_inventario.GuardarDatos()
+            Logger.LogInfo("SistemaJugador: Datos guardados exitosamente")
+            return true
+        }, "SistemaJugador.GuardarDatos", false)
+
+# =============================================================================
+# CLASE: JugadorLocal
+# =============================================================================
+class JugadorLocal extends CharacterBody3D:
+    # Propiedades básicas
+    id: int
+    id_personaje: string  # Nuevo: ID único del personaje
+    nombre: string
+    posicion: Vector3
+    rotacion: Vector3
+    velocidad_movimiento: float = 5.0
+    velocidad_actual: Vector3
+    esta_activo: bool = false
+    puede_saltar: bool = true
+    esta_en_tierra: bool = false
+    esta_corriendo: bool = false
+    
+    # Propiedades físicas (nuevo sistema basado en fuerzas)
+    masa: float = 70.0
+    gravedad: float = 9.8
+    fuerza_salto: float = 5.0
+    friccion: float = 0.5
+    velocidad_maxima: float = 8.0
+    
+    # Fuerza aplicada actual
+    fuerza_aplicada: Vector3
+    
+    # Propiedades de personaje
+    apariencia: CharacterAppearance
+    
+    # Estadísticas del personaje
+    vida: float = 100.0
+    vida_maxima: float = 100.0
+    hambre: float = 100.0
+    sed: float = 100.0
+    
+    # Inventario y equipamiento
+    inventario: CharacterInventory
+    equipamiento: Dictionary<EquipmentSlot, ItemData>
+    
+    # Progreso
+    nivel: int = 1
+    experiencia: long = 0
+    habilidades: Dictionary<string, int>
+    
+    # Datos específicos del mundo
+    datos_mundo: DatosPersonajeMundo
+    
+    function Inicializar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            posicion = EstadoSeguroJugador.ObtenerValorPorDefecto("posicion")
+            rotacion = EstadoSeguroJugador.ObtenerValorPorDefecto("rotacion")
+            velocidad_actual = Vector3.ZERO
+            fuerza_aplicada = Vector3.ZERO
+            esta_activo = true
+            
+            # Configurar física inicial
+            masa = EstadoSeguroJugador.ObtenerValorPorDefecto("masa")
+            GravityScale = 1.0
+            friccion = EstadoSeguroJugador.ObtenerValorPorDefecto("friccion")
+            
+            # Inicializar sistemas de personaje
+            vida = EstadoSeguroJugador.ObtenerValorPorDefecto("vida")
+            vida_maxima = EstadoSeguroJugador.ObtenerValorPorDefecto("vida_maxima")
+            hambre = EstadoSeguroJugador.ObtenerValorPorDefecto("hambre")
+            sed = EstadoSeguroJugador.ObtenerValorPorDefecto("sed")
+            
+            # Inicializar inventario y equipamiento
+            inventario = new CharacterInventory()
+            equipamiento = new Dictionary()
+            
+            # Inicializar progreso
+            nivel = EstadoSeguroJugador.ObtenerValorPorDefecto("nivel")
+            experiencia = EstadoSeguroJugador.ObtenerValorPorDefecto("experiencia")
+            habilidades = new Dictionary()
+            
+            # Inicializar apariencia (si no tiene)
+            if apariencia == null:
+                apariencia = new CharacterAppearance()
+            
+            Logger.LogInfo("JugadorLocal: Jugador inicializado exitosamente")
+            return true
+        }, "JugadorLocal.Inicializar", true)
+    
+    function _PhysicsProcess(delta):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Aplicar gravedad si no está en tierra
+            if not esta_en_tierra:
+                ApplyCentralForce(Vector3.DOWN * masa * gravedad)
+            
+            # Aplicar fuerza de movimiento
+            if fuerza_aplicada.length() > 0:
+                ApplyCentralForce(fuerza_aplicada)
+                fuerza_aplicada = Vector3.ZERO
+            
+            # Aplicar fricción si está en tierra
+            if esta_en_tierra and LinearVelocity.Length() > 0.1:
+                fuerza_friccion = -LinearVelocity.Normalized() * friccion * 50.0
+                ApplyCentralForce(fuerza_friccion)
+            
+            # Limitar velocidad máxima
+            if LinearVelocity.Length() > velocidad_maxima:
+                fuerza_limitadora = -LinearVelocity.Normalized() * 100.0
+                ApplyCentralForce(fuerza_limitadora)
+            
+            # Actualizar estado
+            esta_en_tierra = IsOnFloor()
+            puede_saltar = esta_en_tierra
+            velocidad_actual = LinearVelocity
+            posicion = GlobalPosition
+            return true
+        }, "JugadorLocal._PhysicsProcess", false)
+    
+    function AplicarMovimiento(movimiento: Vector3, delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Convertir movimiento a fuerza
+            fuerza_movimiento = movimiento * 100.0  # 100N de fuerza base
+            
+            # Aplicar fuerza para el próximo PhysicsProcess
+            fuerza_aplicada += fuerza_movimiento
+            return true
+        }, "JugadorLocal.AplicarMovimiento", false)
+    
+    function Saltar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            if puede_saltar and esta_en_tierra:
+                # Aplicar fuerza de salto hacia arriba
+                fuerza_salto_vector = Vector3.UP * fuerza_salto * masa
+                ApplyCentralImpulse(fuerza_salto_vector)
+                puede_saltar = false
+                esta_en_tierra = false
+                Logger.LogInfo("JugadorLocal: Salto ejecutado")
+                return true
+            return false
+        }, "JugadorLocal.Saltar", false)
+    
+    function GuardarDatos():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Guardar datos específicos del mundo actual
+            if datos_mundo != null:
+                datos_mundo.vida = vida
+                datos_mundo.vida_maxima = vida_maxima
+                datos_mundo.hambre = hambre
+                datos_mundo.sed = sed
+                datos_mundo.posicion = posicion
+                datos_mundo.rotacion = rotacion
+                datos_mundo.inventario = inventario
+                datos_mundo.equipamiento = equipamiento
+                datos_mundo.nivel = nivel
+                datos_mundo.experiencia = experiencia
+                datos_mundo.habilidades = habilidades
+            
+            # Obtener seed del mundo actual para persistencia
+            mundo_actual = GetSistemaMundos().GetMundoActual()
+            if mundo_actual != null:
+                # Enviar transacción al servidor con seed
+                SistemaPersistenciaServidor.PersistirJugador(self, mundo_actual.seed)
+                Logger.LogInfo("JugadorLocal: Datos guardados exitosamente")
+            else:
+                Logger.LogError("JugadorLocal: No se puede obtener mundo actual para guardar datos")
+            return true
+        }, "JugadorLocal.GuardarDatos", true)
+    
+    function CargarDatosMundo(nombre_mundo: string):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Cargar datos específicos del personaje en este mundo
+            gestor_personajes = GetGestorPersonajes()
+            if gestor_personajes != null:
+                datos_mundo = gestor_personajes.ObtenerDatosPersonajeMundo(id_personaje, nombre_mundo)
+                
+                if datos_mundo != null:
+                    # Validar integridad de datos
+                    if ValidarDatosPersonaje(datos_mundo):
+                        # Cargar estadísticas con validación
+                        vida = clamp(datos_mundo.vida, 0.0, datos_mundo.vida_maxima)
+                        vida_maxima = clamp(datos_mundo.vida_maxima, 50.0, 200.0)
+                        hambre = clamp(datos_mundo.hambre, 0.0, 100.0)
+                        sed = clamp(datos_mundo.sed, 0.0, 100.0)
+                        posicion = datos_mundo.posicion
+                        rotacion = datos_mundo.rotacion
+                        
+                        # Cargar inventario y equipamiento
+                        if datos_mundo.inventario != null:
+                            inventario = datos_mundo.inventario
+                        else:
+                            inventario = new CharacterInventory()
+                            
+                        if datos_mundo.equipamiento != null:
+                            equipamiento = datos_mundo.equipamiento
+                        else:
+                            equipamiento = new Dictionary()
+                        
+                        # Cargar progreso con validación
+                        nivel = clamp(datos_mundo.nivel, 1, 100)
+                        experiencia = max(0, datos_mundo.experiencia)
+                        habilidades = datos_mundo.habilidades ?? new Dictionary()
+                        
+                        Logger.LogInfo("JugadorLocal: Datos cargados para personaje " + id_personaje + " en mundo " + nombre_mundo)
+                    else:
+                        Logger.LogError("JugadorLocal: Datos corruptos para personaje " + id_personaje + " en mundo " + nombre_mundo)
+                        UsarDatosPorDefecto()
+                else:
+                    Logger.LogInfo("JugadorLocal: Sin datos previos para personaje " + id_personaje + " en mundo " + nombre_mundo)
+                    UsarDatosPorDefecto()
+            else:
+                Logger.LogError("JugadorLocal: Gestor de personajes no disponible")
+                UsarDatosPorDefecto()
+            return true
+        }, "JugadorLocal.CargarDatosMundo", false)
+    
+    function UsarDatosPorDefecto():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Usar valores por defecto seguros
+            vida = EstadoSeguroJugador.ObtenerValorPorDefecto("vida")
+            vida_maxima = EstadoSeguroJugador.ObtenerValorPorDefecto("vida_maxima")
+            hambre = EstadoSeguroJugador.ObtenerValorPorDefecto("hambre")
+            sed = EstadoSeguroJugador.ObtenerValorPorDefecto("sed")
+            posicion = EstadoSeguroJugador.ObtenerValorPorDefecto("posicion")
+            rotacion = EstadoSeguroJugador.ObtenerValorPorDefecto("rotacion")
+            inventario = new CharacterInventory()
+            equipamiento = new Dictionary()
+            nivel = EstadoSeguroJugador.ObtenerValorPorDefecto("nivel")
+            experiencia = EstadoSeguroJugador.ObtenerValorPorDefecto("experiencia")
+            habilidades = new Dictionary()
+            
+            Logger.LogInfo("JugadorLocal: Usando datos por defecto seguros")
+            return true
+        }, "JugadorLocal.UsarDatosPorDefecto", false)
+    
+    function ValidarDatosPersonaje(datos: DatosPersonajeMundo): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Validar integridad básica de datos
+            if datos == null:
+                return false
+            
+            # Validar rangos de estadísticas
+            if datos.vida < 0 or datos.vida > 200:
+                return false
+            
+            if datos.vida_maxima < 50 or datos.vida_maxima > 200:
+                return false
+            
+            if datos.hambre < 0 or datos.hambre > 100:
+                return false
+            
+            if datos.sed < 0 or datos.sed > 100:
+                return false
+            
+            if datos.nivel < 1 or datos.nivel > 100:
+                return false
+            
+            if datos.experiencia < 0:
+                return false
+            
+            return true
+        }, "JugadorLocal.ValidarDatosPersonaje", false)
+    
+    function ActualizarEstadisticas(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Actualizar hambre y sed con el tiempo
+            hambre -= delta_time * 0.01  # 1% por segundo
+            sed -= delta_time * 0.015   # 1.5% por segundo
+            
+            # Limitar valores
+            hambre = clamp(hambre, 0.0, 100.0)
+            sed = clamp(sed, 0.0, 100.0)
+            
+            # Efectos negativos si son muy bajos
+            if hambre < 20.0:
+                vida -= delta_time * 2.0  # Daño por hambre
+            if sed < 20.0:
+                vida -= delta_time * 3.0  # Daño por sed
+            
+            vida = clamp(vida, 0.0, vida_maxima)
+            return true
+        }, "JugadorLocal.ActualizarEstadisticas", false)
+    
+    function AgregarExperiencia(cantidad: long):
+        return ManejoErrores.EjecutarConManejo(() => {
+            experiencia += cantidad
+            
+            # Verificar si sube de nivel
+            experiencia_nivel = CalcularExperienciaParaNivel(nivel + 1)
+            if experiencia >= experiencia_nivel:
+                nivel += 1
+                Logger.LogInfo("JugadorLocal: ¡Personaje " + nombre + " ha subido al nivel " + nivel.ToString() + "!")
+            return true
+        }, "JugadorLocal.AgregarExperiencia", false)
+    
+    function CalcularExperienciaParaNivel(nivel_objetivo: int): long
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Fórmula: experiencia = base * (1.5 ^ (nivel-1))
+            base = 100
+            return (long)(base * Math.Pow(1.5, nivel_objetivo - 1))
+        }, "JugadorLocal.CalcularExperienciaParaNivel", false)
+    
+    function UsarItem(item_id: string): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if inventario != null:
+                for item in inventario.items:
+                    if item.id == item_id:
+                        # Aplicar efectos del item
+                        return AplicarEfectosItem(item)
+            return EstadoSeguroJugador.ObtenerValorPorDefecto("usar_item_fallido")
+        }, "JugadorLocal.UsarItem", false)
+    
+    function EquiparItem(slot: EquipmentSlot, item: ItemData): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if equipamiento.ContainsKey(slot):
+                # Devolver item equipado anterior al inventario
+                item_anterior = equipamiento[slot]
+                if item_anterior != null:
+                    inventario.items.Add(item_anterior)
+            
+            equipamiento[slot] = item
+            Logger.LogInfo("JugadorLocal: Item equipado en slot " + slot.ToString())
+            return true
+        }, "JugadorLocal.EquiparItem", false)
+
+    function AplicarEfectosItem(item: ItemData): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch item.tipo:
+                case ItemType.COMIDA:
+                    # Recuperar hambre
+                    hambre = clamp(hambre + 20.0, 0.0, 100.0)
+                    Logger.LogInfo("JugadorLocal: Comida usada - " + item.id)
+                    return true
+                case ItemType.BEBIDA:
+                    # Recuperar sed
+                    sed = clamp(sed + 30.0, 0.0, 100.0)
+                    Logger.LogInfo("JugadorLocal: Bebida usada - " + item.id)
+                    return true
+                case ItemType.ARMADURA:
+                    # Mejorar defensa
+                    vida_maxima = clamp(vida_maxima + 10.0, 50.0, 200.0)
+                    Logger.LogInfo("JugadorLocal: Armadura equipada - " + item.id)
+                    return true
+            return EstadoSeguroJugador.ObtenerValorPorDefecto("aplicar_item_fallido")
+        }, "JugadorLocal.AplicarEfectosItem", false)
+
+# =============================================================================
+# CLASE: JugadorRemoto
+# =============================================================================
+class JugadorRemoto:
+    id: int
+    nombre: string
+    posicion: Vector3
+    posicion_red: Vector3
+    rotacion: Vector3
+    rotacion_red: Vector3
+    velocidad_actual: Vector3
+    gestor_animaciones: GestorAnimaciones
+    
+    function ActualizarPosicionRed(posicion: Vector3, rotacion: Vector3):
+        return ManejoErrores.EjecutarConManejo(() => {
+            posicion_red = posicion
+            rotacion_red = rotacion
+            return true
+        }, "JugadorRemoto.ActualizarPosicionRed", false)
+    
+    function InterpolarPosicion(delta_time):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Interpolar suavemente hacia posición de red
+            factor_interp = min(1.0, 10.0 * delta_time)  # 10 unidades por segundo
+            posicion = posicion.lerp(posicion_red, factor_interp)
+            rotacion = rotacion.slerp(rotacion_red, factor_interp)
+            return true
+        }, "JugadorRemoto.InterpolarPosicion", false)
+    
+    function Limpiar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Limpiar recursos del jugador remoto
+            gestor_animaciones = null
+            Logger.LogInfo("JugadorRemoto: Recursos limpiados para " + nombre)
+            return true
+        }, "JugadorRemoto.Limpiar", false)
+
+# =============================================================================
+# CLASE: GestorInput
+# =============================================================================
+class GestorInput:
+    function ProcesarInput(): InputData
+        return ManejoErrores.EjecutarConManejo(() => {
+            input = new InputData()
+            
+            # Movimiento
+            input.movimiento_adelante = IsKeyPressed(KEY_W)
+            input.movimiento_atras = IsKeyPressed(KEY_S)
+            input.movimiento_izquierda = IsKeyPressed(KEY_A)
+            input.movimiento_derecha = IsKeyPressed(KEY_D)
+            
+            # Acciones
+            input.salto = IsKeyPressed(KEY_SPACE)
+            input.interactuar = IsKeyPressed(KEY_E)
+            input.usar_objeto = IsMouseButtonPressed(MOUSE_LEFT)
+            
+            # Inventario
+            input.cambiar_objeto_siguiente = IsKeyPressed(KEY_1)
+            input.cambiar_objeto_anterior = IsKeyPressed(KEY_2)
+            
+            # Correr
+            input.correr = IsKeyPressed(KEY_SHIFT)
+            
+            Logger.LogInfo("GestorInput: Input procesado exitosamente")
+            return input
+        }, "GestorInput.ProcesarInput", false)
+
+# =============================================================================
+# CLASES AUXILIARES
+# =============================================================================
+class InputData:
+    movimiento_adelante: bool
+    movimiento_atras: bool
+    movimiento_izquierda: bool
+    movimiento_derecha: bool
+    salto: bool
+    interactuar: bool
+    usar_objeto: bool
+    cambiar_objeto_siguiente: bool
+    cambiar_objeto_anterior: bool
+    correr: bool
+
+class EstadoAnimacion:
+    static IDLE = 0
+    static CAMINANDO = 1
+    static CORRIENDO = 2
+    static SALTANDO = 3
+    static CAYENDO = 4
+    static INTERACTUANDO = 5

@@ -1,0 +1,1172 @@
+# =============================================================================
+# SISTEMA DE RED CLIENTE-SERVIDOR CON PERSISTENCIA
+# =============================================================================
+# Archivo: red.pseudo
+# Descripción: Comunicación multijugador y sincronización con persistencia en servidor
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaRed (Singleton)
+# =============================================================================
+class SistemaRed:
+    # Propiedades principales
+    # es_servidor eliminada - ahora usa SessionData.Instance.es_servidor
+    es_cliente: bool
+    conexion: ConexionRed
+    gestor_jugadores: GestorJugadoresRed
+    gestor_mensajes: GestorMensajes
+    gestor_terreno: GestorTerrenoRed
+    # seed_mundo eliminada - ahora usa SessionData.Instance.seed_mundo
+    timeout_conexion: float = 30.0
+    intentos_reconexion: int = 3
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema
+    function Inicializar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            _InicializarInterno()
+            Logger.LogInfo("SistemaRed: Sistema inicializado")
+            return true
+        }, "SistemaRed.Inicializar", true)
+    
+    # Inicialización interna
+    function _InicializarInterno():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Usar SessionData.Instance.seed_mundo
+            conexion = new ConexionRed()
+            gestor_jugadores = new GestorJugadoresRed()
+            gestor_mensajes = new GestorMensajes()
+            gestor_terreno = new GestorTerrenoRed()
+            
+            Logger.LogInfo("SistemaRed: Inicializado con seed " + SessionData.Instance.seed_mundo.ToString())
+            return true
+        }, "SistemaRed._InicializarInterno", false)
+    
+    # Iniciar como servidor
+    function IniciarServidor(puerto: int, max_jugadores: int):
+        return ManejoErrores.EjecutarConManejo(() => {
+            SessionData.Instance.es_servidor = true
+            SessionData.Instance.es_cliente = false
+            
+            if conexion.IniciarServidor(puerto, max_jugadores):
+                Logger.LogInfo("SistemaRed: Servidor iniciado en puerto " + puerto.ToString())
+                return true
+            else:
+                Logger.LogError("SistemaRed: Error al iniciar servidor")
+                return EstadoSeguroRed.ObtenerValorPorDefecto("iniciar_servidor_fallido")
+        }, "SistemaRed.IniciarServidor", false)
+    
+    # Conectar como cliente
+    function ConectarCliente(ip: string, puerto: int):
+        return ManejoErrores.EjecutarConManejo(() => {
+            SessionData.Instance.es_servidor = false
+            SessionData.Instance.es_cliente = true
+            
+            if conexion.ConectarCliente(ip, puerto):
+                Logger.LogInfo("SistemaRed: Conectado a " + ip + ":" + puerto.ToString())
+                EnviarMensajeConexion()
+                return true
+            else:
+                Logger.LogError("SistemaRed: Error al conectar cliente")
+                return EstadoSeguroRed.ObtenerValorPorDefecto("conectar_cliente_fallido")
+        }, "SistemaRed.ConectarCliente", false)
+    
+    # Procesamiento de mensajes
+    function ProcesarMensajes():
+        return ManejoErrores.EjecutarConManejo(() => {
+            mensajes = conexion.RecibirMensajes()
+            
+            for mensaje in mensajes:
+                if ValidarMensaje(mensaje):
+                    ProcesarMensaje(mensaje)
+                else:
+                    Logger.LogWarning("SistemaRed: Mensaje inválido recibido")
+            return true
+        }, "SistemaRed.ProcesarMensajes", false)
+    
+    # Envío de mensajes
+    function EnviarMensaje(mensaje: MensajeRed, destino: int = -1):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if ValidarMensaje(mensaje):
+                conexion.EnviarMensaje(mensaje, destino)
+            else:
+                Logger.LogError("SistemaRed: Intentando enviar mensaje inválido")
+            return true
+        }, "SistemaRed.EnviarMensaje", false)
+
+# =============================================================================
+# CLASE: EstadoSeguroRed
+# =============================================================================
+class EstadoSeguroRed:
+    static valores_por_defecto: Dictionary<string, object>
+    
+    static function Inicializar():
+        valores_por_defecto = new Dictionary()
+        # Valores seguros para cada sistema
+        valores_por_defecto["es_servidor"] = false
+        valores_por_defecto["es_cliente"] = false
+        valores_por_defecto["esta_conectado"] = false
+        valores_por_defecto["timeout_conexion"] = 30.0
+        valores_por_defecto["intentos_reconexion"] = 3
+        valores_por_defecto["max_jugadores"] = 100
+        valores_por_defecto["posicion_inicial"] = Vector3(0, 10, 0)
+        valores_por_defecto["ping_promedio"] = 50.0
+        valores_por_defecto["ancho_banda"] = 100.0
+        valores_por_defecto["iniciar_servidor_fallido"] = false
+        valores_por_defecto["conectar_cliente_fallido"] = false
+        valores_por_defecto["procesar_mensajes_fallido"] = false
+        valores_por_defecto["enviar_mensaje_fallido"] = false
+        valores_por_defecto["conexion_nula"] = null
+        valores_por_defecto["jugador_nulo"] = null
+        valores_por_defecto["datos_terreno_nulos"] = null
+        valores_por_defecto["batch_mensajes_vacio"] = null
+        valores_por_defecto["estadisticas_vacias"] = null
+    
+    static function ObtenerValorPorDefecto(contexto: string): object
+        if valores_por_defecto.ContainsKey(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroRed: Sin valor por defecto para: " + contexto)
+            return false  # Fallback seguro
+
+# =============================================================================
+# FUNCIONES DE MENSAJES
+# =============================================================================
+    
+    function ProcesarMensaje(mensaje: MensajeRed):
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch mensaje.tipo:
+                case TipoMensaje.CONEXION:
+                    ProcesarMensajeConexion(mensaje)
+                case TipoMensaje.DESCONECCION:
+                    ProcesarMensajeDesconexion(mensaje)
+                case TipoMensaje.POSICION_JUGADOR:
+                    ProcesarMensajePosicion(mensaje)
+                case TipoMensaje.TERRENO_REQUEST:
+                    ProcesarMensajeTerrenoRequest(mensaje)
+                case TipoMensaje.TERRENO_DATA:
+                    ProcesarMensajeTerrenoData(mensaje)
+                case TipoMensaje.CHAT:
+                    ProcesarMensajeChat(mensaje)
+                case TipoMensaje.TRANSACCION_JUGADOR:
+                    ProcesarTransaccionCliente(mensaje)
+                case TipoMensaje.TRANSACCION_CHUNK:
+                    ProcesarTransaccionCliente(mensaje)
+                case TipoMensaje.TRANSACCION_ACCION:
+                    ProcesarTransaccionCliente(mensaje)
+                case TipoMensaje.TRANSACCION_TERRENO:
+                    ProcesarTransaccionCliente(mensaje)
+                case TipoMensaje.TRANSACCION_INVENTARIO:
+                    ProcesarTransaccionCliente(mensaje)
+                case TipoMensaje.ESTADO_JUGADOR:
+                    ProcesarMensajeEstadoJugador(mensaje)
+                case TipoMensaje.ESTADO_CHUNK:
+                    ProcesarMensajeEstadoChunk(mensaje)
+                case TipoMensaje.SOLICITUD_ESTADO_INICIAL:
+                    ProcesarMensajeSolicitudEstadoInicial(mensaje)
+                default:
+                    Logger.LogWarning("SistemaRed: Tipo de mensaje no reconocido: " + mensaje.tipo.ToString())
+            return true
+        }, "SistemaRed.ProcesarMensaje", false)
+    
+    function ProcesarMensajeConexion(mensaje: MensajeRed):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_servidor:
+                # Aceptar nuevo jugador
+                nuevo_jugador = gestor_jugadores.AgregarJugador(mensaje.id_cliente)
+                
+                # Validar jugador
+                if nuevo_jugador != null:
+                    # Enviar datos iniciales
+                    EnviarDatosIniciales(nuevo_jugador.id)
+                    
+                    # Notificar a otros jugadores
+                    notificacion = new MensajeNotificacionJugador(nuevo_jugador)
+                    EnviarMensajeATodos(notificacion, mensaje.id_cliente)
+                    
+                    Logger.LogInfo("SistemaRed: Jugador conectado - ID: " + mensaje.id_cliente.ToString())
+                else:
+                    Logger.LogError("SistemaRed: Error al agregar jugador")
+            return true
+        }, "SistemaRed.ProcesarMensajeConexion", false)
+    
+    function ProcesarMensajePosicion(mensaje: MensajePosicionJugador):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_servidor:
+                # Validar posición
+                if ValidarPosicion(mensaje.posicion):
+                    # Actualizar posición del jugador
+                    gestor_jugadores.ActualizarPosicion(mensaje.id_jugador, mensaje.posicion)
+                    
+                    # Reenviar a otros jugadores
+                    EnviarMensajeATodos(mensaje, mensaje.id_jugador)
+                    
+                    Logger.LogDebug("SistemaRed: Posición actualizada - Jugador: " + mensaje.id_jugador.ToString())
+                else:
+                    Logger.LogWarning("SistemaRed: Posición inválida recibida")
+            else:
+                # Actualizar posición de otro jugador
+                if ValidarPosicion(mensaje.posicion):
+                    gestor_jugadores.ActualizarPosicionJugadorRemoto(mensaje.id_jugador, mensaje.posicion)
+                    Logger.LogDebug("SistemaRed: Posición remota actualizada - Jugador: " + mensaje.id_jugador.ToString())
+                else:
+                    Logger.LogWarning("SistemaRed: Posición remota inválida recibida")
+            return true
+        }, "SistemaRed.ProcesarMensajePosicion", false)
+    
+    function ProcesarMensajeTerrenoRequest(mensaje: MensajeTerrenoRequest):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_servidor:
+                # Validar coordenada
+                if ValidarCoordenada(mensaje.coordenada):
+                    # Enviar datos del terreno solicitado
+                    datos_terreno = gestor_terreno.ObtenerDatosTerreno(mensaje.coordenada)
+                    if datos_terreno != null:
+                        respuesta = new MensajeTerrenoData(datos_terreno)
+                        EnviarMensaje(respuesta, mensaje.id_cliente)
+                        Logger.LogDebug("SistemaRed: Terreno solicitado - Coordenada: " + mensaje.coordenada.ToString())
+                    else:
+                        Logger.LogWarning("SistemaRed: No se encontraron datos de terreno")
+                else:
+                    Logger.LogWarning("SistemaRed: Coordenada de terreno inválida")
+            return true
+        }, "SistemaRed.ProcesarMensajeTerrenoRequest", false)
+    
+    function ProcesarMensajeTerrenoData(mensaje: MensajeTerrenoData):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_cliente:
+                # Validar datos de terreno
+                if ValidarDatosTerreno(mensaje.datos_terreno):
+                    # Recibir y aplicar datos del terreno
+                    gestor_terreno.AplicarDatosTerreno(mensaje.datos_terreno)
+                    Logger.LogDebug("SistemaRed: Datos de terreno aplicados")
+                else:
+                    Logger.LogWarning("SistemaRed: Datos de terreno inválidos recibidos")
+            return true
+        }, "SistemaRed.ProcesarMensajeTerrenoData", false)
+    
+    function ProcesarMensajeEstadoJugador(mensaje: MensajeEstadoJugador):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_cliente:
+                # Validar jugador
+                if mensaje.jugador != null:
+                    # Actualizar estado de jugador remoto
+                    gestor_jugadores.ActualizarJugadorRemotoDesdeRed(mensaje.jugador.id, mensaje.jugador.posicion, mensaje.jugador.rotacion)
+                    Logger.LogDebug("SistemaRed: Estado de jugador actualizado - ID: " + mensaje.jugador.id.ToString())
+                else:
+                    Logger.LogWarning("SistemaRed: Mensaje de estado de jugador nulo")
+            return true
+        }, "SistemaRed.ProcesarMensajeEstadoJugador", false)
+    
+    function ProcesarMensajeEstadoChunk(mensaje: MensajeEstadoChunk):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_cliente:
+                # Validar chunk
+                if mensaje.chunk != null:
+                    # Actualizar estado de chunk
+                    gestor_terreno.ActualizarChunkDesdeServidor(mensaje.chunk)
+                    Logger.LogDebug("SistemaRed: Estado de chunk actualizado")
+                else:
+                    Logger.LogWarning("SistemaRed: Mensaje de estado de chunk nulo")
+            return true
+        }, "SistemaRed.ProcesarMensajeEstadoChunk", false)
+    
+    function ProcesarMensajeSolicitudEstadoInicial(mensaje: MensajeSolicitudEstadoInicial):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_servidor:
+                # Enviar estado inicial al cliente
+                EnviarEstadoInicialACliente(mensaje.id_cliente)
+                Logger.LogInfo("SistemaRed: Solicitud de estado inicial recibida - Cliente: " + mensaje.id_cliente.ToString())
+            return true
+        }, "SistemaRed.ProcesarMensajeSolicitudEstadoInicial", false)
+    
+    # =============================================================================
+    # FUNCIONES DE TRANSACCIONES DE PERSISTENCIA
+    # =============================================================================
+    
+    function EnviarTransaccionJugador(jugador: JugadorLocal):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_cliente and ValidarJugador(jugador):
+                mensaje = new MensajeTransaccionJugador(jugador)
+                EnviarMensaje(mensaje)
+                Logger.LogDebug("SistemaRed: Transacción de jugador enviada")
+            return true
+        }, "SistemaRed.EnviarTransaccionJugador", false)
+    
+    function EnviarTransaccionChunk(chunk: Chunk):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_cliente and ValidarChunk(chunk):
+                mensaje = new MensajeTransaccionChunk(chunk)
+                EnviarMensaje(mensaje)
+                Logger.LogDebug("SistemaRed: Transacción de chunk enviada")
+            return true
+        }, "SistemaRed.EnviarTransaccionChunk", false)
+    
+    function EnviarTransaccionAccion(accion: AccionJugador):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_cliente and ValidarAccion(accion):
+                mensaje = new MensajeTransaccionAccion(accion)
+                EnviarMensaje(mensaje)
+                Logger.LogDebug("SistemaRed: Transacción de acción enviada")
+            return true
+        }, "SistemaRed.EnviarTransaccionAccion", false)
+    
+    function EnviarTransaccionTerreno(modificacion: ModificacionTerreno):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_cliente and ValidarModificacionTerreno(modificacion):
+                mensaje = new MensajeTransaccionTerreno(modificacion)
+                EnviarMensaje(mensaje)
+                Logger.LogDebug("SistemaRed: Transacción de terreno enviada")
+            return true
+        }, "SistemaRed.EnviarTransaccionTerreno", false)
+    
+    function EnviarTransaccionInventario(inventario: Inventario):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_cliente and ValidarInventario(inventario):
+                mensaje = new MensajeTransaccionInventario(inventario)
+                EnviarMensaje(mensaje)
+                Logger.LogDebug("SistemaRed: Transacción de inventario enviada")
+            return true
+        }, "SistemaRed.EnviarTransaccionInventario", false)
+    
+    function ProcesarTransaccionCliente(mensaje: MensajeRed):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance.es_servidor:
+                # Servidor procesa transacción y la persiste
+                switch mensaje.tipo:
+                    case TipoMensaje.TRANSACCION_JUGADOR:
+                        transaccion = mensaje as MensajeTransaccionJugador
+                        if ValidarJugador(transaccion.jugador):
+                            SistemaPersistenciaServidor.PersistirJugador(transaccion.jugador)
+                            Logger.LogInfo("SistemaRed: Transacción de jugador persistida")
+                        else:
+                            Logger.LogWarning("SistemaRed: Jugador inválido en transacción")
+                    case TipoMensaje.TRANSACCION_CHUNK:
+                        transaccion = mensaje as MensajeTransaccionChunk
+                        if ValidarChunk(transaccion.chunk):
+                            SistemaPersistenciaServidor.PersistirChunk(transaccion.chunk)
+                            Logger.LogInfo("SistemaRed: Transacción de chunk persistida")
+                        else:
+                            Logger.LogWarning("SistemaRed: Chunk inválido en transacción")
+                    case TipoMensaje.TRANSACCION_ACCION:
+                        transaccion = mensaje as MensajeTransaccionAccion
+                        if ValidarAccion(transaccion.accion):
+                            SistemaPersistenciaServidor.PersistirAccionJugador(transaccion.accion)
+                            Logger.LogInfo("SistemaRed: Transacción de acción persistida")
+                        else:
+                            Logger.LogWarning("SistemaRed: Acción inválida en transacción")
+                    case TipoMensaje.TRANSACCION_TERRENO:
+                        transaccion = mensaje as MensajeTransaccionTerreno
+                        if ValidarModificacionTerreno(transaccion.modificacion):
+                            SistemaPersistenciaServidor.PersistirModificacionTerreno(transaccion.modificacion)
+                            Logger.LogInfo("SistemaRed: Transacción de terreno persistida")
+                        else:
+                            Logger.LogWarning("SistemaRed: Modificación de terreno inválida en transacción")
+                    case TipoMensaje.TRANSACCION_INVENTARIO:
+                        transaccion = mensaje as MensajeTransaccionInventario
+                        if ValidarInventario(transaccion.inventario):
+                            SistemaPersistenciaServidor.PersistirInventario(transaccion.inventario)
+                            Logger.LogInfo("SistemaRed: Transacción de inventario persistida")
+                        else:
+                            Logger.LogWarning("SistemaRed: Inventario inválido en transacción")
+                    default:
+                        Logger.LogWarning("SistemaRed: Tipo de transacción no reconocido: " + mensaje.tipo.ToString())
+            return true
+        }, "SistemaRed.ProcesarTransaccionCliente", false)
+    
+    # =============================================================================
+    # FUNCIONES AUXILIARES
+    # =============================================================================
+    
+    # Enviar datos iniciales
+    function EnviarDatosIniciales(id_jugador: int):
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Enviar posición inicial
+            pos_inicial = gestor_jugadores.ObtenerPosicionInicial()
+            if ValidarPosicion(pos_inicial):
+                mensaje_pos = new MensajePosicionJugador(id_jugador, pos_inicial)
+                EnviarMensaje(mensaje_pos, id_jugador)
+                Logger.LogInfo("SistemaRed: Posición inicial enviada - Jugador: " + id_jugador.ToString())
+            else:
+                Logger.LogError("SistemaRed: Posición inicial inválida")
+        
+            # Enviar jugadores conectados
+            jugadores = gestor_jugadores.ObtenerJugadoresConectados()
+            for jugador in jugadores:
+                if jugador.id != id_jugador:
+                    notificacion = new MensajeNotificacionJugador(jugador)
+                    EnviarMensaje(notificacion, id_jugador)
+            
+            Logger.LogInfo("SistemaRed: Datos iniciales enviados a jugador " + id_jugador.ToString())
+            return true
+        }, "SistemaRed.EnviarDatosIniciales", false)
+    
+    function EnviarMensajeATodos(mensaje: MensajeRed, excepcion: int = -1):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if conexion != null:
+                conexion.EnviarMensajeATodos(mensaje, excepcion)
+                Logger.LogDebug("SistemaRed: Mensaje enviado a todos")
+            return true
+        }, "SistemaRed.EnviarMensajeATodos", false)
+    
+    function EnviarMensajeConexion():
+        return ManejoErrores.EjecutarConManejo(() => {
+            mensaje = new MensajeConexion()
+            EnviarMensaje(mensaje)
+            Logger.LogInfo("SistemaRed: Mensaje de conexión enviado")
+            return true
+        }, "SistemaRed.EnviarMensajeConexion", false)
+    
+    function Desconectar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            if conexion != null and conexion.esta_conectado:
+                mensaje = new MensajeDesconexion()
+                EnviarMensaje(mensaje)
+                conexion.Desconectar()
+                Logger.LogInfo("SistemaRed: Desconectado")
+            return true
+        }, "SistemaRed.Desconectar", false)
+    
+    # =============================================================================
+    # FUNCIONES DE VALIDACIÓN
+    # =============================================================================
+    
+    function ValidarMensaje(mensaje: MensajeRed): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if mensaje == null:
+                return false
+            
+            # Validar timestamp
+            if mensaje.timestamp <= 0:
+                return false
+            
+            # Validar ID de cliente
+            if mensaje.id_cliente < 0:
+                return false
+            
+            # Validar tipo de mensaje
+            if not EsTipoMensajeValido(mensaje.tipo):
+                return false
+            
+            return true
+        }, "SistemaRed.ValidarMensaje", false)
+    
+    function ValidarPosicion(posicion: Vector3): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Verificar que no sea NaN o infinito
+            if not is_finite(posicion.x) or not is_finite(posicion.y) or not is_finite(posicion.z):
+                return false
+            
+            # Verificar rango razonable (usando alturas de -100 a 1000)
+            if posicion.y < -100 or posicion.y > 1000:
+                return false
+            
+            return true
+        }, "SistemaRed.ValidarPosicion", false)
+    
+    function ValidarCoordenada(coordenada: CoordenadaGlobal): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Validar que no sea nula
+            if coordenada == null:
+                return false
+            
+            # Validar rango de coordenadas
+            if coordenada.x < -100000 or coordenada.x > 100000:
+                return false
+            if coordenada.z < -100000 or coordenada.z > 100000:
+                return false
+            
+            return true
+        }, "SistemaRed.ValidarCoordenada", false)
+    
+    function ValidarDatosTerreno(datos: DatosTerrenoRed): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if datos == null:
+                return false
+            
+            # Validar dimensiones
+            if datos.altitudes == null or datos.altitudes.length() == 0:
+                return false
+            
+            if datos.tipo_terreno == null or datos.tipo_terreno.length() == 0:
+                return false
+            
+            # Validar que las matrices tengan el mismo tamaño
+            if datos.altitudes.length() != datos.tipo_terreno.length():
+                return false
+            
+            if datos.altitudes.length() != 10 or datos.altitudes[0].length() != 10:
+                return false
+            
+            return true
+        }, "SistemaRed.ValidarDatosTerreno", false)
+    
+    function ValidarJugador(jugador: JugadorLocal): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if jugador == null:
+                return false
+            
+            # Validar ID
+            if jugador.id <= 0:
+                return false
+            
+            # Validar nombre
+            if jugador.nombre == "":
+                return false
+            
+            return true
+        }, "SistemaRed.ValidarJugador", false)
+    
+    function ValidarChunk(chunk: Chunk): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if chunk == null:
+                return false
+            
+            # Validar coordenada
+            if not ValidarCoordenada(chunk.coordenada):
+                return false
+            
+            # Validar datos
+            if not ValidarDatosTerreno(chunk.datos):
+                return false
+            
+            return true
+        }, "SistemaRed.ValidarChunk", false)
+    
+    function ValidarAccion(accion: AccionJugador): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if accion == null:
+                return false
+            
+            # Validar tipo de acción
+            if accion.tipo <= 0:
+                return false
+            
+            # Validar jugador
+            if accion.id_jugador <= 0:
+                return false
+            
+            return true
+        }, "SistemaRed.ValidarAccion", false)
+    
+    function ValidarModificacionTerreno(modificacion: ModificacionTerreno): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if modificacion == null:
+                return false
+            
+            # Validar coordenada
+            if not ValidarCoordenada(modificacion.coordenada):
+                return false
+            
+            # Validar tipo
+            if modificacion.tipo <= 0:
+                return false
+            
+            return true
+        }, "SistemaRed.ValidarModificacionTerreno", false)
+    
+    function ValidarInventario(inventario: Inventario): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if inventario == null:
+                return false
+            
+            # Validar items
+            if inventario.items == null:
+                return false
+            
+            # Validar capacidad
+            if inventario.items.length() > inventario.max_slots:
+                return false
+            
+            return true
+        }, "SistemaRed.ValidarInventario", false)
+    
+    function EsTipoMensajeValido(tipo: int): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            return tipo >= 0 and tipo <= 15  # Según TipoMensaje enum
+        }, "SistemaRed.EsTipoMensajeValido", false)
+
+# =============================================================================
+# CLASE: ConexionRed (Mejorada)
+# =============================================================================
+class ConexionRed:
+    esta_conectado: bool = false
+    es_servidor: bool = false
+    clientes_conectados: List<int>
+    timeout_conexion: float = 30.0
+    intentos_reconexion: int = 3
+    
+    function IniciarServidor(puerto: int, max_jugadores: int): bool
+        try:
+            # Validar puerto
+            if puerto < 1024 or puerto > 65535:
+                Logger.LogError("ConexionRed: Puerto inválido: " + puerto.ToString())
+                return false
+            
+            # Validar max_jugadores
+            if max_jugadores <= 0 or max_jugadores > 100:
+                Logger.LogError("ConexionRed: Número de jugadores inválido: " + max_jugadores.ToString())
+                return false
+            
+            # Implementar lógica de servidor Godot
+            # (Aquí iría la implementación real con MultiplayerPeer)
+            es_servidor = true
+            esta_conectado = true
+            clientes_conectados = new List<int>()
+            
+            Logger.LogInfo("ConexionRed: Servidor iniciado en puerto " + puerto.ToString())
+            return true
+        catch error as Exception:
+            Logger.LogError("ConexionRed: Error iniciando servidor: " + error.Message)
+            return false
+    
+    function ConectarCliente(ip: string, puerto: int): bool
+        try:
+            # Validar IP
+            if not ValidarIP(ip):
+                Logger.LogError("ConexionRed: IP inválida: " + ip)
+                return false
+            
+            # Validar puerto
+            if puerto < 1024 or puerto > 65535:
+                Logger.LogError("ConexionRed: Puerto inválido: " + puerto.ToString())
+                return false
+            
+            # Implementar lógica de cliente Godot
+            # (Aquí iría la implementación real con TCPClient)
+            es_servidor = false
+            esta_conectado = true
+            
+            Logger.LogInfo("ConexionRed: Conectado a " + ip + ":" + puerto.ToString())
+            return true
+        catch error as Exception:
+            Logger.LogError("ConexionRed: Error conectando cliente: " + error.Message)
+            return false
+    
+    function EnviarMensaje(mensaje: MensajeRed, destino: int): bool
+        try:
+            if not esta_conectado:
+                Logger.LogWarning("ConexionRed: Intentando enviar mensaje sin conexión")
+                return false
+            
+            if not ValidarMensaje(mensaje):
+                Logger.LogError("ConexionRed: Intentando enviar mensaje inválido")
+                return false
+            
+            # Implementar lógica de envío según destino
+            if destino == -1:  # Enviar a todos
+                return EnviarMensajeATodos(mensaje)
+            else:  # Enviar a cliente específico
+                return EnviarMensajeACliente(mensaje, destino)
+        catch error as Exception:
+            Logger.LogError("ConexionRed: Error enviando mensaje: " + error.Message)
+            return false
+    
+    function EnviarMensajeATodos(mensaje: MensajeRed, excepcion: int = -1): bool
+        try:
+            if not esta_conectado or not es_servidor:
+                Logger.LogWarning("ConexionRed: Solo servidor puede enviar a todos")
+                return false
+            
+            mensajes_enviados = 0
+            for cliente_id in clientes_conectados:
+                if cliente_id != excepcion:
+                    if EnviarMensajeACliente(mensaje, cliente_id):
+                        mensajes_enviados++
+            
+            Logger.LogDebug("ConexionRed: Mensajes enviados a " + mensajes_enviados.ToString() + " clientes")
+            return mensajes_enviados > 0
+        catch error as Exception:
+            Logger.LogError("ConexionRed: Error enviando a todos: " + error.Message)
+            return false
+    
+    function EnviarMensajeACliente(mensaje: MensajeRed, cliente_id: int): bool
+        try:
+            # Implementar lógica de envío a cliente específico
+            # (Aquí iría la implementación real)
+            Logger.LogDebug("ConexionRed: Mensaje enviado a cliente " + cliente_id.ToString())
+            return true
+        catch error as Exception:
+            Logger.LogError("ConexionRed: Error enviando a cliente: " + error.Message)
+            return false
+    
+    function RecibirMensajes(): List<MensajeRed>
+        try:
+            if not esta_conectado:
+                return new List<MensajeRed>()
+            
+            mensajes = new List<MensajeRed>()
+            
+            # Implementar lógica de recepción
+            # (Aquí iría la implementación real)
+            
+            return mensajes
+        catch error as Exception:
+            Logger.LogError("ConexionRed: Error recibiendo mensajes: " + error.Message)
+            return new List<MensajeRed>()
+    
+    function Desconectar():
+        try:
+            if esta_conectado:
+                # Implementar lógica de desconexión
+                # (Aquí iría la implementación real)
+                esta_conectado = false
+                es_servidor = false
+                clientes_conectados.Clear()
+                Logger.LogInfo("ConexionRed: Desconectado")
+        catch error as Exception:
+            Logger.LogError("ConexionRed: Error desconectando: " + error.Message)
+    
+    # Funciones de validación
+    function ValidarIP(ip: string): bool
+        try:
+            # Validación básica de IPv4
+            partes = ip.split(".")
+            if partes.length() != 4:
+                return false
+            
+            for parte in partes:
+                numero = parte.to_int()
+                if numero < 0 or numero > 255:
+                    return false
+            
+            return true
+        catch error as Exception:
+            Logger.LogError("ConexionRed: Error validando IP: " + error.Message)
+            return false
+    
+    function ValidarMensaje(mensaje: MensajeRed): bool
+        try:
+            if mensaje == null:
+                return false
+            
+            if mensaje.timestamp <= 0:
+                return false
+            
+            if mensaje.id_cliente < 0:
+                return false
+            
+            return true
+        catch error as Exception:
+            Logger.LogError("ConexionRed: Error validando mensaje: " + error.Message)
+            return false
+
+# =============================================================================
+# CLASE: GestorJugadoresRed (Mejorada)
+# =============================================================================
+class GestorJugadoresRed:
+    jugadores_remotos: Dictionary<int, JugadorRemoto>
+    max_jugadores: int = 100
+    
+    function AgregarJugador(id_cliente: int): JugadorRemoto
+        try:
+            if jugadores_remotos.ContainsKey(id_cliente):
+                Logger.LogWarning("GestorJugadoresRed: Jugador ya existe: " + id_cliente.ToString())
+                return jugadores_remotos[id_cliente]
+            
+            if jugadores_remotos.length() >= max_jugadores:
+                Logger.LogError("GestorJugadoresRed: Límite de jugadores alcanzado")
+                return null
+            
+            # Crear nuevo jugador remoto
+            jugador = new JugadorRemoto()
+            jugador.id = id_cliente
+            jugador.nombre = "Jugador_" + id_cliente.ToString()
+            jugador.posicion = Vector3(0, 10, 0)  # Altura inicial según rango
+            jugador.rotacion = Vector3.ZERO
+            jugador.estado = EstadoJugador.ESPERANDO
+            
+            jugadores_remotos[id_cliente] = jugador
+            Logger.LogInfo("GestorJugadoresRed: Jugador agregado - ID: " + id_cliente.ToString())
+            return jugador
+        catch error as Exception:
+            Logger.LogError("GestorJugadoresRed: Error agregando jugador: " + error.Message)
+            return null
+    
+    function EliminarJugador(id_cliente: int):
+        try:
+            if jugadores_remotos.ContainsKey(id_cliente):
+                jugadores_remotos.Remove(id_cliente)
+                Logger.LogInfo("GestorJugadoresRed: Jugador eliminado - ID: " + id_cliente.ToString())
+            else:
+                Logger.LogWarning("GestorJugadoresRed: Jugador no encontrado para eliminar: " + id_cliente.ToString())
+        catch error as Exception:
+            Logger.LogError("GestorJugadoresRed: Error eliminando jugador: " + error.Message)
+    
+    function ActualizarPosicion(id_jugador: int, posicion: Vector3):
+        try:
+            if jugadores_remotos.ContainsKey(id_jugador):
+                # Validar posición
+                if posicion.y >= -100 and posicion.y <= 1000:  # Rango de alturas
+                    jugadores_remotos[id_jugador].posicion = posicion
+                    Logger.LogDebug("GestorJugadoresRed: Posición actualizada - ID: " + id_jugador.ToString())
+                else:
+                    Logger.LogWarning("GestorJugadoresRed: Posición fuera de rango")
+            else:
+                Logger.LogWarning("GestorJugadoresRed: Jugador no encontrado para actualizar posición: " + id_jugador.ToString())
+        catch error as Exception:
+            Logger.LogError("GestorJugadoresRed: Error actualizando posición: " + error.Message)
+    
+    function ActualizarPosicionJugadorRemoto(id_jugador: int, posicion: Vector3):
+        try:
+            if jugadores_remotos.ContainsKey(id_jugador):
+                # Validar posición
+                if posicion.y >= -100 and posicion.y <= 1000:  # Rango de alturas
+                    jugadores_remotos[id_jugador].posicion = posicion
+                    Logger.LogDebug("GestorJugadoresRed: Posición remota actualizada - ID: " + id_jugador.ToString())
+                else:
+                    Logger.LogWarning("GestorJugadoresRed: Posición remota fuera de rango")
+            else:
+                Logger.LogWarning("GestorJugadoresRed: Jugador remoto no encontrado: " + id_jugador.ToString())
+        catch error as Exception:
+            Logger.LogError("GestorJugadoresRed: Error actualizando posición remota: " + error.Message)
+    
+    function ObtenerJugadoresConectados(): List<JugadorRemoto>
+        try:
+            jugadores = new List<JugadorRemoto>()
+            for id, jugador in jugadores_remotos:
+                jugadores.Add(jugador)
+            return jugadores
+        catch error as Exception:
+            Logger.LogError("GestorJugadoresRed: Error obteniendo jugadores conectados: " + error.Message)
+            return new List<JugadorRemoto>()
+    
+    function ObtenerPosicionInicial(): Vector3
+        try:
+            # Posición inicial segura según rango de alturas
+            return Vector3(0, 10, 0)  # Altura 10m (llanuras bajas)
+        catch error as Exception:
+            Logger.LogError("GestorJugadoresRed: Error obteniendo posición inicial: " + error.Message)
+            return Vector3(0, 10, 0)
+
+# =============================================================================
+# CLASE: GestorTerrenoRed (Mejorada)
+# =============================================================================
+class GestorTerrenoRed:
+    cache_terreno: Dictionary<string, DatosTerrenoRed>
+    max_cache: int = 1000
+    
+    function ObtenerDatosTerreno(coord: CoordenadaGlobal): DatosTerrenoRed
+        try:
+            # Validar coordenada
+            if coord == null:
+                Logger.LogError("GestorTerrenoRed: Coordenada nula")
+                return null
+            
+            # Buscar en cache
+            clave_cache = coord.ToString()
+            if cache_terreno.ContainsKey(clave_cache):
+                Logger.LogDebug("GestorTerrenoRed: Datos de terreno desde cache")
+                return cache_terreno[clave_cache]
+            
+            # Generar nuevos datos (simulado)
+            datos = GenerarDatosTerreno(coord)
+            
+            # Agregar a cache
+            if cache_terreno.length() < max_cache:
+                cache_terreno[clave_cache] = datos
+            
+            Logger.LogDebug("GestorTerrenoRed: Datos de terreno generados - Coordenada: " + coord.ToString())
+            return datos
+        catch error as Exception:
+            Logger.LogError("GestorTerrenoRed: Error obteniendo datos de terreno: " + error.Message)
+            return null
+    
+    function AplicarDatosTerreno(datos: DatosTerrenoRed):
+        try:
+            if datos == null:
+                Logger.LogError("GestorTerrenoRed: Datos de terreno nulos")
+                return
+            
+            # Validar datos
+            if not ValidarDatosTerreno(datos):
+                Logger.LogError("GestorTerrenoRed: Datos de terreno inválidos")
+                return
+            
+            # Aplicar datos al terreno (simulado)
+            Logger.LogDebug("GestorTerrenoRed: Datos de terreno aplicados")
+        catch error as Exception:
+            Logger.LogError("GestorTerrenoRed: Error aplicando datos de terreno: " + error.Message)
+    
+    function SincronizarChunksCercanos(pos_jugador: Vector3):
+        try:
+            # Validar posición
+            if pos_jugador.y < -100 or pos_jugador.y > 1000:
+                Logger.LogWarning("GestorTerrenoRed: Posición fuera de rango")
+                return
+            
+            # Encontrar chunks cercanos (simulado)
+            Logger.LogDebug("GestorTerrenoRed: Sincronizando chunks cercanos")
+        catch error as Exception:
+            Logger.LogError("GestorTerrenoRed: Error sincronizando chunks: " + error.Message)
+    
+    function GenerarDatosTerreno(coord: CoordenadaGlobal): DatosTerrenoRed
+        try:
+            datos = new DatosTerrenoRed()
+            datos.coordenada = coord
+            datos.alturas = new float[10, 10]
+            datos.tipo_terreno = new int[10, 10]
+            datos.vegetacion = new List<DatosVegetacionRed>()
+            datos.recursos = new List<DatosRecursoRed>()
+            
+            # Generar alturas según rango (-100 a 1000)
+            for i in range(10):
+                for j in range(10):
+                    # Simulación de generación procedural
+                    datos.alturas[i, j] = randf_range(0, 50)  # Alturas bajas (0-50m)
+                    datos.tipo_terreno[i, j] = randi_range(0, 5)  # Tipos de terreno
+            
+            return datos
+        catch error as Exception:
+            Logger.LogError("GestorTerrenoRed: Error generando datos de terreno: " + error.Message)
+            return null
+    
+    function ValidarDatosTerreno(datos: DatosTerrenoRed): bool
+        try:
+            if datos == null:
+                return false
+            
+            if datos.alturas == null or datos.tipo_terreno == null:
+                return false
+            
+            return true
+        catch error as Exception:
+            Logger.LogError("GestorTerrenoRed: Error validando datos de terreno: " + error.Message)
+            return false
+
+# =============================================================================
+# CLASES DE MENSAJES
+# =============================================================================
+
+class MensajeRed:
+    tipo: TipoMensaje
+    id_cliente: int
+    timestamp: float
+
+class MensajeConexion extends MensajeRed
+class MensajeDesconexion extends MensajeRed
+class MensajePosicionJugador extends MensajeRed:
+    id_jugador: int
+    posicion: Vector3
+    rotacion: Vector3
+
+class MensajeTerrenoRequest extends MensajeRed:
+    coordenada: CoordenadaGlobal
+
+class MensajeTerrenoData extends MensajeRed:
+    datos_terreno: DatosTerrenoRed
+
+class MensajeChat extends MensajeRed:
+    texto: string
+    id_jugador: int
+
+class MensajeNotificacionJugador extends MensajeRed:
+    jugador: JugadorRemoto
+
+# =============================================================================
+# NUEVOS MENSAJES PARA PERSISTENCIA
+# =============================================================================
+
+class MensajeTransaccionJugador extends MensajeRed:
+    jugador: JugadorLocal
+
+class MensajeTransaccionChunk extends MensajeRed:
+    chunk: Chunk
+
+class MensajeTransaccionAccion extends MensajeRed:
+    accion: AccionJugador
+
+class MensajeTransaccionTerreno extends MensajeRed:
+    modificacion: ModificacionTerreno
+
+class MensajeTransaccionInventario extends MensajeRed:
+    inventario: Inventario
+
+class MensajeEstadoJugador extends MensajeRed:
+    jugador: JugadorLocal
+
+class MensajeEstadoChunk extends MensajeRed:
+    chunk: Chunk
+
+class MensajeSolicitudEstadoInicial extends MensajeRed
+
+# =============================================================================
+# ENUM: TipoMensaje
+# =============================================================================
+class TipoMensaje:
+    static CONEXION = 0
+    static DESCONECCION = 1
+    static POSICION_JUGADOR = 2
+    static TERRENO_REQUEST = 3
+    static TERRENO_DATA = 4
+    static CHAT = 5
+    static ACCION_JUGADOR = 6
+    static ESTADO_JUEGO = 7
+    # Nuevos mensajes para persistencia
+    static TRANSACCION_JUGADOR = 8
+    static TRANSACCION_CHUNK = 9
+    static TRANSACCION_ACCION = 10
+    static TRANSACCION_TERRENO = 11
+    static TRANSACCION_INVENTARIO = 12
+    static ESTADO_JUGADOR = 13
+    static ESTADO_CHUNK = 14
+    static SOLICITUD_ESTADO_INICIAL = 15
+
+# =============================================================================
+# CLASES AUXILIARES
+# =============================================================================
+class JugadorRemoto:
+    id: int
+    nombre: string
+    posicion: Vector3
+    rotacion: Vector3
+    estado: EstadoJugador
+
+class EstadoJugador:
+    static ESPERANDO = 0
+    static JUGANDO = 1
+    static PAUSADO = 2
+    static DESCONECTADO = 3
+
+class DatosTerrenoRed:
+    coordenada: CoordenadaGlobal
+    alturas: float[10, 10]
+    tipo_terreno: int[10, 10]
+    vegetacion: List<DatosVegetacionRed>
+    recursos: List<DatosRecursoRed>
+
+# =============================================================================
+# FUNCIONES GLOBALES DE ACCESO RÁPIDO
+# =============================================================================
+# FUNCIONES DE ACCESO (DEPRECATED)
+# =============================================================================
+# NOTA: Estas funciones están obsoletas y violan el principio de evitar referencias circulares
+# Se deben eliminar y reemplazar por inyección de dependencias desde GameManager
+# =============================================================================
+
+function GetSistemaRed(): SistemaRed
+    return ManejoErrores.EjecutarConManejo(() => {
+        if GameManager.instance == null:
+            Logger.LogError("GetSistemaRed: GameManager no inicializado")
+            return EstadoSeguroRed.ObtenerValorPorDefecto("conexion_nula")
+        return GameManager.instance.sistema_red
+    }, "GetSistemaRed", false)
+
+function IniciarServidor(puerto: int, max_jugadores: int): bool
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = GetSistemaRed()
+        if sistema != null:
+            return sistema.IniciarServidor(puerto, max_jugadores)
+        return EstadoSeguroRed.ObtenerValorPorDefecto("iniciar_servidor_fallido")
+    }, "IniciarServidor", false)
+
+function ConectarCliente(ip: string, puerto: int): bool
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = GetSistemaRed()
+        if sistema != null:
+            return sistema.ConectarCliente(ip, puerto)
+        return EstadoSeguroRed.ObtenerValorPorDefecto("conectar_cliente_fallido")
+    }, "ConectarCliente", false)
+
+function DesconectarRed():
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = GetSistemaRed()
+        if sistema != null:
+            sistema.Desconectar()
+        return true
+    }, "DesconectarRed", false)
+
+# =============================================================================
+# FUNCIONES DE OPTIMIZACIÓN DE RED
+# =============================================================================
+function ComprimirMensajes(mensajes: List<MensajeRed>): List<MensajeRed>
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Implementar compresión de mensajes para optimizar ancho de banda
+        mensajes_comprimidos = new List<MensajeRed>()
+        
+        for mensaje in mensajes:
+            # Simulación de compresión
+            mensaje_comprimido = ComprimirMensaje(mensaje)
+            if mensaje_comprimido != null:
+                mensajes_comprimidos.Add(mensaje_comprimido)
+        
+        Logger.LogDebug("Red: Mensajes comprimidos de " + mensajes.length().ToString() + " a " + mensajes_comprimidos.length().ToString())
+        return mensajes_comprimidos
+    }, "ComprimirMensajes", false)
+
+function ComprimirMensaje(mensaje: MensajeRed): MensajeRed
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Simulación de compresión
+        # (Aquí iría la implementación real de compresión)
+        return mensaje  # Por ahora, retornar el mensaje sin cambios
+    }, "ComprimirMensaje", false)
+
+function BatchMensajes(mensajes: List<MensajeRed>): List<MensajeRed>
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Agrupar mensajes pequeños en batches para reducir overhead
+        if mensajes.length() <= 1:
+            return mensajes
+        
+        batches = new List<MensajeRed>()
+        batch_actual = new List<MensajeRed>()
+        
+        for mensaje in mensajes:
+            if batch_actual.length() < 10:  # Batch de 10 mensajes
+                batch_actual.Add(mensaje)
+            else:
+                # Crear batch message
+                batch_msg = CrearBatchMessage(batch_actual)
+                if batch_msg != null:
+                    batches.Add(batch_msg)
+                batch_actual.Clear()
+                batch_actual.Add(mensaje)
+        
+        # Agregar último batch si hay mensajes pendientes
+        if batch_actual.length() > 0:
+            batch_msg = CrearBatchMessage(batch_actual)
+            if batch_msg != null:
+                batches.Add(batch_msg)
+        
+        Logger.LogDebug("Red: Mensajes batcheados de " + mensajes.length().ToString() + " a " + batches.length().ToString())
+        return batches
+    }, "BatchMensajes", false)
+
+function CrearBatchMessage(mensajes: List<MensajeRed>): MensajeRed
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Simulación de creación de batch
+        # (Aquí iría la implementación real)
+        return mensajes[0]  # Por ahora, retornar el primer mensaje
+    }, "CrearBatchMessage", false)
+
+# =============================================================================
+# FUNCIONES DE MONITOREO
+# =============================================================================
+function ObtenerEstadisticasRed(): Dictionary<string, object>
+    return ManejoErrores.EjecutarConManejo(() => {
+        sistema = GetSistemaRed()
+        if sistema != null:
+            stats = new Dictionary()
+            stats["es_servidor"] = SessionData.Instance.es_servidor
+            stats["es_cliente"] = SessionData.Instance.es_cliente
+            stats["esta_conectado"] = sistema.conexion.esta_conectado
+            stats["clientes_conectados"] = sistema.conexion.clientes_conectados.length()
+            stats["max_jugadores"] = sistema.gestor_jugadores.max_jugadores
+            return stats
+        return EstadoSeguroRed.ObtenerValorPorDefecto("estadisticas_vacias")
+    }, "ObtenerEstadisticasRed", false)
+
+function ObtenerPingPromedio(): float
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Simulación de cálculo de ping
+        return EstadoSeguroRed.ObtenerValorPorDefecto("ping_promedio")
+    }, "ObtenerPingPromedio", false)
+
+function ObtenerAnchoDeBanda(): float
+    return ManejoErrores.EjecutarConManejo(() => {
+        # Simulación de cálculo de ancho de banda (KB/s)
+        return EstadoSeguroRed.ObtenerValorPorDefecto("ancho_banda")
+    }, "ObtenerAnchoDeBanda", false)

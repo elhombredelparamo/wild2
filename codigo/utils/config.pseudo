@@ -1,0 +1,729 @@
+# =============================================================================
+# SISTEMA DE CONFIGURACIÓN
+# =============================================================================
+# Archivo: config.pseudo
+# Descripción: Gestión de configuración del juego
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaConfiguracion
+# =============================================================================
+class SistemaConfiguracion:
+    # Singleton para acceso global
+    static instance: SistemaConfiguracion
+    
+    # Propiedades principales
+    config_juego: ConfigJuego
+    config_graficos: ConfigGraficos
+    config_audio: ConfigAudio
+    config_red: ConfigRed
+    config_controles: ConfigControles
+    archivo_config: string
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema
+    static function Inicializar(archivo: String = "config.json"):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("inicializacion_fallida")
+            
+            if instance == null:
+                instance = new SistemaConfiguracion()
+            
+            SessionData.Instance.archivo_config = archivo
+            instance.CargarConfiguracion()
+            
+            Logger.LogInfo("SistemaConfiguracion: Sistema inicializado")
+            return true
+        }, "SistemaConfiguracion.Inicializar", true)
+    
+# =============================================================================
+# CLASE: EstadoSeguroConfig
+# =============================================================================
+class EstadoSeguroConfig:
+    static valores_por_defecto: Dictionary
+    
+    static function _init():
+        valores_por_defecto = {
+            "config_juego_nulo": null,
+            "config_graficos_nulo": null,
+            "config_audio_nulo": null,
+            "config_red_nulo": null,
+            "config_controles_nulo": null,
+            "archivo_config": "config.json",
+            "cargar_config_fallida": false,
+            "guardar_config_fallida": false,
+            "crear_config_defecto_fallida": false,
+            "aplicar_graficos_fallida": false,
+            "aplicar_audio_fallida": false,
+            "aplicar_red_fallida": false,
+            "aplicar_controles_fallida": false,
+            "serializar_config_fallida": null,
+            "parsear_config_fallida": false,
+            "config_juego_defecto": null,
+            "config_graficos_defecto": null,
+            "config_audio_defecto": null,
+            "config_red_defecto": null,
+            "config_controles_defecto": null,
+            "hardware_info_nulo": null,
+            "deteccion_hardware_fallida": false,
+            "aplicar_config_segun_calidad_fallida": false,
+            "serializar_juego_fallido": null,
+            "serializar_graficos_fallido": null,
+            "serializar_audio_fallido": null,
+            "serializar_red_fallido": null,
+            "serializar_controles_fallido": null,
+            "parsear_juego_fallido": false,
+            "parsear_graficos_fallido": false,
+            "parsear_audio_fallido": false,
+            "parsear_red_fallido": false,
+            "parsear_controles_fallido": false,
+            "aplicar_defecto_graficos_fallido": false,
+            "aplicar_defecto_audio_fallida": false,
+            "aplicar_defecto_red_fallida": false,
+            "aplicar_defecto_controles_fallida": false,
+            "serializar_juego_fallido": null,
+            "serializar_graficos_fallido": null,
+            "serializar_audio_fallido": null,
+            "serializar_red_fallido": null,
+            "serializar_controles_fallido": null,
+            "parsear_juego_fallido": false,
+            "parsear_graficos_fallido": false,
+            "parsear_audio_fallido": false,
+            "parsear_red_fallido": false,
+            "parsear_controles_fallido": false
+        }
+    
+    static function ObtenerValorPorDefecto(contexto: String):
+        if valores_por_defecto.has(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroConfig: Sin valor por defecto para: " + contexto)
+            return null  # Fallback seguro
+
+# =============================================================================
+# FUNCIONES DE GESTIÓN
+    # =============================================================================
+    
+    function CargarConfiguracion():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Intentar cargar desde archivo
+            if File.Exists(SessionData.Instance.archivo_config):
+                datos = File.ReadAllText(SessionData.Instance.archivo_config)
+                ParsearConfiguracion(datos)
+            else:
+                # Crear configuración por defecto
+                CrearConfiguracionDefecto()
+                GuardarConfiguracion()
+            
+            Logger.LogInfo("SistemaConfiguracion: Configuración cargada exitosamente")
+        }, "SistemaConfiguracion.CargarConfiguracion", false)
+    
+    function GuardarConfiguracion():
+        return ManejoErrores.EjecutarConManejo(() => {
+            datos = SerializarConfiguracion()
+            File.WriteAllText(SessionData.Instance.archivo_config, datos)
+            Logger.LogInfo("SistemaConfiguracion: Configuración guardada exitosamente")
+        }, "SistemaConfiguracion.GuardarConfiguracion", false)
+    
+    function CrearConfiguracionDefecto():
+        return ManejoErrores.EjecutarConManejo(() => {
+            SessionData.Instance.config_juego = new ConfigJuego()
+            SessionData.Instance.config_graficos = new ConfigGraficos()
+            SessionData.Instance.config_audio = new ConfigAudio()
+            SessionData.Instance.config_red = new ConfigRed()
+            SessionData.Instance.config_controles = new ConfigControles()
+            
+            # Aplicar valores por defecto
+            SessionData.Instance.config_graficos.AplicarDefecto()
+            SessionData.Instance.config_audio.AplicarDefecto()
+            SessionData.Instance.config_red.AplicarDefecto()
+            SessionData.Instance.config_controles.AplicarDefecto()
+            
+            Logger.LogInfo("SistemaConfiguracion: Configuración por defecto creada")
+        }, "SistemaConfiguracion.CrearConfiguracionDefecto", false)
+    
+    # =============================================================================
+    # FUNCIONES DE ACCESO
+    # =============================================================================
+    
+    static function GetConfigJuego(): ConfigJuego
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("config_juego_fallido")
+            
+            return SessionData.Instance.config_juego
+        }, "SistemaConfiguracion.GetConfigJuego", false)
+    
+    static function GetConfigGraficos(): ConfigGraficos
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("config_graficos_fallido")
+            
+            return SessionData.Instance.config_graficos
+        }, "SistemaConfiguracion.GetConfigGraficos", false)
+    
+    static function GetConfigAudio(): ConfigAudio
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("config_audio_fallido")
+            
+            return SessionData.Instance.config_audio
+        }, "SistemaConfiguracion.GetConfigAudio", false)
+    
+    static function GetConfigRed(): ConfigRed
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("config_red_fallido")
+            
+            return SessionData.Instance.config_red
+        }, "SistemaConfiguracion.GetConfigRed", false)
+    
+    static function GetConfigControles(): ConfigControles
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("config_controles_fallido")
+            
+            return SessionData.Instance.config_controles
+        }, "SistemaConfiguracion.GetConfigControles", false)
+    
+    static function SetConfigGraficos(config: ConfigGraficos):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("set_graficos_fallido")
+            
+            SessionData.Instance.config_graficos = config
+            SessionData.Instance.AplicarConfigGraficos()
+        }, "SistemaConfiguracion.SetConfigGraficos", false)
+    
+    static function SetConfigAudio(config: ConfigAudio):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("set_audio_fallido")
+            
+            SessionData.Instance.config_audio = config
+            SessionData.Instance.AplicarConfigAudio()
+        }, "SistemaConfiguracion.SetConfigAudio", false)
+    
+    static function SetConfigRed(config: ConfigRed):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("set_red_fallido")
+            
+            SessionData.Instance.config_red = config
+            SessionData.Instance.AplicarConfigRed()
+        }, "SistemaConfiguracion.SetConfigRed", false)
+    
+    static function SetConfigControles(config: ConfigControles):
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConfiguracion: SessionData no inicializado")
+                return EstadoSeguroConfig.ObtenerValorPorDefecto("set_controles_fallido")
+            
+            SessionData.Instance.config_controles = config
+            SessionData.Instance.AplicarConfigControles()
+        }, "SistemaConfiguracion.SetConfigControles", false)
+    
+    # =============================================================================
+    # FUNCIONES DE APLICACIÓN
+    # =============================================================================
+    
+    # =============================================================================
+    # FUNCIONES DE APLICACIÓN
+    # =============================================================================
+    
+    function AplicarConfigGraficos():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Aplicar configuración gráfica
+            if GetSistemaRender() != null:
+                GetSistemaRender().ConfigurarCalidad(SessionData.Instance.config_graficos.calidad)
+                if GetSistemaRender().camera_principal != null:
+                    GetSistemaRender().camera_principal.fov = SessionData.Instance.config_graficos.fov
+            
+            # Aplicar resolución
+            if SessionData.Instance.config_graficos.pantalla_completa:
+                SetPantallaCompleta(true)
+            else:
+                SetResolucion(SessionData.Instance.config_graficos.resolucion_ancho, SessionData.Instance.config_graficos.resolucion_alto)
+            
+            # Aplicar VSync
+            SetVSync(SessionData.Instance.config_graficos.vsync)
+            
+            Logger.LogInfo("SistemaConfiguracion: Configuración gráfica aplicada")
+        }, "SistemaConfiguracion.AplicarConfigGraficos", false)
+    
+    function AplicarConfigAudio():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Aplicar configuración de audio
+            SetVolumenMaestro(SessionData.Instance.config_audio.volumen_maestro)
+            SetVolumenMusica(SessionData.Instance.config_audio.volumen_musica)
+            SetVolumenEfectos(SessionData.Instance.config_audio.volumen_efectos)
+            SetVolumenVoz(SessionData.Instance.config_audio.volumen_voz)
+            
+            Logger.LogInfo("SistemaConfiguracion: Configuración de audio aplicada")
+        }, "SistemaConfiguracion.AplicarConfigAudio", false)
+    
+    function AplicarConfigRed():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Aplicar configuración de red para mundos locales
+            # No hay sistema de red externo, solo persistencia local
+            Logger.LogInfo("SistemaConfiguracion: Configuración de red aplicada")
+        }, "SistemaConfiguracion.AplicarConfigRed", false)
+    
+    function AplicarConfigControles():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Aplicar configuración de controles
+            if GetSistemaInput() != null:
+                GetSistemaInput().RecargarMapeos(SessionData.Instance.config_controles.mapeos_teclas)
+            
+            Logger.LogInfo("SistemaConfiguracion: Configuración de controles aplicada")
+        }, "SistemaConfiguracion.AplicarConfigControles", false)
+    
+    # =============================================================================
+    # FUNCIONES DE SERIALIZACIÓN
+    # =============================================================================
+    
+    function SerializarConfiguracion(): String
+        return ManejoErrores.EjecutarConManejo(() => {
+            config_data = new Dictionary()
+            
+            config_data["juego"] = SerializarConfigJuego()
+            config_data["graficos"] = SerializarConfigGraficos()
+            config_data["audio"] = SerializarConfigAudio()
+            config_data["red"] = SerializarConfigRed()
+            config_data["controles"] = SerializarConfigControles()
+            
+            return Json.Serialize(config_data)
+        }, "SistemaConfiguracion.SerializarConfiguracion", false)
+    
+    function ParsearConfiguracion(datos: String):
+        return ManejoErrores.EjecutarConManejo(() => {
+            config_data = Json.Deserialize(datos)
+            
+            if config_data.ContainsKey("juego"):
+                ParsearConfigJuego(config_data["juego"])
+            if config_data.ContainsKey("graficos"):
+                ParsearConfigGraficos(config_data["graficos"])
+            if config_data.ContainsKey("audio"):
+                ParsearConfigAudio(config_data["audio"])
+            if config_data.ContainsKey("red"):
+                ParsearConfigRed(config_data["red"])
+            if config_data.ContainsKey("controles"):
+                ParsearConfigControles(config_data["controles"])
+        }, "SistemaConfiguracion.ParsearConfiguracion", false)
+
+# =============================================================================
+# CLASES DE CONFIGURACIÓN
+# =============================================================================
+
+class ConfigJuego:
+    nombre_jugador: string = "Jugador"
+    idioma: string = "es"
+    dificultad: Dificultad = Dificultad.NORMAL
+    modo_debug: bool = false
+    mundo_reciente: string = ""
+    
+    function Serializar(): Dictionary
+        data = new Dictionary()
+        data["nombre_jugador"] = nombre_jugador
+        data["idioma"] = idioma
+        data["dificultad"] = dificultad
+        data["modo_debug"] = modo_debug
+        data["mundo_reciente"] = mundo_reciente
+        return data
+    
+    function Parsear(data: Dictionary):
+        if data.ContainsKey("nombre_jugador"): nombre_jugador = data["nombre_jugador"]
+        if data.ContainsKey("idioma"): idioma = data["idioma"]
+        if data.ContainsKey("dificultad"): dificultad = data["dificultad"]
+        if data.ContainsKey("modo_debug"): modo_debug = data["modo_debug"]
+        if data.ContainsKey("mundo_reciente"): mundo_reciente = data["mundo_reciente"]
+
+class ConfigGraficos:
+    calidad: QualityLevel = QualityLevel.MEDIUM
+    resolucion_ancho: int = 1920
+    resolucion_alto: int = 1080
+    pantalla_completa: bool = true
+    vsync: bool = true
+    fov: float = 60.0
+    distancia_render: float = 1000.0
+    sombras: bool = true
+    calidad_sombras: CalidadSombras = CalidadSombras.MEDIA
+    anti_aliasing: bool = true
+    calidad_texturas: CalidadTexturas = CalidadTexturas.ALTA
+    deteccion_automatica: bool = true
+    hardware_detectado: HardwareInfo
+    
+    function AplicarDefecto():
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Detectar hardware automáticamente
+            if deteccion_automatica:
+                DetectarHardwareYConfigurar()
+            else:
+                # Usar valores por defecto
+                calidad = QualityLevel.MEDIUM
+                resolucion_ancho = 1920
+                resolucion_alto = 1080
+                pantalla_completa = true
+                vsync = true
+                fov = 60.0
+                distancia_render = 1000.0
+                sombras = true
+                calidad_sombras = CalidadSombras.MEDIA
+                anti_aliasing = true
+                calidad_texturas = CalidadTexturas.ALTA
+            
+            Logger.LogInfo("ConfigGraficos: Configuración por defecto aplicada")
+        }, "ConfigGraficos.AplicarDefecto", false)
+    
+    function DetectarHardwareYConfigurar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            hardware_info = ObtenerInformacionHardware()
+            hardware_detectado = hardware_info
+            
+            # Determinar calidad según hardware
+            if hardware_info.ram_mb < 2048 or hardware_info.vram_mb < 512:
+                calidad = QualityLevel.Toaster
+            elif hardware_info.ram_mb < 4096 or hardware_info.vram_mb < 1024:
+                calidad = QualityLevel.Low
+            elif hardware_info.ram_mb < 8192 or hardware_info.vram_mb < 2048:
+                calidad = QualityLevel.Medium
+            elif hardware_info.ram_mb < 16384 or hardware_info.vram_mb < 4096:
+                calidad = QualityLevel.High
+            else:
+                calidad = QualityLevel.Ultra
+            
+            # Aplicar configuración según calidad
+            AplicarConfiguracionSegunCalidad(calidad)
+            
+            Logger.LogInfo("ConfigGraficos: Hardware detectado: " + hardware_info.ram_mb + "MB RAM, " + hardware_info.vram_mb + "MB VRAM")
+            Logger.LogInfo("ConfigGraficos: Calidad configurada automáticamente: " + calidad.ToString())
+        }, "ConfigGraficos.DetectarHardwareYConfigurar", false)
+    
+    function AplicarConfiguracionSegunCalidad(nivel: QualityLevel):
+        return ManejoErrores.EjecutarConManejo(() => {
+            switch nivel:
+                case QualityLevel.Toaster:
+                    resolucion_ancho = 1280
+                    resolucion_alto = 720
+                    pantalla_completa = false
+                    vsync = true
+                    fov = 60.0
+                    distancia_render = 500.0
+                    sombras = false
+                    anti_aliasing = false
+                    calidad_texturas = CalidadTexturas.BAJA
+                case QualityLevel.Low:
+                    resolucion_ancho = 1920
+                    resolucion_alto = 1080
+                    pantalla_completa = false
+                    vsync = true
+                    fov = 60.0
+                    distancia_render = 500.0
+                    sombras = false
+                    anti_aliasing = false
+                    calidad_texturas = CalidadTexturas.BAJA
+                case QualityLevel.Medium:
+                    resolucion_ancho = 1920
+                    resolucion_alto = 1080
+                    pantalla_completa = true
+                    vsync = true
+                    fov = 60.0
+                    distancia_render = 1000.0
+                    sombras = true
+                    calidad_sombras = CalidadSombras.MEDIA
+                    anti_aliasing = true
+                    calidad_texturas = CalidadTexturas.ALTA
+                case QualityLevel.High:
+                    resolucion_ancho = 2560
+                    resolucion_alto = 1440
+                    pantalla_completa = true
+                    vsync = true
+                    fov = 60.0
+                    distancia_render = 1500.0
+                    sombras = true
+                    calidad_sombras = CalidadSombras.ALTA
+                    anti_aliasing = true
+                    calidad_texturas = CalidadTexturas.ULTRA
+                case QualityLevel.Ultra:
+                    resolucion_ancho = 3840
+                    resolucion_alto = 2160
+                    pantalla_completa = true
+                    vsync = false
+                    fov = 60.0
+                    distancia_render = 2000.0
+                    sombras = true
+                    calidad_sombras = CalidadSombras.ULTRA
+                    anti_aliasing = true
+                    calidad_texturas = CalidadTexturas.ULTRA
+            
+            Logger.LogInfo("ConfigGraficos: Configuración aplicada para calidad: " + nivel.ToString())
+        }, "ConfigGraficos.AplicarConfiguracionSegunCalidad", false)
+    
+    function Serializar(): Dictionary
+        data = new Dictionary()
+        data["calidad"] = calidad
+        data["resolucion_ancho"] = resolucion_ancho
+        data["resolucion_alto"] = resolucion_alto
+        data["pantalla_completa"] = pantalla_completa
+        data["vsync"] = vsync
+        data["fov"] = fov
+        data["distancia_render"] = distancia_render
+        data["sombras"] = sombras
+        data["calidad_sombras"] = calidad_sombras
+        data["anti_aliasing"] = anti_aliasing
+        data["calidad_texturas"] = calidad_texturas
+        data["deteccion_automatica"] = deteccion_automatica
+        return data
+    
+    function Parsear(data: Dictionary):
+        if data.ContainsKey("calidad"): calidad = data["calidad"]
+        if data.ContainsKey("resolucion_ancho"): resolucion_ancho = data["resolucion_ancho"]
+        if data.ContainsKey("resolucion_alto"): resolucion_alto = data["resolucion_alto"]
+        if data.ContainsKey("pantalla_completa"): pantalla_completa = data["pantalla_completa"]
+        if data.ContainsKey("vsync"): vsync = data["vsync"]
+        if data.ContainsKey("fov"): fov = data["fov"]
+        if data.ContainsKey("distancia_render"): distancia_render = data["distancia_render"]
+        if data.ContainsKey("sombras"): sombras = data["sombras"]
+        if data.ContainsKey("calidad_sombras"): calidad_sombras = data["calidad_sombras"]
+        if data.ContainsKey("anti_aliasing"): anti_aliasing = data["anti_aliasing"]
+        if data.ContainsKey("calidad_texturas"): calidad_texturas = data["calidad_texturas"]
+        if data.ContainsKey("deteccion_automatica"): deteccion_automatica = data["deteccion_automatica"]
+
+class ConfigAudio:
+    volumen_maestro: float = 1.0
+    volumen_musica: float = 0.8
+    volumen_efectos: float = 0.9
+    volumen_voz: float = 1.0
+    dispositivo_audio: string = "default"
+    calidad_audio: CalidadAudio = CalidadAudio.MEDIA
+    
+    function AplicarDefecto():
+        return ManejoErrores.EjecutarConManejo(() => {
+            volumen_maestro = 1.0
+            volumen_musica = 0.8
+            volumen_efectos = 0.9
+            volumen_voz = 1.0
+            dispositivo_audio = "default"
+            calidad_audio = CalidadAudio.MEDIA
+            
+            Logger.LogInfo("ConfigAudio: Configuración por defecto aplicada")
+        }, "ConfigAudio.AplicarDefecto", false)
+    
+    function Serializar(): Dictionary
+        data = new Dictionary()
+        data["volumen_maestro"] = volumen_maestro
+        data["volumen_musica"] = volumen_musica
+        data["volumen_efectos"] = volumen_efectos
+        data["volumen_voz"] = volumen_voz
+        data["dispositivo_audio"] = dispositivo_audio
+        data["calidad_audio"] = calidad_audio
+        return data
+    
+    function Parsear(data: Dictionary):
+        if data.ContainsKey("volumen_maestro"): volumen_maestro = data["volumen_maestro"]
+        if data.ContainsKey("volumen_musica"): volumen_musica = data["volumen_musica"]
+        if data.ContainsKey("volumen_efectos"): volumen_efectos = data["volumen_efectos"]
+        if data.ContainsKey("volumen_voz"): volumen_voz = data["volumen_voz"]
+        if data.ContainsKey("dispositivo_audio"): dispositivo_audio = data["dispositivo_audio"]
+        if data.ContainsKey("calidad_audio"): calidad_audio = data["calidad_audio"]
+
+class ConfigRed:
+    mundo_reciente: string = ""
+    timeout_conexion: int = 5000  # milisegundos para conectar a mundos
+    intervalo_ping: int = 1000     # milisegundos
+    buffer_size: int = 4096
+    compresion: bool = true
+    
+    function AplicarDefecto():
+        return ManejoErrores.EjecutarConManejo(() => {
+            mundo_reciente = ""
+            timeout_conexion = 5000
+            intervalo_ping = 1000
+            buffer_size = 4096
+            compresion = true
+            
+            Logger.LogInfo("ConfigRed: Configuración por defecto aplicada")
+        }, "ConfigRed.AplicarDefecto", false)
+    
+    function Serializar(): Dictionary
+        data = new Dictionary()
+        data["mundo_reciente"] = mundo_reciente
+        data["timeout_conexion"] = timeout_conexion
+        data["intervalo_ping"] = intervalo_ping
+        data["buffer_size"] = buffer_size
+        data["compresion"] = compresion
+        return data
+    
+    function Parsear(data: Dictionary):
+        if data.ContainsKey("mundo_reciente"): mundo_reciente = data["mundo_reciente"]
+        if data.ContainsKey("timeout_conexion"): timeout_conexion = data["timeout_conexion"]
+        if data.ContainsKey("intervalo_ping"): intervalo_ping = data["intervalo_ping"]
+        if data.ContainsKey("buffer_size"): buffer_size = data["buffer_size"]
+        if data.ContainsKey("compresion"): compresion = data["compresion"]
+
+class ConfigControles:
+    mapeos_teclas: Dictionary<string, string>
+    sensibilidad_mouse: float = 1.0
+    invertir_mouse_y: bool = false
+    mando_activo: bool = false
+    sensibilidad_mando: float = 1.0
+    vibracion_mando: bool = true
+    
+    function AplicarDefecto():
+        return ManejoErrores.EjecutarConManejo(() => {
+            mapeos_teclas = new Dictionary()
+            
+            # Mapeos por defecto
+            mapeos_teclas["movimiento_adelante"] = "W"
+            mapeos_teclas["movimiento_atras"] = "S"
+            mapeos_teclas["movimiento_izquierda"] = "A"
+            mapeos_teclas["movimiento_derecha"] = "D"
+            mapeos_teclas["salto"] = "Space"
+            mapeos_teclas["interactuar"] = "E"
+            mapeos_teclas["inventario"] = "I"
+            mapeos_teclas["pausa"] = "Escape"
+            mapeos_teclas["chat"] = "T"
+            
+            sensibilidad_mouse = 1.0
+            invertir_mouse_y = false
+            mando_activo = false
+            sensibilidad_mando = 1.0
+            vibracion_mando = true
+            
+            Logger.LogInfo("ConfigControles: Configuración por defecto aplicada")
+        }, "ConfigControles.AplicarDefecto", false)
+    
+    function Serializar(): Dictionary
+        data = new Dictionary()
+        data["mapeos_teclas"] = mapeos_teclas
+        data["sensibilidad_mouse"] = sensibilidad_mouse
+        data["invertir_mouse_y"] = invertir_mouse_y
+        data["mando_activo"] = mando_activo
+        data["sensibilidad_mando"] = sensibilidad_mando
+        data["vibracion_mando"] = vibracion_mando
+        return data
+    
+    function Parsear(data: Dictionary):
+        if data.ContainsKey("mapeos_teclas"): mapeos_teclas = data["mapeos_teclas"]
+        if data.ContainsKey("sensibilidad_mouse"): sensibilidad_mouse = data["sensibilidad_mouse"]
+        if data.ContainsKey("invertir_mouse_y"): invertir_mouse_y = data["invertir_mouse_y"]
+        if data.ContainsKey("mando_activo"): mando_activo = data["mando_activo"]
+        if data.ContainsKey("sensibilidad_mando"): sensibilidad_mando = data["sensibilidad_mando"]
+        if data.ContainsKey("vibracion_mando"): vibracion_mando = data["vibracion_mando"]
+
+# =============================================================================
+# ENUMS
+# =============================================================================
+
+class Dificultad:
+    static FACIL = 0
+    static NORMAL = 1
+    static DIFICIL = 2
+    static EXTREMO = 3
+
+class QualityLevel:
+    static Toaster = 0
+    static Low = 1
+    static Medium = 2
+    static High = 3
+    static Ultra = 4
+
+class CalidadSombras:
+    static BAJA = 0
+    static MEDIA = 1
+    static ALTA = 2
+    static ULTRA = 3
+
+class CalidadTexturas:
+    static BAJA = 0
+    static MEDIA = 1
+    static ALTA = 2
+    static ULTRA = 3
+
+class CalidadAudio:
+    static BAJA = 0
+    static MEDIA = 1
+    static ALTA = 2
+
+# =============================================================================
+# CLASES DE DATOS ADICIONALES
+# =============================================================================
+
+class HardwareInfo:
+    ram_mb: int
+    vram_mb: int
+    cpu_cores: int
+    gpu_nombre: string
+    sistema_operativo: string
+    
+    function Constructor():
+        return ManejoErrores.EjecutarConManejo(() => {
+            ram_mb = OS.GetSystemMemoryMB()
+            vram_mb = GetVRAMSizeMB()
+            cpu_cores = OS.GetProcessorCount()
+            gpu_nombre = GetGPUName()
+            sistema_operativo = OS.GetName()
+            
+            Logger.LogInfo("HardwareInfo: Información de hardware detectada")
+        }, "HardwareInfo.Constructor", false)
+
+# =============================================================================
+# FUNCIONES AUXILIARES
+# =============================================================================
+function SetPantallaCompleta(completa: bool)
+function SetResolucion(ancho: int, alto: int)
+function SetVSync(activo: bool)
+function SetVolumenMaestro(volumen: float)
+function SetVolumenMusica(volumen: float)
+function SetVolumenEfectos(volumen: float)
+function SetVolumenVoz(volumen: float)
+function ObtenerInformacionHardware(): HardwareInfo
+function GetVRAMSizeMB(): int
+function GetGPUName(): string
+
+# =============================================================================
+# FUNCIONES GLOBALES DE ACCESO RÁPIDO
+# =============================================================================
+function GetConfiguracion(): SistemaConfiguracion
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaConfiguracion.instance
+    }, "GetConfiguracion", false)
+
+function GetConfigJuego(): ConfigJuego
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaConfiguracion.GetConfigJuego()
+    }, "GetConfigJuego", false)
+
+function GetConfigGraficos(): ConfigGraficos
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaConfiguracion.GetConfigGraficos()
+    }, "GetConfigGraficos", false)
+
+function GetConfigAudio(): ConfigAudio
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaConfiguracion.GetConfigAudio()
+    }, "GetConfigAudio", false)
+
+function GetConfigRed(): ConfigRed
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaConfiguracion.GetConfigRed()
+    }, "GetConfigRed", false)
+
+function GetConfigControles(): ConfigControles
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaConfiguracion.GetConfigControles()
+    }, "GetConfigControles", false)

@@ -1,0 +1,630 @@
+# =============================================================================
+# SISTEMA DE CONEXIÓN A MUNDOS
+# =============================================================================
+# Archivo: world-connection.pseudo
+# Descripción: Sistema para conectar a mundos persistentes y sincronizar estado
+# Autor: Cascade
+# Fecha: 2026-03-11
+
+# =============================================================================
+# CLASE PRINCIPAL: SistemaConexionMundos
+# =============================================================================
+class SistemaConexionMundos:
+    # Singleton para acceso global
+    static instance: SistemaConexionMundos
+    
+    # Propiedades principales
+    mundo_actual: string = ""
+    estado_conexion: EstadoConexion = EstadoConexion.DESCONECTADO
+    sistema_persistencia: SistemaPersistenciaServidor
+    sistema_sincronizacion: SistemaSincronizacionMundos
+    
+    # =============================================================================
+    # FUNCIONES PRINCIPALES
+    # =============================================================================
+    
+    # Inicialización del sistema
+    static function Inicializar():
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConexionMundos: SessionData no inicializado")
+                return EstadoSeguroConexion.ObtenerValorPorDefecto("inicializacion_fallida")
+            
+            if instance == null:
+                instance = new SistemaConexionMundos()
+            
+            instance.sistema_persistencia = SistemaPersistenciaServidor.instance
+            instance.sistema_sincronizacion = new SistemaSincronizacionMundos()
+            
+            SessionData.Instance.estado_conexion = EstadoSeguroConexion.ObtenerValorPorDefecto("estado_conexion")
+            
+            Logger.LogInfo("SistemaConexionMundos: Sistema inicializado")
+            return true
+        }, "SistemaConexionMundos.Inicializar", true)
+    
+    # =============================================================================
+    # CLASE: EstadoSeguroConexion
+    # =============================================================================
+class EstadoSeguroConexion:
+    static valores_por_defecto: Dictionary
+    
+    static function _init():
+        valores_por_defecto = {
+            "mundo_actual": "",
+            "estado_conexion": EstadoConexion.DESCONECTADO,
+            "sistema_persistencia_nulo": null,
+            "sistema_sincronizacion_nulo": null,
+            "resultado_conexion_fallido": null,
+            "resultado_desconexion_fallido": null,
+            "lista_mundos_vacia": null,
+            "estado_mundo_fallido": EstadoMundo.ERROR,
+            "estado_jugador_fallido": null,
+            "servidor_disponible_fallido": EstadoServidor.NO_DISPONIBLE,
+            "info_mundo_fallida": null,
+            "respuesta_servidor_nula": null,
+            "info_servidor_fallida": null,
+            "jugadores_conectados_fallido": 0,
+            "version_servidor_fallida": "desconocida",
+            "servidores_locales_vacios": null,
+            "conexion_servidor_fallida": false,
+            "desconexion_servidor_fallida": false,
+            "escaneo_servidores_fallido": null,
+            "verificacion_servidor_fallida": EstadoServidor.NO_DISPONIBLE,
+            "sincronizacion_jugador_fallida": null,
+            "sincronizacion_chunks_fallida": null,
+            "verificacion_integridad_fallida": null,
+            "info_mundo_fallida": null,
+            "esperar_respuesta_fallido": null,
+            "obtener_info_servidor_fallido": null,
+            "obtener_jugadores_fallido": 0,
+            "obtener_version_fallida": "desconocida",
+            "inicializacion_fallida": false
+        }
+    
+    static function ObtenerValorPorDefecto(contexto: String):
+        if valores_por_defecto.has(contexto):
+            return valores_por_defecto[contexto]
+        else:
+            Logger.LogWarning("EstadoSeguroConexion: Sin valor por defecto para: " + contexto)
+            return null  # Fallback seguro
+
+# =============================================================================
+# FUNCIONES DE CONEXIÓN
+    # =============================================================================
+    
+    static function ConectarAMundo(nombre_mundo: String): ResultadoConexion
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConexionMundos: SessionData no inicializado")
+                return EstadoSeguroConexion.ObtenerValorPorDefecto("resultado_conexion_fallido")
+            
+            return instance.RealizarConexionMundo(nombre_mundo)
+        }, "SistemaConexionMundos.ConectarAMundo", false)
+    
+    static function DesconectarDelMundo(): ResultadoDesconexion
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConexionMundos: SessionData no inicializado")
+                return EstadoSeguroConexion.ObtenerValorPorDefecto("resultado_desconexion_fallido")
+            
+            return instance.RealizarDesconexion()
+        }, "SistemaConexionMundos.DesconectarDelMundo", false)
+    
+    static function ObtenerListaMundosDisponibles(): List<MundoDisponible>
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConexionMundos: SessionData no inicializado")
+                return EstadoSeguroConexion.ObtenerValorPorDefecto("lista_mundos_vacia")
+            
+            return instance.ObtenerMundosDisponibles()
+        }, "SistemaConexionMundos.ObtenerListaMundosDisponibles", false)
+    
+    static function VerificarDisponibilidadMundo(nombre_mundo: String): EstadoMundo
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConexionMundos: SessionData no inicializado")
+                return EstadoSeguroConexion.ObtenerValorPorDefecto("estado_mundo_fallido")
+            
+            return instance.VerificarEstadoMundo(nombre_mundo)
+        }, "SistemaConexionMundos.VerificarDisponibilidadMundo", false)
+    
+    static function ExisteMundo(nombre_mundo: String): bool
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConexionMundos: SessionData no inicializado")
+                return EstadoSeguroConexion.ObtenerValorPorDefecto("existe_mundo_fallido")
+            
+            return SistemaPersistenciaServidor.ExisteMundo(nombre_mundo)
+        }, "SistemaConexionMundos.ExisteMundo", false)
+    
+    # =============================================================================
+    # FUNCIONES DE SINCRONIZACIÓN
+    # =============================================================================
+    
+    static function SincronizarEstadoJugador(nombre_jugador: String): EstadoJugadorSincronizado
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConexionMundos: SessionData no inicializado")
+                return EstadoSeguroConexion.ObtenerValorPorDefecto("estado_jugador_fallido")
+            
+            return instance.sistema_sincronizacion.SincronizarJugador(nombre_jugador)
+        }, "SistemaConexionMundos.SincronizarEstadoJugador", false)
+    
+    static function SincronizarChunksCercanos(posicion_jugador: Vector3): List<ChunkSincronizado>
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConexionMundos: SessionData no inicializado")
+                return EstadoSeguroConexion.ObtenerValorPorDefecto("sincronizacion_chunks_fallida")
+            
+            return instance.sistema_sincronizacion.SincronizarChunks(posicion_jugador)
+        }, "SistemaConexionMundos.SincronizarChunksCercanos", false)
+    
+    static function VerificarIntegridadMundo(): ResultadoIntegridad
+        return ManejoErrores.EjecutarConManejo(() => {
+            if SessionData.Instance == null:
+                Logger.LogError("SistemaConexionMundos: SessionData no inicializado")
+                return EstadoSeguroConexion.ObtenerValorPorDefecto("verificacion_integridad_fallida")
+            
+            return instance.sistema_sincronizacion.VerificarIntegridad()
+        }, "SistemaConexionMundos.VerificarIntegridadMundo", false)
+    
+    # =============================================================================
+    # FUNCIONES INTERNAS
+    # =============================================================================
+    
+    function RealizarConexionMundo(nombre_mundo: String): ResultadoConexion
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = new ResultadoConexion()
+            
+            # Verificar disponibilidad del mundo
+            estado_mundo = VerificarEstadoMundo(nombre_mundo)
+            
+            if estado_mundo == EstadoMundo.NO_EXISTE:
+                resultado.error = "El mundo no existe"
+                resultado.exito = false
+                return resultado
+            
+            if estado_mundo == EstadoMundo.CORRUPTO:
+                resultado.error = "El mundo está corrupto"
+                resultado.exito = false
+                return resultado
+            
+            if estado_mundo == EstadoMundo.OCUPADO:
+                resultado.error = "El mundo está ocupado temporalmente"
+                resultado.exito = false
+                return resultado
+            
+            # Conectar al mundo mediante sistema de persistencia
+            if not sistema_persistencia.ConectarMundo(nombre_mundo):
+                resultado.error = "Error conectando al mundo"
+                resultado.exito = false
+                return resultado
+            
+            # Sincronizar estado inicial del jugador en este mundo
+            estado_jugador = SincronizarEstadoInicialJugador(nombre_mundo)
+            
+            # Establecer conexión
+            SessionData.Instance.mundo_actual = nombre_mundo
+            SessionData.Instance.estado_conexion = EstadoConexion.CONECTADO
+            
+            resultado.exito = true
+            resultado.estado_jugador = estado_jugador
+            resultado.info_mundo = ObtenerInfoMundo(nombre_mundo)
+            
+            Logger.LogInfo("SistemaConexionMundos: Conectado exitosamente al mundo: " + nombre_mundo)
+            return resultado
+        }, "SistemaConexionMundos.RealizarConexionMundo", false)
+    
+    function RealizarDesconexion(): ResultadoDesconexion
+        return ManejoErrores.EjecutarConManejo(() => {
+            resultado = new ResultadoDesconexion()
+            
+            if SessionData.Instance.estado_conexion != EstadoConexion.CONECTADO:
+                resultado.advertencia = "No hay mundo conectado"
+                resultado.exito = true
+                return resultado
+            
+            # Desconectar del mundo mediante persistencia
+            sistema_persistencia.DesconectarMundo()
+            
+            # Limpiar estado
+            SessionData.Instance.mundo_actual = ""
+            SessionData.Instance.estado_conexion = EstadoConexion.DESCONECTADO
+            
+            resultado.exito = true
+            Logger.LogInfo("SistemaConexionMundos: Desconectado del mundo exitosamente")
+            return resultado
+        }, "SistemaConexionMundos.RealizarDesconexion", false)
+    
+    function ObtenerMundosDisponibles(): List<MundoDisponible>
+        return ManejoErrores.EjecutarConManejo(() => {
+            mundos = new List()
+            
+            # Obtener lista de mundos desde sistema de persistencia
+            lista_mundos = sistema_persistencia.ObtenerListaMundos()
+            
+            for mundo_info in lista_mundos:
+                mundo = new MundoDisponible()
+                mundo.nombre = mundo_info.nombre
+                mundo.fecha_creacion = mundo_info.fecha_creacion
+                mundo.ultimo_acceso = mundo_info.fecha_ultimo_acceso
+                mundo.jugadores_visitantes = mundo_info.jugadores_conectados
+                mundo.tamaño_estimado = mundo_info.tamaño_estimado
+                
+                # Verificar estado actual
+                estado = VerificarEstadoMundo(mundo_info.nombre)
+                mundo.estado = estado
+                
+                mundos.Add(mundo)
+            
+            return mundos
+        }, "SistemaConexionMundos.ObtenerMundosDisponibles", false)
+    
+    function VerificarEstadoMundo(nombre_mundo: String): EstadoMundo
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Verificar si el mundo existe
+            if not sistema_persistencia.ExisteMundo(nombre_mundo):
+                return EstadoMundo.NO_EXISTE
+            
+            # Intentar cargar metadatos para verificar integridad
+            ruta_metadata = Path.Combine("worlds", nombre_mundo, "metadata.json")
+            if File.Exists(ruta_metadata):
+                metadata_json = File.ReadAllText(ruta_metadata)
+                metadata = JsonConvert.DeserializeObject(metadata_json)
+                
+                # Verificar integridad básica
+                if metadata == null or metadata.seed == null:
+                    return EstadoMundo.CORRUPTO
+                
+                return EstadoMundo.DISPONIBLE
+            else:
+                return EstadoMundo.CORRUPTO
+        }, "SistemaConexionMundos.VerificarEstadoMundo", false)
+    
+    function SincronizarEstadoInicialPersonaje(id_personaje: String, nombre_mundo: String): EstadoJugadorSincronizado
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Esperar a que el servidor envíe el estado inicial del personaje
+            estado = sistema_sincronizacion.EsperarEstadoJugador(id_personaje, 5000)
+            
+            if estado == null:
+                # Crear estado inicial por defecto si no llega del servidor
+                estado = new EstadoJugadorSincronizado()
+                estado.jugador = new JugadorLocal()
+                estado.jugador.id_personaje = id_personaje
+                estado.jugador.Inicializar()
+                estado.jugador.posicion = Vector3(0, 10, 0)  # Spawn por defecto
+                estado.es_nuevo = true
+                
+                # Obtener datos del personaje local
+                gestor_personajes = GetGestorPersonajes()
+                if gestor_personajes != null:
+                    personaje = gestor_personajes.personajes_locales[id_personaje]
+                    if personaje != null:
+                        estado.jugador.apariencia = personaje.apariencia
+                        estado.jugador.nombre = personaje.nombre
+            
+            return estado
+        }, "SistemaConexionMundos.SincronizarEstadoInicialPersonaje", false)
+    
+    function RealizarConexion(ip: string, puerto: int, id_personaje: string): ResultadoConexion
+        resultado = new ResultadoConexion()
+        
+        try:
+            # Verificar disponibilidad del servidor
+            estado_servidor = VerificarEstadoServidor(ip, puerto)
+            
+            if estado_servidor == EstadoServidor.NO_DISPONIBLE:
+                resultado.error = "El servidor no está disponible"
+                resultado.exito = false
+                return resultado
+            
+            if estado_servidor == EstadoServidor.VERSION_INCOMPATIBLE:
+                resultado.error = "Versión del servidor incompatible"
+                resultado.exito = false
+                return resultado
+            
+            # Validar personaje
+            gestor_personajes = GetGestorPersonajes()
+            if gestor_personajes == null or not gestor_personajes.personajes_locales.ContainsKey(id_personaje):
+                resultado.error = "Personaje no encontrado localmente"
+                resultado.exito = false
+                return resultado
+            
+            personaje = gestor_personajes.personajes_locales[id_personaje]
+            
+            # Conectar al servidor
+            if not sistema_red.ConectarCliente(ip, puerto):
+                resultado.error = "Error conectando al servidor"
+                resultado.exito = false
+                return resultado
+            
+            # Enviar mensaje de conexión con ID de personaje
+            mensaje_conexion = new MensajeConexion()
+            mensaje_conexion.id_personaje = id_personaje
+            mensaje_conexion.nombre_personaje = personaje.nombre
+            sistema_red.EnviarMensaje(mensaje_conexion)
+            
+            # Esperar respuesta del servidor
+            respuesta = EsperarRespuestaServidor(5000)  # 5 segundos timeout
+            
+            if respuesta == null:
+                resultado.error = "Timeout esperando respuesta del servidor"
+                resultado.exito = false
+                return resultado
+            
+            # Procesar respuesta
+            if respuesta.tipo == TipoMensaje.CONEXION_ACEPTADA:
+                # Obtener nombre del mundo desde respuesta
+                nombre_mundo = respuesta.nombre_mundo
+                
+                # Sincronizar estado inicial del personaje en este mundo
+                estado_jugador = SincronizarEstadoInicialPersonaje(id_personaje, nombre_mundo)
+                
+                # Establecer conexión
+                servidor_actual = ip
+                puerto_actual = puerto
+                estado_conexion = EstadoConexion.CONECTADO
+                
+                # Solicitar estado inicial
+                sistema_red.SolicitarEstadoInicial()
+                
+                resultado.exito = true
+                resultado.estado_jugador = estado_jugador
+                resultado.info_servidor = ObtenerInfoServidor(ip, puerto)
+                
+                LogInfo("Conectado exitosamente al servidor: " + ip + ":" + puerto.ToString() + " con personaje: " + id_personaje)
+                
+            elif respuesta.tipo == TipoMensaje.CONEXION_RECHAZADA:
+                resultado.error = "Conexión rechazada: " + respuesta.motivo
+                resultado.exito = false
+                sistema_red.Desconectar()
+            
+        catch error:
+            resultado.error = "Error en conexión: " + error.message
+            resultado.exito = false
+            LogError("Error conectando al servidor: " + error.message)
+        
+        return resultado
+    
+    function RealizarDesconexion(): ResultadoDesconexion
+        resultado = new ResultadoDesconexion()
+        
+        try:
+            if estado_conexion != EstadoConexion.CONECTADO:
+                resultado.advertencia = "No hay servidor conectado"
+                resultado.exito = true
+                return resultado
+            
+            # Enviar mensaje de desconexión
+            mensaje_desconexion = new MensajeDesconexion()
+            sistema_red.EnviarMensaje(mensaje_desconexion)
+            
+            # Desconectar de red
+            sistema_red.Desconectar()
+            
+            # Limpiar estado
+            servidor_actual = ""
+            puerto_actual = 0
+            estado_conexion = EstadoConexion.DESCONECTADO
+            
+            resultado.exito = true
+            LogInfo("Desconectado del servidor exitosamente")
+            
+        catch error:
+            resultado.error = "Error en desconexión: " + error.message
+            resultado.exito = false
+            LogError("Error desconectando del servidor: " + error.message)
+        
+        return resultado
+    
+    function EscanearServidoresLocales(): List<ServidorDisponible>
+        servidores = new List()
+        
+        try:
+            # Escanear puertos comunes en localhost
+            puertos_comunes = [7777, 7778, 7779, 8888, 9999]
+            
+            for puerto in puertos_comunes:
+                if VerificarEstadoServidor("localhost", puerto) == EstadoServidor.DISPONIBLE:
+                    servidor = new ServidorDisponible()
+                    servidor.ip = "localhost"
+                    servidor.puerto = puerto
+                    servidor.nombre = "Local Server " + puerto.ToString()
+                    servidor.jugadores_conectados = ObtenerJugadoresConectados("localhost", puerto)
+                    servidor.version = ObtenerVersionServidor("localhost", puerto)
+                    
+                    servidores.Add(servidor)
+            
+        catch error:
+            LogError("Error escaneando servidores locales: " + error.message)
+        
+        return servidores
+    
+    function VerificarEstadoServidor(ip: string, puerto: int): EstadoServidor
+        try:
+            # Intentar conexión rápida para verificar disponibilidad
+            socket = new TcpClient()
+            
+            # Timeout corto para verificación
+            socket.Connect(ip, puerto, 1000)  # 1 segundo timeout
+            
+            if socket.Connected:
+                # Verificar versión
+                version_servidor = ObtenerVersionServidor(ip, puerto)
+                version_cliente = "2.0.0"  # Versión actual del cliente
+                
+                if version_servidor == version_cliente:
+                    return EstadoServidor.DISPONIBLE
+                else:
+                    return EstadoServidor.VERSION_INCOMPATIBLE
+            else:
+                return EstadoServidor.NO_DISPONIBLE
+                
+        catch error:
+            return EstadoServidor.NO_DISPONIBLE
+    
+    function SincronizarEstadoInicialJugador(nombre_mundo: String): EstadoJugadorSincronizado
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Para singleplayer, crear estado inicial por defecto
+            estado = new EstadoJugadorSincronizado()
+            estado.jugador = new JugadorLocal()
+            estado.jugador.Inicializar()
+            estado.jugador.posicion = Vector3(0, 10, 0)  # Spawn por defecto
+            estado.es_nuevo = true
+            
+            # Cargar datos del personaje desde persistencia si existen
+            datos_personaje = sistema_persistencia.ObtenerEstadoJugador("player_local")
+            if datos_personaje != null:
+                estado.jugador.vida = datos_personaje.vida
+                estado.jugador.vida_maxima = datos_personaje.vida_maxima
+                estado.jugador.hambre = datos_personaje.hambre
+                estado.jugador.sed = datos_personaje.sed
+                estado.jugador.posicion = datos_personaje.posicion
+                estado.jugador.rotacion = datos_personaje.rotacion
+                estado.es_nuevo = false
+            
+            return estado
+        }, "SistemaConexionMundos.SincronizarEstadoInicialJugador", false)
+    
+    function ObtenerInfoMundo(nombre_mundo: String): InfoMundo
+        return ManejoErrores.EjecutarConManejo(() => {
+            info = new InfoMundo()
+            info.nombre = nombre_mundo
+            
+            # Cargar metadatos del mundo
+            ruta_metadata = Path.Combine("worlds", nombre_mundo, "metadata.json")
+            if File.Exists(ruta_metadata):
+                metadata_json = File.ReadAllText(ruta_metadata)
+                metadata = JsonConvert.DeserializeObject(metadata_json)
+                info.fecha_creacion = DateTime.Parse(metadata.fecha_creacion)
+                info.jugadores_conectados = metadata.estadisticas.jugadores_visitantes
+            
+            return info
+        }, "SistemaConexionMundos.ObtenerInfoMundo", false)
+    
+    function EsperarRespuestaServidor(timeout_ms: int): MensajeRed
+        return ManejoErrores.EjecutarConManejo(() => {
+            tiempo_inicio = DateTime.Now()
+            
+            while (DateTime.Now - tiempo_inicio).TotalMilliseconds < timeout_ms:
+                respuesta = sistema_red.ObtenerRespuestaPendiente()
+                if respuesta != null:
+                    return respuesta
+                
+                Thread.Sleep(10)  # Pequeña pausa para no saturar CPU
+            
+            return EstadoSeguroConexion.ObtenerValorPorDefecto("respuesta_servidor_nula")
+        }, "SistemaConexionMundos.EsperarRespuestaServidor", false)
+    
+    function ObtenerInfoServidor(ip: string, puerto: int): InfoServidor
+        info = new InfoServidor()
+        info.ip = ip
+        info.puerto = puerto
+        info.jugadores_conectados = ObtenerJugadoresConectados(ip, puerto)
+        info.version = ObtenerVersionServidor(ip, puerto)
+        info.nombre_mundo = ObtenerNombreMundoServidor(ip, puerto)
+        return info
+    
+    function ObtenerJugadoresConectados(ip: String, puerto: int): int
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Solicitar información de jugadores al servidor
+            mensaje = new MensajeSolicitudInfo()
+            sistema_red.EnviarMensaje(mensaje)
+            
+            respuesta = EsperarRespuestaServidor(2000)
+            if respuesta != null and respuesta.tipo == TipoMensaje.INFO_SERVIDOR:
+                return respuesta.jugadores_conectados
+            
+            return EstadoSeguroConexion.ObtenerValorPorDefecto("jugadores_conectados_fallido")
+        }, "SistemaConexionMundos.ObtenerJugadoresConectados", false)
+    
+    function ObtenerVersionServidor(ip: String, puerto: int): String
+        return ManejoErrores.EjecutarConManejo(() => {
+            # Solicitar versión al servidor
+            mensaje = new MensajeSolicitudVersion()
+            sistema_red.EnviarMensaje(mensaje)
+            
+            respuesta = EsperarRespuestaServidor(2000)
+            if respuesta != null and respuesta.tipo == TipoMensaje.VERSION_SERVIDOR:
+                return respuesta.version
+            
+            return EstadoSeguroConexion.ObtenerValorPorDefecto("version_servidor_fallida")
+        }, "SistemaConexionMundos.ObtenerVersionServidor", false)
+# =============================================================================
+# CLASES DE DATOS
+# =============================================================================
+
+class MundoDisponible:
+    nombre: string
+    fecha_creacion: DateTime
+    ultimo_acceso: DateTime
+    jugadores_visitantes: int
+    tamaño_estimado: long
+    estado: EstadoMundo
+
+class EstadoJugadorSincronizado:
+    jugador: JugadorLocal
+    es_nuevo: bool
+    mundo_actual: string
+
+class ResultadoConexion:
+    exito: bool
+    error: string
+    estado_jugador: EstadoJugadorSincronizado
+    info_mundo: InfoMundo
+
+class ResultadoDesconexion:
+    exito: bool
+    error: string
+    advertencia: string
+
+# =============================================================================
+# ENUMS
+# =============================================================================
+
+class EstadoConexion:
+    static DESCONECTADO = 0
+    static CONECTANDO = 1
+    static CONECTADO = 2
+    static ERROR = 3
+
+class EstadoMundo:
+    static DISPONIBLE = 0
+    static NO_EXISTE = 1
+    static CORRUPTO = 2
+    static OCUPADO = 3
+    static ERROR = 4
+
+# =============================================================================
+# FUNCIONES GLOBALES DE ACCESO RÁPIDO
+# =============================================================================
+function ConectarMundo(nombre: String): ResultadoConexion
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaConexionMundos.ConectarAMundo(nombre)
+    }, "ConectarMundo", false)
+
+function DesconectarMundo(): ResultadoDesconexion
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaConexionMundos.DesconectarDelMundo()
+    }, "DesconectarMundo", false)
+
+function GetMundosDisponibles(): List<MundoDisponible>
+    return ManejoErrores.EjecutarConManejo(() => {
+        return SistemaConexionMundos.ObtenerListaMundosDisponibles()
+    }, "GetMundosDisponibles", false)
+
+function EstaConectadoMundo(): bool
+    return ManejoErrores.EjecutarConManejo(() => {
+        if SessionData.Instance != null:
+            return SessionData.Instance.estado_conexion == EstadoConexion.CONECTADO
+        else:
+            return EstadoSeguroConexion.ObtenerValorPorDefecto("conexion_servidor_fallida")
+    }, "EstaConectadoMundo", false)
+
+function GetMundoActual(): String
+    return ManejoErrores.EjecutarConManejo(() => {
+        if SessionData.Instance != null:
+            return SessionData.Instance.mundo_actual
+        else:
+            return EstadoSeguroConexion.ObtenerValorPorDefecto("mundo_actual")
+    }, "GetMundoActual", false)

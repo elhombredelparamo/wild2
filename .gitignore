@@ -1,0 +1,44 @@
+# Godot 4.x specific
+.godot/
+import/
+export/
+
+# C# specific
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Visual Studio
+.vs/
+*.csproj.user
+*.sln.docstates
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Backup files
+*.bak
+*.backup
+
+# FDD specific
+fdd/active/temp/
+fdd/temp/
