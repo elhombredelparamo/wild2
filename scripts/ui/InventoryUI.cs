@@ -86,57 +86,27 @@ namespace Wild.UI
             var containers = InventoryManager.Instance.GetActiveContainers();
             foreach (var container in containers)
             {
-                var containerBtn = CreateContainerSlotUI(container);
+                var containerBtn = new InventoryContainerButtonUI();
                 _containerList.AddChild(containerBtn);
+                containerBtn.Setup(container, this, _selectedContainer == container);
             }
         }
 
-        private Button CreateContainerSlotUI(InventoryContainer container)
-        {
-            Button btn = new Button();
-            btn.CustomMinimumSize = new Vector2(80, 80);
-            btn.TooltipText = container.Name;
-            
-            // Estilo básico para resaltar el seleccionado
-            if (_selectedContainer == container)
-            {
-                btn.Modulate = new Color(1.2f, 1.2f, 1.2f); // Brillo
-            }
-
-            MarginContainer margin = new MarginContainer();
-            margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect, Control.LayoutPresetMode.Minsize, 5);
-            margin.MouseFilter = Control.MouseFilterEnum.Ignore;
-            btn.AddChild(margin);
-
-            if (!string.IsNullOrEmpty(container.IconPath))
-            {
-                TextureRect icon = new TextureRect();
-                icon.Texture = GD.Load<Texture2D>(container.IconPath);
-                icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-                icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-                icon.MouseFilter = Control.MouseFilterEnum.Ignore;
-                margin.AddChild(icon);
-            }
-            else
-            {
-                Label label = new Label();
-                label.Text = container.Name.Substring(0, Mathf.Min(2, container.Name.Length));
-                label.HorizontalAlignment = HorizontalAlignment.Center;
-                label.VerticalAlignment = VerticalAlignment.Center;
-                margin.AddChild(label);
-            }
-
-            btn.Pressed += () => OnContainerSelected(container);
-
-            return btn;
-        }
-
-        private void OnContainerSelected(InventoryContainer container)
+        public void OnContainerSelected(InventoryContainer container)
         {
             _selectedContainer = container;
             UpdateBottomBar(); // Refrescar para visualización de selección
             UpdateContentArea(container);
             GD.Print($"[UI][InventoryUI] Contenedor seleccionado: {container.Name}");
+        }
+
+        public void RefreshAll()
+        {
+            UpdateBottomBar();
+            if (_selectedContainer != null)
+            {
+                UpdateContentArea(_selectedContainer);
+            }
         }
 
         private void UpdateContentArea(InventoryContainer container)
@@ -149,58 +119,21 @@ namespace Wild.UI
                 child.QueueFree();
             }
 
-            foreach (var slot in container.Slots)
+            for (int i = 0; i < container.Slots.Count; i++)
             {
-                var slotUI = CreateItemSlotUI(slot);
-                _slotGrid.AddChild(slotUI);
-            }
-        }
-
-        private PanelContainer CreateItemSlotUI(InventorySlot slot)
-        {
-            PanelContainer panel = new PanelContainer();
-            panel.CustomMinimumSize = new Vector2(90, 90);
-            
-            // Fondo oscuro para el slot
-            StyleBoxFlat style = new StyleBoxFlat();
-            style.BgColor = new Color(0.1f, 0.1f, 0.1f, 0.5f);
-            style.SetBorderWidthAll(2);
-            style.BorderColor = new Color(0.3f, 0.3f, 0.3f);
-            panel.AddThemeStyleboxOverride("panel", style);
-
-            if (!slot.IsEmpty())
-            {
-                MarginContainer margin = new MarginContainer();
-                margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect, Control.LayoutPresetMode.Minsize, 5);
-                panel.AddChild(margin);
-
-                // Icono
-                if (!string.IsNullOrEmpty(slot.Item.IconPath))
-                {
-                    TextureRect icon = new TextureRect();
-                    icon.Texture = GD.Load<Texture2D>(slot.Item.IconPath);
-                    icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-                    icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-                    margin.AddChild(icon);
-                }
-
-                // Cantidad
-                if (slot.Quantity > 1)
-                {
-                    Label countLabel = new Label();
-                    countLabel.Text = slot.Quantity.ToString();
-                    countLabel.HorizontalAlignment = HorizontalAlignment.Right;
-                    countLabel.VerticalAlignment = VerticalAlignment.Bottom;
-                    countLabel.AddThemeFontSizeOverride("font_size", 14);
-                    countLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
-                    countLabel.AddThemeConstantOverride("outline_size", 4);
-                    margin.AddChild(countLabel);
-                }
+                var slotUI = new InventorySlotUI();
+                slotUI.CustomMinimumSize = new Vector2(90, 90);
                 
-                panel.TooltipText = $"{slot.Item.Name}\n{slot.Item.Description}\nPeso: {slot.TotalWeight:F2} kg";
+                // Estilo básico para el slot (puedes mover esto a InventorySlotUI.cs si prefieres)
+                StyleBoxFlat style = new StyleBoxFlat();
+                style.BgColor = new Color(0.1f, 0.1f, 0.1f, 0.5f);
+                style.SetBorderWidthAll(2);
+                style.BorderColor = new Color(0.3f, 0.3f, 0.3f);
+                slotUI.AddThemeStyleboxOverride("panel", style);
+                
+                _slotGrid.AddChild(slotUI);
+                slotUI.Setup(container, i, this);
             }
-
-            return panel;
         }
 
         public bool IsOpen()

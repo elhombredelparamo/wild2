@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using Wild.Data;
+using Wild.Data.Inventory;
 using Wild.Utils;
 
 namespace Wild.Core.Player
@@ -87,6 +88,12 @@ namespace Wild.Core.Player
                     _jugadorActual.Stats.Sed = savedData.sed;
                     _jugadorActual.Stats.Energia = savedData.energia;
                 }
+
+                // Cargar Inventario
+                if (savedData.inventario != null && InventoryManager.Instance != null)
+                {
+                    InventoryManager.Instance.LoadPersistenceData(savedData.inventario);
+                }
                 
                 Logger.LogInfo($"PlayerManager: Jugador {personajeId} ({personaje?.genero}) cargado en el mundo.");
             }
@@ -115,6 +122,12 @@ namespace Wild.Core.Player
                 data.hambre = _jugadorActual.Stats.Hambre;
                 data.sed = _jugadorActual.Stats.Sed;
                 data.energia = _jugadorActual.Stats.Energia;
+            }
+
+            // Guardar Inventario
+            if (InventoryManager.Instance != null)
+            {
+                data.inventario = InventoryManager.Instance.GetPersistenceData();
             }
 
             MundoManager.Instance.GuardarDatosJugador(data);

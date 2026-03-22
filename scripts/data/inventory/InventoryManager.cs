@@ -85,6 +85,65 @@ namespace Wild.Data.Inventory
             return false;
         }
 
+        public List<InventoryContainerData> GetPersistenceData()
+        {
+            var data = new List<InventoryContainerData>();
+            foreach (var container in Containers)
+            {
+                var cData = new InventoryContainerData { container_id = container.Id };
+                foreach (var slot in container.Slots)
+                {
+                    if (!slot.IsEmpty() && slot.Item != null)
+                    {
+                        cData.slots.Add(new InventorySlotData 
+                        { 
+                            item_id = slot.Item.Id, 
+                            quantity = slot.Quantity 
+                        });
+                    }
+                    else
+                    {
+                        cData.slots.Add(new InventorySlotData { item_id = null, quantity = 0 });
+                    }
+                }
+                data.Add(cData);
+            }
+            return data;
+        }
+
+        public void LoadPersistenceData(List<InventoryContainerData> data)
+        {
+            if (data == null) return;
+
+            foreach (var cData in data)
+            {
+                var container = Containers.Find(c => c.Id == cData.container_id);
+                if (container != null)
+                {
+                    container.Slots.Clear();
+                    for (int i = 0; i < container.MaxSlots; i++)
+                    {
+                        var slot = new InventorySlot();
+                        if (i < cData.slots.Count)
+                        {
+                            var sData = cData.slots[i];
+                            if (!string.IsNullOrEmpty(sData.item_id))
+                            {
+                                var item = GetItemById(sData.item_id);
+                                if (item != null)
+                                {
+                                    slot.Item = item;
+                                    slot.Quantity = sData.quantity;
+                                }
+                            }
+                        }
+                        container.Slots.Add(slot);
+                    }
+                }
+            }
+            GD.Print("[SISTEMA][InventoryManager] Datos de inventario restaurados.");
+        }
+
         private void InitializeHands()
         {
             // Las manos solo tienen 1 slot y soportan max 10kg

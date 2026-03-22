@@ -2,7 +2,10 @@
 ::res://::1774207429
 inspect_mesh.gd::GDScript::7192377888411095163::1773598021::0::1::::<>SceneTree<><>0<>0<><>::
 mapa.md::TextFile::-1::1774205210::0::1::::<><><>0<>0<><>::
-::res://assets/::1773767074
+::res://assets/::1774209234
+::res://assets/data/::1774209234
+::res://assets/data/items/::1774209234
+seta.tres::Resource::-1::1774209234::0::1::::<><><>0<>0<><>::res://scripts/data/inventory/items/Seta.cs
 ::res://assets/models/::1773772912
 ::res://assets/models/human/::1773737182
 eyeball.tres::StandardMaterial3D::7347686092576946122::1773737181::0::1::::<><><>0<>0<><>::
@@ -152,9 +155,10 @@ low.png::CompressedTexture2D::7193796439711695433::1773758276::1773760024::1::::
 medium.png::CompressedTexture2D::4465468390481065534::1590340356::1773760024::1::::<><><>0<>0<>c1158e0ad372e5ccf0446e9e4f30128b<>res://.godot/imported/medium.png-79cfae847e28f1f11260e0fe9c127465.ctex::
 toaster.png::CompressedTexture2D::1601806853427920340::1773758325::1773759993::1::::<><><>0<>0<>1088a0942d2bc3989584b38e6161bf1e<>res://.godot/imported/toaster.png-86c3d30d9abf6aeed4f32d60bcd026d5.ctex::
 ultra.png::CompressedTexture2D::607126318238486269::1773758210::1773759993::1::::<><><>0<>0<>ac1fc0c91831d59d9c6dd4d2cb30d9f8<>res://.godot/imported/ultra.png-601dc975c923d5808c242bd8c974b698.ctex::
-::res://assets/textures/items/::1774207362
+::res://assets/textures/items/::1774210137
 manoder.png::CompressedTexture2D::1172811973524130545::1774207099::1774207250::1::::<><><>0<>0<>5b1750144deb09691156a8ed43829a17<>res://.godot/imported/manoder.png-5d28a213f93fc084c1026ba01388bd41.ctex::
 manoizq.png::CompressedTexture2D::4741899415193650004::1774207122::1774207250::1::::<><><>0<>0<>8bdbcd94f35dbc015600c88aa529a87d<>res://.godot/imported/manoizq.png-270b20225e8dd161159aa9437b9614ef.ctex::
+mochila1.png::CompressedTexture2D::3137447626912331713::1774210130::1774210140::1::::<><><>0<>0<>286cfcd5df6a44bed9ce37edbeee27d6<>res://.godot/imported/mochila1.png-9ca14c453572356007992dbb79372fec.ctex::
 seta.png::CompressedTexture2D::2174497667750677279::1774207357::1774207431::1::::<><><>0<>0<>ed91f0f7c006a943fc8885862b8cb125<>res://.godot/imported/seta.png-665d982e0a1774767bd5d377a16dbbb8.ctex::
 ::res://assets/textures/skybox/::1773769631
 ::res://assets/textures/skybox/high/::1773770009
@@ -210,7 +214,7 @@ current-feature.md::TextFile::-1::1774205202::0::1::::<><><>0<>0<><>::
 2026-03-16-feature-redefinition.md::TextFile::-1::1773675833::0::1::::<><><>0<>0<><>::
 2026-03-16.md::TextFile::-1::1773677665::0::1::::<><><>0<>0<><>::
 2026-03-17.md::TextFile::-1::1773780408::0::1::::<><><>0<>0<><>::
-2026-03-22.md::TextFile::-1::1774205708::0::1::::<><><>0<>0<><>::
+2026-03-22.md::TextFile::-1::1774208907::0::1::::<><><>0<>0<><>::
 ::res://fdd/backlog/::1773179601
 ::res://fdd/completed/::1774205197
 current-feature.md::TextFile::-1::1773428058::0::1::::<><><>0<>0<><>::
@@ -249,9 +253,10 @@ feature-template.md::TextFile::-1::1773179451::0::1::::<><><>0<>0<><>::
 ::res://scenes/::1773586592
 ::res://scenes/player/::1773586592
 ficha_jugador.tscn::PackedScene::-1::1773586592::0::1::::<><><>0<>0<><>::res://scripts/Core/Player/JugadorController.cs<>res://scripts/Core/Player/StatsJugador.cs<>res://scripts/Core/Player/InteraccionJugador.cs
-::res://scenes/ui/::1774205432
+::res://scenes/ui/::1774208037
 character_create_menu.tscn::PackedScene::-1::1773754389::0::1::::<><><>0<>0<><>::res://scripts/ui/CharacterCreateMenu.cs
 character_select_menu.tscn::PackedScene::-1::1773754386::0::1::::<><><>0<>0<><>::res://scripts/ui/CharacterSelectMenu.cs
+debug_console.tscn::PackedScene::-1::1774208038::0::1::::<><><>0<>0<><>::
 game_world.tscn::PackedScene::-1::1773579713::0::1::::<><><>0<>0<><>::res://scripts/ui/GameWorld.cs<>res://scripts/ui/FreeCameraController.cs
 inventory_ui.tscn::PackedScene::8306783403246342618::1774206995::0::1::::<><><>0<>0<><>::res://scripts/ui/InventoryUI.cs
 loading_scene.tscn::PackedScene::-1::1773315218::0::1::::<><><>0<>0<><>::res://scripts/ui/LoadingScene.cs
@@ -270,8 +275,9 @@ world_select_menu.tscn::PackedScene::-1::1773314080::0::1::::<><><>0<>0<><>::res
 ::res://scripts/Core/Terrain/::1774204495
 ::res://scripts/data/::1774206951
 ::res://scripts/data/inventory/::1774206983
-::res://scripts/data/inventory/items/::1774206961
-::res://scripts/ui/::1774205430
+::res://scripts/data/inventory/items/::1774207687
+::res://scripts/ui/::1774209995
+::res://scripts/ui/commands/::1774208850
 ::res://scripts/utils/::1774198189
 ::res://shaders/::1773593671
 terrain.gdshader::Shader::8945984152961824727::1773582904::0::1::::<><><>0<>0<><>::
