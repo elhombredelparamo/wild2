@@ -424,12 +424,12 @@ namespace Wild.UI
             {
                 _inventoryUI.Open();
                 Input.MouseMode = Input.MouseModeEnum.Visible;
+                _jugador?.SetFrozen(true);
             }
             else
             {
                 _inventoryUI.Close();
-                // Solo capturar mouse si nada más está abierto
-                UpdateMouseMode();
+                UpdateCharacterState();
             }
         }
 
@@ -443,27 +443,30 @@ namespace Wild.UI
             {
                 _debugConsole.Open();
                 Input.MouseMode = Input.MouseModeEnum.Visible;
+                _jugador?.SetFrozen(true);
             }
             else
             {
                 _debugConsole.Close();
-                UpdateMouseMode();
+                UpdateCharacterState();
             }
         }
 
-        private void UpdateMouseMode()
+        private void UpdateCharacterState()
         {
-            bool anyUIOpen = _isPaused || 
-                             (_inventoryUI != null && _inventoryUI.IsOpen()) || 
-                             (_debugConsole != null && _debugConsole.IsOpen());
+            bool anyBlockingUIOpen = _isPaused || 
+                                     (_inventoryUI != null && _inventoryUI.IsOpen()) || 
+                                     (_debugConsole != null && _debugConsole.IsOpen());
             
-            if (anyUIOpen)
+            if (anyBlockingUIOpen)
             {
                 Input.MouseMode = Input.MouseModeEnum.Visible;
+                _jugador?.SetFrozen(true);
             }
             else
             {
                 Input.MouseMode = Input.MouseModeEnum.Captured;
+                _jugador?.SetFrozen(false);
             }
         }
 
@@ -478,11 +481,12 @@ namespace Wild.UI
             {
                 _pauseMenu.Show();
                 Input.MouseMode = Input.MouseModeEnum.Visible;
+                _jugador?.SetFrozen(true);
             }
             else
             {
                 _pauseMenu.Hide();
-                Input.MouseMode = Input.MouseModeEnum.Captured;
+                UpdateCharacterState();
             }
         }
 

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/inventory/items/Seta.cs" id="1_seta"]
+
+[resource]
+script = ExtResource("1_seta")
+Id = "seta1"
+Name = "Seta del Bosque"
+Description = "Una seta comestible, pero algo amarga al final."
+IconPath = "res://assets/textures/items/seta.png"
+StackSize = 20
+Weight = 0.05
+IsPoisonous = false

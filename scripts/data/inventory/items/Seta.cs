@@ -6,7 +6,7 @@ namespace Wild.Data.Inventory
     public partial class Seta : ConsumibleItem
     {
         // Propiedades explícitas para facilitar la edición
-        [Export] public override string Id { get; set; }
+        [Export] public override string Id { get; set; } = "seta1";
         [Export] public override string Name { get; set; }
         [Export] public override string Description { get; set; }
         [Export] public override string IconPath { get; set; }
