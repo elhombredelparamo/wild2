@@ -46,15 +46,25 @@ grow_horizontal = 2
 grow_vertical = 0
 color = Color(0.156863, 0.156863, 0.156863, 0.862745)
 
+[node name="ContainerList" type="HBoxContainer" parent="BottomBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
 [node name="Label" type="Label" parent="BottomBar"]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -150.0
-offset_top = 10.0
+offset_top = -25.0
 offset_right = 150.0
-offset_bottom = 33.0
+offset_bottom = -2.0
 grow_horizontal = 2
-text = "BARRA INFERIOR DE CONTENEDORES ACTIVOS"
+text = "BARRAS DE CONTENEDORES ACTIVOS"
 horizontal_alignment = 1

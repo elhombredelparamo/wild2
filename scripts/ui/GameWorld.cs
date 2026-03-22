@@ -26,6 +26,7 @@ namespace Wild.UI
     {
         private PauseMenu   _pauseMenu;
         private InventoryUI _inventoryUI;
+        private DebugConsole _debugConsole;
         private bool        _isPaused = false;
         private ColorRect   _loadingOverlay;
         private Label       _labelObjective;
@@ -58,6 +59,7 @@ namespace Wild.UI
 
                 SetupPauseMenu();
                 SetupInventoryUI();
+                SetupDebugConsole();
                 SetupHUD();
                 SetupEnvironment();
                 SetupPlayer();
@@ -178,6 +180,30 @@ namespace Wild.UI
             }
         }
 
+        private void SetupDebugConsole()
+        {
+            try
+            {
+                _debugConsole = GD.Load<PackedScene>("res://scenes/ui/debug_console.tscn").Instantiate<DebugConsole>();
+
+                if (_debugConsole != null)
+                {
+                    var uiLayer = GetNode<CanvasLayer>("UI");
+                    if (uiLayer != null)
+                        uiLayer.AddChild(_debugConsole);
+                    else
+                        AddChild(_debugConsole);
+
+                    _debugConsole.Hide();
+                    Logger.LogInfo("GameWorld: DebugConsole cargado y oculto.");
+                }
+            }
+            catch (System.Exception e)
+            {
+                Logger.LogError($"GameWorld.SetupDebugConsole(): {e.Message}");
+            }
+        }
+
         private void SetupPlayer()
         {
             try
@@ -283,6 +309,16 @@ namespace Wild.UI
                 // Prioridad 1: ESC (ui_cancel)
                 if (@event.IsActionPressed("ui_cancel"))
                 {
+                    // 1.1 Consola de Debug
+                    if (_debugConsole != null && _debugConsole.IsOpen())
+                    {
+                        Logger.LogInfo("GameWorld._Input: ESC → cerrando consola");
+                        ToggleDebugConsole();
+                        GetViewport().SetInputAsHandled();
+                        return;
+                    }
+
+                    // 1.2 Inventario
                     if (_inventoryUI != null && _inventoryUI.IsOpen())
                     {
                         Logger.LogInfo("GameWorld._Input: ESC → cerrando inventario");
@@ -291,6 +327,7 @@ namespace Wild.UI
                         return;
                     }
                     
+                    // 1.3 Menú de Pausa
                     if (_pauseMenu != null)
                     {
                         Logger.LogInfo("GameWorld._Input: ESC → alternando pausa");
@@ -300,10 +337,20 @@ namespace Wild.UI
                     }
                 }
 
-                // Prioridad 2: TAB (inventory_toggle)
+                // Prioridad 2: F1 (debug_console_toggle)
+                if (@event.IsActionPressed("debug_console_toggle"))
+                {
+                    if (_isPaused) return; // No abrir consola en menú de pausa por ahora
+                    
+                    Logger.LogInfo("GameWorld._Input: F1 → alternando consola");
+                    ToggleDebugConsole();
+                    GetViewport().SetInputAsHandled();
+                }
+
+                // Prioridad 3: TAB (inventory_toggle)
                 if (@event.IsActionPressed("inventory_toggle"))
                 {
-                    if (_isPaused) return; // No abrir inventario si el juego está "pausado" (menú activo)
+                    if (_isPaused || (_debugConsole != null && _debugConsole.IsOpen())) return;
 
                     Logger.LogInfo("GameWorld._Input: TAB → alternando inventario");
                     ToggleInventory();
@@ -381,11 +428,42 @@ namespace Wild.UI
             else
             {
                 _inventoryUI.Close();
-                // Solo capturar mouse si el menú de pausa no está visible
-                if (!_isPaused)
-                {
-                    Input.MouseMode = Input.MouseModeEnum.Captured;
-                }
+                // Solo capturar mouse si nada más está abierto
+                UpdateMouseMode();
+            }
+        }
+
+        private void ToggleDebugConsole()
+        {
+            if (_debugConsole == null) return;
+
+            bool newState = !_debugConsole.IsOpen();
+            
+            if (newState)
+            {
+                _debugConsole.Open();
+                Input.MouseMode = Input.MouseModeEnum.Visible;
+            }
+            else
+            {
+                _debugConsole.Close();
+                UpdateMouseMode();
+            }
+        }
+
+        private void UpdateMouseMode()
+        {
+            bool anyUIOpen = _isPaused || 
+                             (_inventoryUI != null && _inventoryUI.IsOpen()) || 
+                             (_debugConsole != null && _debugConsole.IsOpen());
+            
+            if (anyUIOpen)
+            {
+                Input.MouseMode = Input.MouseModeEnum.Visible;
+            }
+            else
+            {
+                Input.MouseMode = Input.MouseModeEnum.Captured;
             }
         }
 
