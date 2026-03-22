@@ -119,5 +119,19 @@ namespace Wild.UI
                 _inventoryUI.RefreshAll();
             }
         }
+
+        public override void _GuiInput(InputEvent @event)
+        {
+            if (@event is InputEventMouseButton mb && mb.Pressed)
+            {
+                if (mb.ButtonIndex == MouseButton.Right)
+                {
+                    if (!_container.Slots[_slotIndex].IsEmpty())
+                    {
+                        _inventoryUI.ShowContextMenu(GetGlobalMousePosition(), _container, _slotIndex);
+                    }
+                }
+            }
+        }
     }
 }

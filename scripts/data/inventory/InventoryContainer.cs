@@ -126,6 +126,15 @@ namespace Wild.Data.Inventory
             return true;
         }
 
+        public bool IsEmpty()
+        {
+            foreach (var slot in Slots)
+            {
+                if (!slot.IsEmpty()) return false;
+            }
+            return true;
+        }
+
         public bool AddItem(InventoryItem item, int quantity)
         {
             if (item == null || quantity <= 0) return false;

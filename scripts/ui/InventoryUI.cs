@@ -11,7 +11,11 @@ namespace Wild.UI
         private Control _bottomBar;
         private HBoxContainer _containerList;
         private GridContainer _slotGrid;
+        private ScrollContainer _scrollContainer;
         private InventoryContainer _selectedContainer;
+        private PopupMenu _contextMenu;
+        private InventoryContainer _contextTargetContainer;
+        private int _contextTargetSlotIndex;
 
         public override void _Ready()
         {
@@ -21,6 +25,14 @@ namespace Wild.UI
                 _bottomBar = GetNode<Control>("BottomBar");
                 _containerList = GetNode<HBoxContainer>("BottomBar/ContainerList");
                 
+                // Crear ScrollContainer para los slots
+                _scrollContainer = new ScrollContainer();
+                _scrollContainer.Name = "ItemScroll";
+                _scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+                _scrollContainer.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+                _contentPanel.AddChild(_scrollContainer);
+                _scrollContainer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect, Control.LayoutPresetMode.Minsize, 10);
+
                 // Inicializar cuadrícula de slots
                 _slotGrid = new GridContainer();
                 _slotGrid.Name = "SlotGrid";
@@ -28,24 +40,104 @@ namespace Wild.UI
                 _slotGrid.AddThemeConstantOverride("h_separation", 10);
                 _slotGrid.AddThemeConstantOverride("v_separation", 10);
                 
-                _contentPanel.AddChild(_slotGrid);
+                // Hacer que la cuadrícula se expanda horizontalmente para el scroll vertical
+                _slotGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
                 
-                // Configurar márgenes del grid
-                _slotGrid.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect, Control.LayoutPresetMode.Minsize, 20);
+                _scrollContainer.AddChild(_slotGrid);
                 
-                // Ocultar label de relleno del tscn
-                if (_contentPanel.HasNode("Label"))
-                    _contentPanel.GetNode<Control>("Label").Visible = false;
-
                 // Ocultar por defecto
                 Visible = false;
+
+                InitializeContextMenu();
                 
-                GD.Print("[UI][InventoryUI] Sistema de Inventario UI inicializado.");
+                GD.Print("[UI][InventoryUI] Sistema de Inventario UI inicializado con Scroll.");
             }
             catch (Exception e)
             {
                 GD.PrintErr($"[ERROR][InventoryUI] Error al inicializar: {e.Message}");
             }
+        }
+
+        private void InitializeContextMenu()
+        {
+            _contextMenu = new PopupMenu();
+            AddChild(_contextMenu);
+            _contextMenu.IdPressed += (id) => {
+                if (id == 0) // Destruir
+                {
+                    if (_contextTargetContainer != null && _contextTargetSlotIndex >= 0 && _contextTargetSlotIndex < _contextTargetContainer.Slots.Count)
+                    {
+                        var slot = _contextTargetContainer.Slots[_contextTargetSlotIndex];
+                        GD.Print($"[SISTEMA][InventoryUI] Destruyendo {slot.Quantity}x {(slot.Item != null ? slot.Item.Name : "null")}");
+                        slot.Item = null;
+                        slot.Quantity = 0;
+                        RefreshAll();
+                    }
+                }
+                else if (id == 1) // Equipar
+                {
+                    if (_contextTargetContainer != null && _contextTargetSlotIndex >= 0)
+                    {
+                        var slot = _contextTargetContainer.Slots[_contextTargetSlotIndex];
+                        if (slot.Item is Mochila mochila)
+                        {
+                            InventoryManager.Instance.EquipBackpack(mochila, _contextTargetContainer, _contextTargetSlotIndex);
+                            RefreshAll();
+                        }
+                    }
+                }
+                else if (id == 2) // Desequipar
+                {
+                    if (InventoryManager.Instance != null && InventoryManager.Instance.UnequipBackpack())
+                    {
+                        RefreshAll();
+                    }
+                }
+            };
+        }
+
+        public void ShowContextMenu(Vector2 globalPos, InventoryContainer container, int slotIndex)
+        {
+            _contextTargetContainer = container;
+            _contextTargetSlotIndex = slotIndex;
+            
+            _contextMenu.Clear();
+            _contextMenu.AddItem("Destruir", 0);
+            
+            var slot = container.Slots[slotIndex];
+            if (!slot.IsEmpty() && slot.Item is Mochila)
+            {
+                _contextMenu.AddItem("Equipar", 1);
+                
+                // Deshabilitar si ya hay una mochila equipada
+                if (InventoryManager.Instance != null && InventoryManager.Instance.IsBackpackEquipped())
+                {
+                    _contextMenu.SetItemDisabled(_contextMenu.GetItemIndex(1), true);
+                }
+            }
+
+            _contextMenu.Position = (Vector2I)globalPos;
+            _contextMenu.Popup();
+        }
+
+        public void ShowContainerContextMenu(Vector2 globalPos, InventoryContainer container)
+        {
+            _contextTargetContainer = container;
+            _contextMenu.Clear();
+
+            if (container.Id == "backpack_storage")
+            {
+                _contextMenu.AddItem("Desequipar", 2);
+                
+                // Solo si está vacía
+                if (!container.IsEmpty())
+                {
+                    _contextMenu.SetItemDisabled(_contextMenu.GetItemIndex(2), true);
+                }
+            }
+
+            _contextMenu.Position = (Vector2I)globalPos;
+            _contextMenu.Popup();
         }
 
         public void Open()
@@ -102,11 +194,33 @@ namespace Wild.UI
 
         public void RefreshAll()
         {
-            UpdateBottomBar();
-            if (_selectedContainer != null)
+            if (InventoryManager.Instance == null) return;
+            
+            var activeContainers = InventoryManager.Instance.GetActiveContainers();
+            
+            // Si el contenedor seleccionado ya no está activo (ej: mochila desequipada),
+            // volvemos a seleccionar el primero disponible.
+            if (_selectedContainer == null || !activeContainers.Contains(_selectedContainer))
             {
-                UpdateContentArea(_selectedContainer);
+                if (activeContainers.Count > 0)
+                    _selectedContainer = activeContainers[0];
+                else
+                    _selectedContainer = null;
             }
+
+            UpdateBottomBar();
+            
+            if (_selectedContainer != null)
+                UpdateContentArea(_selectedContainer);
+            else
+                ClearContentArea();
+        }
+
+        private void ClearContentArea()
+        {
+            if (_slotGrid == null) return;
+            foreach (Node child in _slotGrid.GetChildren())
+                child.QueueFree();
         }
 
         private void UpdateContentArea(InventoryContainer container)

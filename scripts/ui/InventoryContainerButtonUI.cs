@@ -52,6 +52,21 @@ namespace Wild.UI
             Pressed += () => _inventoryUI.OnContainerSelected(_container);
         }
 
+        public override void _GuiInput(InputEvent @event)
+        {
+            if (@event is InputEventMouseButton mb && mb.Pressed)
+            {
+                if (mb.ButtonIndex == MouseButton.Right)
+                {
+                    // Solo permitimos menú contextual en el contenedor de mochila
+                    if (_container.Id == "backpack_storage")
+                    {
+                        _inventoryUI.ShowContainerContextMenu(GetGlobalMousePosition(), _container);
+                    }
+                }
+            }
+        }
+
         public override bool _CanDropData(Vector2 atPosition, Variant data)
         {
             if (data.VariantType != Variant.Type.Dictionary) return false;

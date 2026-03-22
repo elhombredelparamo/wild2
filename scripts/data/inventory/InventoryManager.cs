@@ -12,11 +12,14 @@ namespace Wild.Data.Inventory
 
         public InventoryContainer HandLeft { get; private set; }
         public InventoryContainer HandRight { get; private set; }
+        public InventoryContainer Equipment { get; private set; }
+        public InventoryContainer BackpackStorage { get; private set; }
 
         public override void _Ready()
         {
             Instance = this;
             InitializeHands();
+            InitializeEquipment();
             ScanForItems();
             GD.Print("[SISTEMA][InventoryManager] Inicializado.");
         }
@@ -157,6 +160,52 @@ namespace Wild.Data.Inventory
             Containers.Add(HandRight);
             
             GD.Print("[SISTEMA][InventoryManager] Contenedores de mano listos (1 slot, 10kg cada uno).");
+        }
+
+        private void InitializeEquipment()
+        {
+            Equipment = new InventoryContainer("equipment", "Equipamiento", 1, 10.0f);
+            BackpackStorage = new InventoryContainer("backpack_storage", "Mochila", 20, 50.0f);
+            BackpackStorage.IconPath = "res://assets/textures/items/mochila1.png";
+            
+            // NO añadimos Equipment a Containers para que no salga en la UI
+        }
+
+        public bool IsBackpackEquipped()
+        {
+            return Equipment != null && !Equipment.Slots[0].IsEmpty();
+        }
+
+        public void EquipBackpack(Mochila mochilaItem, InventoryContainer source, int index)
+        {
+            if (mochilaItem == null || source == null) return;
+            if (IsBackpackEquipped()) return;
+
+            if (source.MoveItem(index, Equipment, 0))
+            {
+                BackpackStorage.MaxSlots = mochilaItem.Capacity;
+                BackpackStorage.MaxWeight = mochilaItem.MaxWeight;
+                while (BackpackStorage.Slots.Count < BackpackStorage.MaxSlots)
+                    BackpackStorage.Slots.Add(new InventorySlot());
+                
+                AddContainer(BackpackStorage);
+            }
+        }
+
+        public bool UnequipBackpack()
+        {
+            if (!IsBackpackEquipped()) return false;
+            if (!BackpackStorage.IsEmpty()) return false;
+
+            var mochilaItem = Equipment.Slots[0].Item;
+            if (GiveItem(mochilaItem.Id, 1))
+            {
+                Equipment.Slots[0].Item = null;
+                Equipment.Slots[0].Quantity = 0;
+                Containers.Remove(BackpackStorage);
+                return true;
+            }
+            return false;
         }
 
         public void AddContainer(InventoryContainer container)
