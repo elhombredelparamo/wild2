@@ -11,22 +11,15 @@ public struct VegetationEntry
     /// Ejemplo: "res://assets/models/vegetation/seta/1/ultra/seta1.glb"
     /// </summary>
     public string ModelPath;
-
-    /// <summary>
-    /// Probabilidad de aparición por tile (0.0 = nunca, 1.0 = siempre).
-    /// Valores típicos: hierba común = 0.35, seta rara = 0.02.
-    /// </summary>
+    public string ItemId;
     public float SpawnChance;
-
-    /// <summary>Escala mínima aleatoria del modelo.</summary>
     public float MinScale;
-
-    /// <summary>Escala máxima aleatoria del modelo.</summary>
     public float MaxScale;
 
-    public VegetationEntry(string modelPath, float spawnChance, float minScale = 0.8f, float maxScale = 1.2f)
+    public VegetationEntry(string modelPath, float spawnChance, float minScale = 0.8f, float maxScale = 1.2f, string itemId = null)
     {
         ModelPath   = modelPath;
+        ItemId      = itemId;
         SpawnChance = spawnChance;
         MinScale    = minScale;
         MaxScale    = maxScale;

@@ -101,6 +101,7 @@ namespace Wild.Core.Terrain
                             {
                                 list.Add(new VegetationInstance {
                                     Index = indexCounter,
+                                    ItemId = entry.ItemId,
                                     ModelPath = entry.ModelPath,
                                     Position = new Vector3(worldX, height, worldZ),
                                     RotationY = rng.Randf() * Mathf.Pi * 2.0f,

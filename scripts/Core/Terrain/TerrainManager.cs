@@ -147,21 +147,17 @@ namespace Wild.Core.Terrain
                             float dist = veg.Position.DistanceTo(playerPos);
                             
                             // Árboles: usar CollisionRadius (20m)
-                            bool isTree = !veg.ModelPath.Contains("seta", StringComparison.OrdinalIgnoreCase);
-                            if (isTree && dist < CollisionRadius) list.Add(veg);
-                            
-                            // Setas: usar InteractionRadius (8m)
-                            bool isSeta = veg.ModelPath.Contains("seta", StringComparison.OrdinalIgnoreCase);
-                            if (isSeta)
+                            bool isCollectible = !string.IsNullOrEmpty(veg.ItemId);
+                            if (isCollectible)
                             {
-                                // Siempre logueamos si vemos una seta en los chunks cargados para confirmar que la cache funciona.
-                                // Logger.LogDebug($"TERRAIN: Seta en cache en {veg.Position}. Dist: {dist}");
-                                
-                                if (dist < InteractionRadius) 
+                                if (dist < InteractionRadius)
                                 {
-                                    Logger.LogInfo($"TERRAIN: Seta en radio de interacción: {veg.Position} (Dist: {dist})");
                                     list.Add(veg);
                                 }
+                            }
+                            else if (dist < CollisionRadius) // Árboles
+                            {
+                                list.Add(veg);
                             }
                         }
                     }
@@ -173,10 +169,16 @@ namespace Wild.Core.Terrain
             {
                 if (!_activeColliders.ContainsKey(veg.Position))
                 {
-                    if (veg.ModelPath.Contains("seta", StringComparison.OrdinalIgnoreCase))
-                        SpawnMushroomTrigger(veg);
+                    // B) Objetos recolectables (basado en ItemId)
+                    if (!string.IsNullOrEmpty(veg.ItemId))
+                    {
+                        SpawnCollectibleTrigger(veg);
+                    }
                     else
+                    {
+                        // Árboles u otros obstáculos estáticos
                         SpawnTreeCollision(veg);
+                    }
                 }
             }
 
@@ -184,8 +186,8 @@ namespace Wild.Core.Terrain
             foreach (var kvp in _activeColliders)
             {
                 float dist = kvp.Key.DistanceTo(playerPos);
-                bool isSeta = kvp.Value is Area3D;
-                float currentCleanup = isSeta ? InteractionRadius + 2.0f : CollisionCleanupRadius;
+                bool isCollectible = kvp.Value is Area3D; // Collectibles are Area3D
+                float currentCleanup = isCollectible ? InteractionRadius + 2.0f : CollisionCleanupRadius;
 
                 if (dist > currentCleanup)
                 {
@@ -204,28 +206,30 @@ namespace Wild.Core.Terrain
             _collisionUpdateInProgress = false;
         }
 
-        private void SpawnMushroomTrigger(VegetationInstance veg)
+        private void SpawnCollectibleTrigger(VegetationInstance veg)
         {
+            if (_activeColliders.ContainsKey(veg.Position)) return;
+
             var area = new Area3D();
-            area.Name = "MushroomDetector";
-            area.SetMeta("is_mushroom", true); // Básico e infalible
-            AddChild(area);
-            area.GlobalPosition = veg.Position;
-            
-            // Capa 4: Interacciones (bit 8)
+            area.Position = veg.Position + Vector3.Up * 0.5f; // Elevado un poco para facilitar interacción
+
+            var shape = new CollisionShape3D();
+            var sphere = new SphereShape3D { Radius = 1.0f }; // Radio de interacción ajustable
+            shape.Shape = sphere;
+            area.AddChild(shape);
+
+            // Metadatos para el raycast del jugador
+            area.SetMeta("item_id", veg.ItemId);
+
+            // Capas de colisión para que el raycast lo vea (Capa 4: Interacciones)
             area.CollisionLayer = 1 << 3; 
             area.CollisionMask = 0;
             area.Monitoring = false;
             area.Monitorable = true;
 
-            var colShape = new CollisionShape3D();
-            // Tamaño MUY grande y desplazado hacia arriba para garantizar que jamás quede bajo el suelo.
-            colShape.Shape = new SphereShape3D { Radius = 1.5f }; 
-            colShape.Position = new Vector3(0, 0.5f, 0); // Offset vertical
-            area.AddChild(colShape);
-
+            AddChild(area);
             _activeColliders[veg.Position] = area;
-            Logger.LogInfo($"TERRAIN: Trigger de seta ACTIVADO en {veg.Position}");
+            Logger.LogInfo($"TERRAIN: Trigger de '{veg.ItemId}' ACTIVADO en {veg.Position}");
         }
 
         private void SpawnTreeCollision(VegetationInstance tree)

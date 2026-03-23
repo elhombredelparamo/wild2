@@ -47,20 +47,21 @@ namespace Wild.Core.Player
                     var collider = (Node)result["collider"];
                     Logger.LogInfo($"PLAYER: Intento interacción. Rayo colisiona con: {collider.Name} (Tipo: {collider.GetType()})");
 
-                    if (collider is Area3D area && area.HasMeta("is_mushroom"))
+                    if (collider is Area3D area && area.HasMeta("item_id"))
                     {
-                        Logger.LogInfo($"PLAYER: ¡INTERACCIÓN EXITOSA con seta en {area.GlobalPosition}!");
+                        string itemId = area.GetMeta("item_id").ToString();
+                        Logger.LogInfo($"PLAYER: ¡INTERACCIÓN EXITOSA con '{itemId}' en {area.GlobalPosition}!");
                         
-                        bool added = Wild.Data.Inventory.InventoryManager.Instance?.GiveItem("seta1", 1) ?? false;
+                        bool added = Wild.Data.Inventory.InventoryManager.Instance?.GiveItem(itemId, 1) ?? false;
                         
                         if (added)
                         {
-                            Logger.LogInfo("PLAYER: Seta añadida al inventario.");
-                            Wild.Core.Terrain.TerrainManager.Instance?.RemoveVegetationAt(area.GlobalPosition, "seta");
+                            Logger.LogInfo($"PLAYER: Item '{itemId}' añadido al inventario.");
+                            Wild.Core.Terrain.TerrainManager.Instance?.RemoveVegetationAt(area.GlobalPosition, itemId);
                         }
                         else
                         {
-                            Logger.LogWarning("PLAYER: Inventario lleno, no se puede recoger la seta.");
+                            Logger.LogWarning($"PLAYER: Inventario lleno, no se puede recoger '{itemId}'.");
                         }
                     }
                 }
@@ -79,11 +80,11 @@ namespace Wild.Core.Player
                             {
                                 areaCount++;
                                 float d = camera.GlobalPosition.DistanceTo(area.GlobalPosition);
-                                Logger.LogInfo($"   -> DEBUG: Existe Area3D en {area.GlobalPosition} a {d:0.00} metros de la cámara. Meta: {area.HasMeta("is_mushroom")}");
+                                Logger.LogInfo($"   -> DEBUG: Existe Area3D en {area.GlobalPosition} a {d:0.00} metros de la cámara. ItemId: {(area.HasMeta("item_id") ? area.GetMeta("item_id").ToString() : "NINGUNO")}");
                             }
                         }
                         if (areaCount == 0)
-                            Logger.LogInfo("   -> DEBUG: TerrainManager dice que NO HAY ningún Area3D de seta activo en este momento.");
+                            Logger.LogInfo("   -> DEBUG: TerrainManager dice que NO HAY ningún Area3D recolectable activo en este momento.");
                     }
                 }
             }

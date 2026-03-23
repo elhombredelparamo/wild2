@@ -23,7 +23,7 @@ public partial class BosqueBioma : BiomaType
     {
         // Seta — rara en el suelo del bosque (SpawnChance = 0.02 → ~2% por tile)
         new VegetationEntry("res://assets/models/plants/seta/1/ultra/seta1.glb",
-            spawnChance: 0.02f, minScale: 0.7f, maxScale: 1.3f),
+            spawnChance: 0.02f, minScale: 0.7f, maxScale: 1.3f, itemId: "seta1"),
 
         // [ Aquí se añadirán más plantas del bosque: helechos, hongos, etc. ]
     };
