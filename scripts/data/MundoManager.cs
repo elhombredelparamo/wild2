@@ -26,40 +26,12 @@ namespace Wild.Data
             if (Instance == null)
             {
                 Instance = this;
-                GarantizarDirectorioBase();
+                PersistenceService.EnsureDirectory(_basePath);
                 CargarTodosLosMundos(); // Cargar al arrancar el Autoload
 
                 // Optimización Global de Físicas
-                // 90 FPS permite mayor estabilidad en colisiones rápidas y con el nuevo Gait
                 Engine.PhysicsTicksPerSecond = 90;
                 Logger.LogInfo("MundoManager: PhysicsTicksPerSecond ajustado a 90.");
-            }
-        }
-
-        public override void _ExitTree()
-        {
-            if (Instance == this)
-            {
-                // No limpiar instancia en Autoload a menos que sea el fin del juego
-                // Instance = null; 
-                Logger.LogInfo("MundoManager: Autoload persistente.");
-            }
-        }
-
-        private void GarantizarDirectorioBase()
-        {
-            try
-            {
-                string path = ProjectSettings.GlobalizePath(_basePath);
-                if (!Directory.Exists(path))
-                {
-                    Directory.CreateDirectory(path);
-                    Logger.LogInfo("MundoManager: Directorio de mundos creado.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"MundoManager: Error al crear directorio base: {ex.Message}");
             }
         }
 
@@ -71,31 +43,16 @@ namespace Wild.Data
             _mundosCargados.Clear();
             _mundoActualId = "";
 
-            string pathAbsoluto = ProjectSettings.GlobalizePath(_basePath);
-
-            if (!Directory.Exists(pathAbsoluto))
+            string[] files = PersistenceService.GetFiles(_basePath, "*.json");
+            foreach (string file in files)
             {
-                Directory.CreateDirectory(pathAbsoluto);
-                return;
-            }
-
-            try
-            {
-                foreach (string file in Directory.GetFiles(pathAbsoluto, "*.json"))
+                Mundo mundo = PersistenceService.LoadJson<Mundo>(file);
+                if (mundo != null)
                 {
-                    string json = File.ReadAllText(file);
-                    Mundo mundo = JsonSerializer.Deserialize<Mundo>(json);
-                    if (mundo != null)
-                    {
-                        _mundosCargados[mundo.id] = mundo;
-                    }
+                    _mundosCargados[mundo.id] = mundo;
                 }
-                Logger.LogInfo($"MundoManager: {_mundosCargados.Count} mundos cargados globalmente.");
             }
-            catch (Exception ex)
-            {
-                Logger.LogError($"MundoManager: Error cargando mundos: {ex.Message}");
-            }
+            Logger.LogInfo($"MundoManager: {_mundosCargados.Count} mundos cargados globalmente.");
         }
 
         public List<Mundo> GetListaMundos()
@@ -116,46 +73,25 @@ namespace Wild.Data
 
         private void GarantizarEstructuraMundo(string mundoId, string semilla)
         {
-            try
-            {
-                string worldDir = ProjectSettings.GlobalizePath($"{_basePath}{mundoId}/");
-                string chunksDir = Path.Combine(worldDir, "chunks");
-                string logsDir = Path.Combine(worldDir, "logs");
-                string objectsDir = Path.Combine(worldDir, "objects");
+            string worldDir = $"{_basePath}{mundoId}/";
+            PersistenceService.EnsureDirectory(worldDir);
+            PersistenceService.EnsureDirectory(Path.Combine(worldDir, "chunks"));
+            PersistenceService.EnsureDirectory(Path.Combine(worldDir, "logs"));
+            PersistenceService.EnsureDirectory(Path.Combine(worldDir, "objects"));
 
-                if (!Directory.Exists(worldDir)) Directory.CreateDirectory(worldDir);
-                if (!Directory.Exists(chunksDir)) Directory.CreateDirectory(chunksDir);
-                if (!Directory.Exists(logsDir)) Directory.CreateDirectory(logsDir);
-                if (!Directory.Exists(objectsDir)) Directory.CreateDirectory(objectsDir);
-
-                // seed.txt
-                File.WriteAllText(Path.Combine(worldDir, "seed.txt"), semilla);
-                
-                Logger.LogInfo($"MundoManager: Estructura de carpetas para mundo {mundoId} garantizada.");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"MundoManager: Error al crear estructura de mundo: {ex.Message}");
-            }
+            // seed.txt (podría ser un simple archivo de texto, lo mantenemos directo por ahora o usamos un helper simple si existiera)
+            string seedPath = ProjectSettings.GlobalizePath(Path.Combine(worldDir, "seed.txt"));
+            File.WriteAllText(seedPath, semilla);
+            
+            Logger.LogInfo($"MundoManager: Estructura de carpetas para mundo {mundoId} garantizada.");
         }
 
         public void GuardarMundo(Mundo mundo)
         {
-            try
+            string file = Path.Combine(_basePath, $"{mundo.id}.json");
+            if (PersistenceService.SaveJson(file, mundo))
             {
-                string dir = ProjectSettings.GlobalizePath(_basePath);
-                
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-                string file = Path.Combine(dir, $"{mundo.id}.json");
-                string json = JsonSerializer.Serialize(mundo, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(file, json);
-                
                 Logger.LogInfo($"MundoManager: Mundo '{mundo.nombre}' guardado.");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"MundoManager: Error al guardar mundo: {ex.Message}");
             }
         }
 
@@ -183,34 +119,17 @@ namespace Wild.Data
         {
             if (!_mundosCargados.ContainsKey(id)) return false;
 
-            try
-            {
-                // 1. Borrar JSON de metadatos
-                string jsonPath = ProjectSettings.GlobalizePath($"{_basePath}{id}.json");
-                if (File.Exists(jsonPath))
-                {
-                    File.Delete(jsonPath);
-                }
+            // 1. Borrar JSON de metadatos
+            PersistenceService.DeleteFile($"{_basePath}{id}.json");
 
-                // 2. Borrar carpeta de contenido (chunks, logs, objects)
-                string worldDir = ProjectSettings.GlobalizePath($"{_basePath}{id}/");
-                if (Directory.Exists(worldDir))
-                {
-                    Directory.Delete(worldDir, true);
-                    Logger.LogInfo($"MundoManager: Carpeta de contenido del mundo {id} eliminada.");
-                }
+            // 2. Borrar carpeta de contenido (chunks, logs, objects)
+            PersistenceService.DeleteDirectory($"{_basePath}{id}/", true);
 
-                _mundosCargados.Remove(id);
-                if (_mundoActualId == id) _mundoActualId = "";
+            _mundosCargados.Remove(id);
+            if (_mundoActualId == id) _mundoActualId = "";
 
-                Logger.LogInfo($"MundoManager: Mundo {id} eliminado completamente.");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"MundoManager: Error al eliminar mundo: {ex.Message}");
-                return false;
-            }
+            Logger.LogInfo($"MundoManager: Mundo {id} eliminado completamente.");
+            return true;
         }
 
         /// <summary>
@@ -218,25 +137,25 @@ namespace Wild.Data
         /// </summary>
         public string ObtenerRutaDatosJugadorEnMundo(string mundoId, string personajeId)
         {
-            string dir = ProjectSettings.GlobalizePath($"{_basePath}{mundoId}/personajes/");
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            string dir = $"{_basePath}{mundoId}/personajes/";
+            PersistenceService.EnsureDirectory(dir);
             return Path.Combine(dir, $"{personajeId}.json");
         }
 
         public string ObtenerRutaChunksActual()
         {
             if (!HayMundoActual) return "";
-            string dir = ProjectSettings.GlobalizePath($"{_basePath}{_mundoActualId}/chunks/");
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            return dir;
+            string dir = $"{_basePath}{_mundoActualId}/chunks/";
+            PersistenceService.EnsureDirectory(dir);
+            return ProjectSettings.GlobalizePath(dir);
         }
 
         public string ObtenerRutaObjetosActual()
         {
             if (!HayMundoActual) return "";
-            string dir = ProjectSettings.GlobalizePath($"{_basePath}{_mundoActualId}/objects/");
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            return dir;
+            string dir = $"{_basePath}{_mundoActualId}/objects/";
+            PersistenceService.EnsureDirectory(dir);
+            return ProjectSettings.GlobalizePath(dir);
         }
 
         /// <summary>
@@ -246,17 +165,8 @@ namespace Wild.Data
         {
             if (!HayMundoActual) return;
 
-            try
-            {
-                string path = ObtenerRutaDatosJugadorEnMundo(_mundoActualId, data.id_personaje);
-                string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(path, json);
-                Logger.LogDebug($"MundoManager: Datos de jugador {data.id_personaje} guardados en mundo {_mundoActualId}.");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"MundoManager: Error al guardar datos de jugador: {ex.Message}");
-            }
+            string path = ObtenerRutaDatosJugadorEnMundo(_mundoActualId, data.id_personaje);
+            PersistenceService.SaveJson(path, data);
         }
 
         /// <summary>
@@ -265,22 +175,8 @@ namespace Wild.Data
         public PlayerData CargarDatosJugador(string personajeId)
         {
             if (!HayMundoActual) return null;
-
-            try
-            {
-                string path = ObtenerRutaDatosJugadorEnMundo(_mundoActualId, personajeId);
-                if (File.Exists(path))
-                {
-                    string json = File.ReadAllText(path);
-                    return JsonSerializer.Deserialize<PlayerData>(json);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"MundoManager: Error al cargar datos de jugador: {ex.Message}");
-            }
-
-            return null;
+            string path = ObtenerRutaDatosJugadorEnMundo(_mundoActualId, personajeId);
+            return PersistenceService.LoadJson<PlayerData>(path);
         }
     }
 }

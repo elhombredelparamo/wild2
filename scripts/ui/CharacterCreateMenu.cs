@@ -14,6 +14,8 @@
 using Godot;
 using System;
 using Wild.Data;
+using Wild.Utils;
+using Wild.Data.Inventory;
 
 namespace Wild.UI
 {
@@ -101,23 +103,13 @@ namespace Wild.UI
 
         private void OnNameTextChanged(string newText)
         {
-            try
-            {
-                var isValid = ValidateCharacterName(newText);
-                
-                if (_buttonCreate != null)
-                {
-                    _buttonCreate.Disabled = !isValid;
-                }
-                
-                UpdateFeedback(newText, isValid);
-
-                LogUI($"CharacterCreateMenu.OnNameTextChanged() - Nombre: '{newText}', Válido: {isValid}");
-            }
-            catch (System.Exception e)
-            {
-                LogErrorSistema("CharacterCreateMenu", $"Error en OnNameTextChanged(): {e.Message}");
-            }
+            var (isValid, feedback) = ValidationUtils.ValidateName(newText);
+            
+            if (_buttonCreate != null)
+                _buttonCreate.Disabled = !isValid;
+            
+            UpdateFeedback(newText, isValid, feedback);
+            LogUI($"CharacterCreateMenu.OnNameTextChanged() - Nombre: '{newText}', Válido: {isValid}");
         }
 
         private void OnGenderChanged(long index)
@@ -133,56 +125,20 @@ namespace Wild.UI
             }
         }
 
-        private bool ValidateCharacterName(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                return false;
-            
-            if (name.Length < 3 || name.Length > 20)
-                return false;
-            
-            // Verificar que solo contenga letras, números y espacios
-            foreach (char c in name)
-            {
-                if (!char.IsLetterOrDigit(c) && c != ' ')
-                    return false;
-            }
-            
-            return true;
-        }
+        // Eliminado ValidateCharacterName local ya que se usa ValidationUtils.ValidateName
 
-        private void UpdateFeedback(string name, bool isValid)
+        private void UpdateFeedback(string name, bool isValid, string feedback)
         {
-            try
+            if (_labelFeedback == null) return;
+            
+            if (string.IsNullOrEmpty(name))
             {
-                if (_labelFeedback == null)
-                    return;
-                
-                if (string.IsNullOrEmpty(name))
-                {
-                    _labelFeedback.Text = "";
-                    _labelFeedback.Modulate = Colors.White;
-                }
-                else if (!isValid)
-                {
-                    if (name.Length < 3)
-                        _labelFeedback.Text = "El nombre debe tener al menos 3 caracteres";
-                    else if (name.Length > 20)
-                        _labelFeedback.Text = "El nombre no puede tener más de 20 caracteres";
-                    else
-                        _labelFeedback.Text = "El nombre solo puede contener letras, números y espacios";
-                    
-                    _labelFeedback.Modulate = Colors.Red;
-                }
-                else
-                {
-                    _labelFeedback.Text = "Nombre válido";
-                    _labelFeedback.Modulate = Colors.Green;
-                }
+                _labelFeedback.Text = "";
             }
-            catch (System.Exception e)
+            else
             {
-                LogErrorSistema("CharacterCreateMenu", $"Error en UpdateFeedback(): {e.Message}");
+                _labelFeedback.Text = feedback;
+                _labelFeedback.Modulate = isValid ? Colors.Green : Colors.Red;
             }
         }
 
@@ -191,8 +147,9 @@ namespace Wild.UI
             try
             {
                 var characterName = _editName?.Text?.Trim();
+                var (isValid, _) = ValidationUtils.ValidateName(characterName);
                 
-                if (string.IsNullOrEmpty(characterName) || !ValidateCharacterName(characterName))
+                if (!isValid)
                 {
                     LogUI("CharacterCreateMenu.OnCreatePressed() - Nombre inválido");
                     return;

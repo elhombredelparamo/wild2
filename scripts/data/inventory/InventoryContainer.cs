@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Linq;
 using Wild.Data;
+using Wild.Utils;
 
 namespace Wild.Data.Inventory
 {
@@ -257,26 +258,23 @@ namespace Wild.Data.Inventory
                 var data = JsonSerializer.Deserialize<List<InventorySlotData>>(json);
                 if (data == null) return;
 
-                for (int i = 0; i < MaxSlots; i++)
+                for (int i = 0; i < MaxSlots && i < data.Count; i++)
                 {
-                    if (i < data.Count)
+                    var sData = data[i];
+                    if (!string.IsNullOrEmpty(sData.item_id))
                     {
-                        var sData = data[i];
-                        if (!string.IsNullOrEmpty(sData.item_id))
+                        var item = InventoryManager.Instance?.GetItemById(sData.item_id);
+                        if (item != null)
                         {
-                            var item = InventoryManager.Instance?.GetItemById(sData.item_id);
-                            if (item != null)
-                            {
-                                Slots[i].Item = item;
-                                Slots[i].Quantity = sData.quantity;
-                            }
+                            Slots[i].Item = item;
+                            Slots[i].Quantity = sData.quantity;
                         }
                     }
                 }
             }
             catch (System.Exception ex)
             {
-                GD.PrintErr($"[ERROR][InventoryContainer] Error al cargar datos: {ex.Message}");
+                Logger.LogError($"InventoryContainer: Error al cargar datos: {ex.Message}");
             }
 
             OnChanged?.Invoke();

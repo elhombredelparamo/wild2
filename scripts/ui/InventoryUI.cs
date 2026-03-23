@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Linq;
 using Wild.Data.Inventory;
+using Wild.UI.Components;
 
 namespace Wild.UI
 {
@@ -17,13 +18,11 @@ namespace Wild.UI
         private Control _contentPanel;
         private Control _bottomBar;
         private HBoxContainer _containerList;
-        private GridContainer _slotGrid;
+        private InventorySlotGrid _slotGrid;
         private ScrollContainer _scrollContainer;
         private InventoryContainer _selectedContainer;
         private InventoryContainer _externalContainer;
-        private PopupMenu _contextMenu;
-        private InventoryContainer _contextTargetContainer;
-        private int _contextTargetSlotIndex;
+        private InventoryContextMenu _contextMenu;
 
         public override void _Ready()
         {
@@ -42,15 +41,10 @@ namespace Wild.UI
                 _contentPanel.AddChild(_scrollContainer);
                 _scrollContainer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect, Control.LayoutPresetMode.Minsize, 10);
 
-                // Inicializar cuadrícula de slots
-                _slotGrid = new GridContainer();
+                // Inicializar cuadrícula de slots usando el nuevo componente
+                _slotGrid = new InventorySlotGrid();
                 _slotGrid.Name = "SlotGrid";
-                _slotGrid.Columns = 6; // Ajustable
-                _slotGrid.AddThemeConstantOverride("h_separation", 10);
-                _slotGrid.AddThemeConstantOverride("v_separation", 10);
-                
-                // Hacer que la cuadrícula se expanda horizontalmente para el scroll vertical
-                _slotGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                _slotGrid.Initialize(6);
                 
                 _scrollContainer.AddChild(_slotGrid);
                 
@@ -71,84 +65,19 @@ namespace Wild.UI
 
         private void InitializeContextMenu()
         {
-            _contextMenu = new PopupMenu();
+            _contextMenu = new InventoryContextMenu();
+            _contextMenu.Initialize(this);
             AddChild(_contextMenu);
-            _contextMenu.IdPressed += (id) => {
-                if (id == 0) // Destruir
-                {
-                    if (_contextTargetContainer != null && _contextTargetSlotIndex >= 0 && _contextTargetSlotIndex < _contextTargetContainer.Slots.Count)
-                    {
-                        var slot = _contextTargetContainer.Slots[_contextTargetSlotIndex];
-                        GD.Print($"[SISTEMA][InventoryUI] Destruyendo {slot.Quantity}x {(slot.Item != null ? slot.Item.Name : "null")}");
-                        slot.Item = null;
-                        slot.Quantity = 0;
-                        RefreshAll();
-                    }
-                }
-                else if (id == 1) // Equipar
-                {
-                    if (_contextTargetContainer != null && _contextTargetSlotIndex >= 0)
-                    {
-                        var slot = _contextTargetContainer.Slots[_contextTargetSlotIndex];
-                        if (slot.Item is Mochila mochila)
-                        {
-                            InventoryManager.Instance.EquipBackpack(mochila, _contextTargetContainer, _contextTargetSlotIndex);
-                            RefreshAll();
-                        }
-                    }
-                }
-                else if (id == 2) // Desequipar
-                {
-                    if (InventoryManager.Instance != null && InventoryManager.Instance.UnequipBackpack())
-                    {
-                        RefreshAll();
-                    }
-                }
-            };
         }
 
         public void ShowContextMenu(Vector2 globalPos, InventoryContainer container, int slotIndex)
         {
-            _contextTargetContainer = container;
-            _contextTargetSlotIndex = slotIndex;
-            
-            _contextMenu.Clear();
-            _contextMenu.AddItem("Destruir", 0);
-            
-            var slot = container.Slots[slotIndex];
-            if (!slot.IsEmpty() && slot.Item is Mochila)
-            {
-                _contextMenu.AddItem("Equipar", 1);
-                
-                // Deshabilitar si ya hay una mochila equipada
-                if (InventoryManager.Instance != null && InventoryManager.Instance.IsBackpackEquipped())
-                {
-                    _contextMenu.SetItemDisabled(_contextMenu.GetItemIndex(1), true);
-                }
-            }
-
-            _contextMenu.Position = (Vector2I)globalPos;
-            _contextMenu.Popup();
+            _contextMenu.ShowAt(globalPos, container, slotIndex);
         }
 
         public void ShowContainerContextMenu(Vector2 globalPos, InventoryContainer container)
         {
-            _contextTargetContainer = container;
-            _contextMenu.Clear();
-
-            if (container.Id == "backpack_storage")
-            {
-                _contextMenu.AddItem("Desequipar", 2);
-                
-                // Solo si está vacía
-                if (!container.IsEmpty())
-                {
-                    _contextMenu.SetItemDisabled(_contextMenu.GetItemIndex(2), true);
-                }
-            }
-
-            _contextMenu.Position = (Vector2I)globalPos;
-            _contextMenu.Popup();
+            _contextMenu.ShowContainerOptionsAt(globalPos, container);
         }
 
         public void SetExternalContainer(InventoryContainer container)
@@ -231,56 +160,18 @@ namespace Wild.UI
             
             var activeContainers = InventoryManager.Instance.GetActiveContainers();
             
-            // Si el contenedor seleccionado ya no está activo (ej: mochila desequipada),
-            // volvemos a seleccionar el primero disponible.
             if (_selectedContainer == null || !activeContainers.Contains(_selectedContainer))
             {
-                if (activeContainers.Count > 0)
-                    _selectedContainer = activeContainers[0];
-                else
-                    _selectedContainer = null;
+                _selectedContainer = activeContainers.Count > 0 ? activeContainers[0] : null;
             }
 
             UpdateBottomBar();
-            
-            if (_selectedContainer != null)
-                UpdateContentArea(_selectedContainer);
-            else
-                ClearContentArea();
-        }
-
-        private void ClearContentArea()
-        {
-            if (_slotGrid == null) return;
-            foreach (Node child in _slotGrid.GetChildren())
-                child.QueueFree();
+            _slotGrid?.UpdateGrid(_selectedContainer, this);
         }
 
         private void UpdateContentArea(InventoryContainer container)
         {
-            if (_slotGrid == null) return;
-
-            // Limpiar slots anteriores
-            foreach (Node child in _slotGrid.GetChildren())
-            {
-                child.QueueFree();
-            }
-
-            for (int i = 0; i < container.Slots.Count; i++)
-            {
-                var slotUI = new InventorySlotUI();
-                slotUI.CustomMinimumSize = new Vector2(90, 90);
-                
-                // Estilo básico para el slot (puedes mover esto a InventorySlotUI.cs si prefieres)
-                StyleBoxFlat style = new StyleBoxFlat();
-                style.BgColor = new Color(0.1f, 0.1f, 0.1f, 0.5f);
-                style.SetBorderWidthAll(2);
-                style.BorderColor = new Color(0.3f, 0.3f, 0.3f);
-                slotUI.AddThemeStyleboxOverride("panel", style);
-                
-                _slotGrid.AddChild(slotUI);
-                slotUI.Setup(container, i, this);
-            }
+            _slotGrid?.UpdateGrid(container, this);
         }
 
         public bool IsOpen()
