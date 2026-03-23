@@ -21,6 +21,8 @@ namespace Wild.Core.Quality
         public QualityLevel PlayerModelQuality { get; set; } = QualityLevel.Medium;
         public QualityLevel BuildingModelQuality { get; set; } = QualityLevel.Medium;
         public QualityLevel ObjectModelQuality { get; set; } = QualityLevel.Medium;
+        public QualityLevel DeployableQuality { get; set; } = QualityLevel.Medium;
+        public QualityLevel IconQuality { get; set; } = QualityLevel.Medium;
         public QualityLevel GroundTextureQuality { get; set; } = QualityLevel.Medium;
         public QualityLevel CharacterTextureQuality { get; set; } = QualityLevel.Medium;
         public QualityLevel WaterTextureQuality { get; set; } = QualityLevel.Medium;
@@ -64,7 +66,9 @@ namespace Wild.Core.Quality
             PlayerModelQuality = level;
             BuildingModelQuality = level;
             ObjectModelQuality = level;
-            GroundTextureQuality = level;
+            DeployableQuality = level;
+            IconQuality = level;
+            GroundTextureQuality = level == QualityLevel.Toaster ? QualityLevel.Toaster : level;
             CharacterTextureQuality = level;
             WaterTextureQuality = level;
             SkyTextureQuality = level;
@@ -162,6 +166,8 @@ namespace Wild.Core.Quality
         public QualityLevel PlayerModelQuality { get; set; }
         public QualityLevel BuildingModelQuality { get; set; }
         public QualityLevel ObjectModelQuality { get; set; }
+        public QualityLevel DeployableQuality { get; set; }
+        public QualityLevel IconQuality { get; set; }
         public QualityLevel GroundTextureQuality { get; set; }
         public QualityLevel CharacterTextureQuality { get; set; }
         public QualityLevel WaterTextureQuality { get; set; }

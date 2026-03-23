@@ -17,6 +17,8 @@ namespace Wild.UI
         private OptionButton _playerQuality;
         private OptionButton _buildingQuality;
         private OptionButton _objectQuality;
+        private OptionButton _deployQuality;
+        private OptionButton _iconQuality;
         private OptionButton _groundTexQuality;
         private OptionButton _charTexQuality;
         private OptionButton _waterTexQuality;
@@ -57,6 +59,8 @@ namespace Wild.UI
             _playerQuality = GetNodeOrNull<OptionButton>("VBox/Scroll/Grid/PlayerQuality");
             _buildingQuality = GetNodeOrNull<OptionButton>("VBox/Scroll/Grid/BuildingQuality");
             _objectQuality = GetNodeOrNull<OptionButton>("VBox/Scroll/Grid/ObjectQuality");
+            _deployQuality = GetNodeOrNull<OptionButton>("VBox/Scroll/Grid/DeployQuality");
+            _iconQuality = GetNodeOrNull<OptionButton>("VBox/Scroll/Grid/IconQuality");
             _groundTexQuality = GetNodeOrNull<OptionButton>("VBox/Scroll/Grid/GroundTexQuality");
             _charTexQuality = GetNodeOrNull<OptionButton>("VBox/Scroll/Grid/CharTexQuality");
             _waterTexQuality = GetNodeOrNull<OptionButton>("VBox/Scroll/Grid/WaterTexQuality");
@@ -90,7 +94,7 @@ namespace Wild.UI
 
             // Llenar todos los selectores de componentes (Toaster a Ultra + Disabled en algunos)
             var componentSelectors = new List<OptionButton> {
-                _treeQuality, _vegQuality, _terrainQuality, _playerQuality, _buildingQuality, _objectQuality,
+                _treeQuality, _vegQuality, _terrainQuality, _playerQuality, _buildingQuality, _objectQuality, _deployQuality, _iconQuality,
                 _groundTexQuality, _charTexQuality, _waterTexQuality, _skyTexQuality, _shadowQuality, _particleQuality, _postQuality
             };
 
@@ -100,8 +104,8 @@ namespace Wild.UI
                 sel.Clear();
                 foreach (var level in Enum.GetNames(typeof(QualityLevel)))
                 {
-                    // No permitir Disabled en árboles, vegetación, terreno ni texturas del suelo
-                    if (level == "Disabled" && (sel == _treeQuality || sel == _vegQuality || sel == _terrainQuality || sel == _groundTexQuality))
+                    // No permitir Disabled en árboles, vegetación, terreno, texturas del suelo, deployables ni iconos
+                    if (level == "Disabled" && (sel == _treeQuality || sel == _vegQuality || sel == _terrainQuality || sel == _groundTexQuality || sel == _deployQuality || sel == _iconQuality))
                         continue;
 
                     sel.AddItem(level);
@@ -132,6 +136,8 @@ namespace Wild.UI
             _playerQuality.Selected = (int)s.PlayerModelQuality;
             _buildingQuality.Selected = (int)s.BuildingModelQuality;
             _objectQuality.Selected = (int)s.ObjectModelQuality;
+            _deployQuality.Selected = (int)s.DeployableQuality;
+            _iconQuality.Selected = (int)s.IconQuality;
             _groundTexQuality.Selected = (int)s.GroundTextureQuality;
             _charTexQuality.Selected = (int)s.CharacterTextureQuality;
             _waterTexQuality.Selected = (int)s.WaterTextureQuality;
@@ -192,6 +198,8 @@ namespace Wild.UI
                 s.PlayerModelQuality = (QualityLevel)_playerQuality.Selected;
                 s.BuildingModelQuality = (QualityLevel)_buildingQuality.Selected;
                 s.ObjectModelQuality = (QualityLevel)_objectQuality.Selected;
+                s.DeployableQuality = (QualityLevel)_deployQuality.Selected;
+                s.IconQuality = (QualityLevel)_iconQuality.Selected;
                 s.GroundTextureQuality = (QualityLevel)_groundTexQuality.Selected;
                 s.CharacterTextureQuality = (QualityLevel)_charTexQuality.Selected;
                 s.WaterTextureQuality = (QualityLevel)_waterTexQuality.Selected;
@@ -218,6 +226,8 @@ namespace Wild.UI
                 PlayerModelQuality = (QualityLevel)_playerQuality.Selected,
                 BuildingModelQuality = (QualityLevel)_buildingQuality.Selected,
                 ObjectModelQuality = (QualityLevel)_objectQuality.Selected,
+                DeployableQuality = (QualityLevel)_deployQuality.Selected,
+                IconQuality = (QualityLevel)_iconQuality.Selected,
                 GroundTextureQuality = (QualityLevel)_groundTexQuality.Selected,
                 CharacterTextureQuality = (QualityLevel)_charTexQuality.Selected,
                 WaterTextureQuality = (QualityLevel)_waterTexQuality.Selected,
@@ -247,6 +257,8 @@ namespace Wild.UI
                 s.PlayerModelQuality = p.PlayerModelQuality;
                 s.BuildingModelQuality = p.BuildingModelQuality;
                 s.ObjectModelQuality = p.ObjectModelQuality;
+                s.DeployableQuality = p.DeployableQuality;
+                s.IconQuality = p.IconQuality;
                 s.GroundTextureQuality = p.GroundTextureQuality;
                 s.CharacterTextureQuality = p.CharacterTextureQuality;
                 s.WaterTextureQuality = p.WaterTextureQuality;
@@ -280,7 +292,7 @@ namespace Wild.UI
             if (_profileSelector != null) _profileSelector.Disabled = false;
 
             var componentSelectors = new List<OptionButton> {
-                _treeQuality, _vegQuality, _terrainQuality, _playerQuality, _buildingQuality, _objectQuality,
+                _treeQuality, _vegQuality, _terrainQuality, _playerQuality, _buildingQuality, _objectQuality, _deployQuality, _iconQuality,
                 _groundTexQuality, _charTexQuality, _waterTexQuality, _skyTexQuality, _shadowQuality, _particleQuality, _postQuality
             };
 

@@ -172,6 +172,10 @@ namespace Wild.UI
 
                     _inventoryUI.Hide();
                     Logger.LogInfo("GameWorld: InventoryUI cargado y oculto.");
+
+                    // Conectar señales para congelar jugador cuando se abra (ej: desde un cofre)
+                    _inventoryUI.Connect(InventoryUI.SignalName.Opened, Callable.From(UpdateCharacterState));
+                    _inventoryUI.Connect(InventoryUI.SignalName.Closed, Callable.From(UpdateCharacterState));
                 }
             }
             catch (System.Exception e)

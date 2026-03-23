@@ -10,5 +10,12 @@ namespace Wild.Data.Inventory
         public abstract string IconPath { get; set; }
         public abstract int StackSize { get; set; }
         public abstract float Weight { get; set; }
+
+        public string GetIconPath()
+        {
+            if (Wild.Core.Quality.QualityManager.Instance == null) return IconPath;
+            string quality = Wild.Core.Quality.QualityManager.Instance.Settings.IconQuality.ToString().ToLower();
+            return $"res://assets/textures/items/{Id.ToLower()}/{quality}.png";
+        }
     }
 }

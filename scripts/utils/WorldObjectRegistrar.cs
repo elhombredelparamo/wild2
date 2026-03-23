@@ -31,13 +31,7 @@ namespace Wild.Utils
 
                 string fullPath = Path.Combine(objectsDir, fileName);
 
-                System.Threading.Tasks.Task.Run(() => {
-                    try {
-                        File.WriteAllText(fullPath, jsonContent);
-                    } catch (Exception ex) {
-                        Logger.LogError($"WorldObjectRegistrar: Error en Escritura de {fileName}: {ex.Message}");
-                    }
-                });
+                File.WriteAllText(fullPath, jsonContent);
                 
                 Logger.LogDebug($"WorldObjectRegistrar: OK -> {fileName}");
             }

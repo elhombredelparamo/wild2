@@ -1,13 +1,18 @@
 using Godot;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Linq;
+using Wild.Data;
 
 namespace Wild.Data.Inventory
 {
     public partial class InventoryContainer : GodotObject
     {
+        public event System.Action OnChanged;
         public string Id { get; set; }
         public string Name { get; set; }
         public string IconPath { get; set; }
+        public string QualityIconId { get; set; }
         public List<InventorySlot> Slots { get; set; } = new List<InventorySlot>();
         public int MaxSlots { get; set; }
         public float MaxWeight { get; set; }
@@ -24,6 +29,14 @@ namespace Wild.Data.Inventory
             {
                 Slots.Add(new InventorySlot());
             }
+        }
+
+        public string GetIconPath()
+        {
+            if (string.IsNullOrEmpty(QualityIconId)) return IconPath;
+            if (Wild.Core.Quality.QualityManager.Instance == null) return IconPath;
+            string quality = Wild.Core.Quality.QualityManager.Instance.Settings.IconQuality.ToString().ToLower();
+            return $"res://assets/textures/items/{QualityIconId.ToLower()}/{quality}.png";
         }
 
         public float GetCurrentWeight()
@@ -83,6 +96,8 @@ namespace Wild.Data.Inventory
             sourceSlot.Item = tempItem;
             sourceSlot.Quantity = tempQty;
 
+            OnChanged?.Invoke();
+            target.OnChanged?.Invoke();
             return true;
         }
 
@@ -213,8 +228,58 @@ namespace Wild.Data.Inventory
                     if (remaining <= 0) break;
                 }
             }
+            
+            if (remaining < quantity)
+            {
+                OnChanged?.Invoke();
+                return true;
+            }
+            return false;
+        }
 
-            return remaining < quantity; // True si se añadió al menos algo
+        public string ToData()
+        {
+            var data = Slots.Select(slot => new InventorySlotData
+            {
+                item_id = slot.IsEmpty() ? null : slot.Item.Id,
+                quantity = slot.Quantity
+            }).ToList();
+
+            return JsonSerializer.Serialize(data);
+        }
+
+        public void FromData(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return;
+
+            try
+            {
+                var data = JsonSerializer.Deserialize<List<InventorySlotData>>(json);
+                if (data == null) return;
+
+                for (int i = 0; i < MaxSlots; i++)
+                {
+                    if (i < data.Count)
+                    {
+                        var sData = data[i];
+                        if (!string.IsNullOrEmpty(sData.item_id))
+                        {
+                            var item = InventoryManager.Instance?.GetItemById(sData.item_id);
+                            if (item != null)
+                            {
+                                Slots[i].Item = item;
+                                Slots[i].Quantity = sData.quantity;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                GD.PrintErr($"[ERROR][InventoryContainer] Error al cargar datos: {ex.Message}");
+            }
+
+            OnChanged?.Invoke();
         }
     }
 }

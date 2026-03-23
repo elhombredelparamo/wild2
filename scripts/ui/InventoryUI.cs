@@ -1,24 +1,33 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Linq;
 using Wild.Data.Inventory;
 
 namespace Wild.UI
 {
     public partial class InventoryUI : CanvasLayer
     {
+        [Signal] public delegate void OpenedEventHandler();
+        [Signal] public delegate void ClosedEventHandler();
+
+        public static InventoryUI Instance { get; private set; }
+
         private Control _contentPanel;
         private Control _bottomBar;
         private HBoxContainer _containerList;
         private GridContainer _slotGrid;
         private ScrollContainer _scrollContainer;
         private InventoryContainer _selectedContainer;
+        private InventoryContainer _externalContainer;
         private PopupMenu _contextMenu;
         private InventoryContainer _contextTargetContainer;
         private int _contextTargetSlotIndex;
 
         public override void _Ready()
         {
+            Instance = this;
             try
             {
                 _contentPanel = GetNode<Control>("ContentPanel");
@@ -51,6 +60,8 @@ namespace Wild.UI
                 InitializeContextMenu();
                 
                 GD.Print("[UI][InventoryUI] Sistema de Inventario UI inicializado con Scroll.");
+                
+                Wild.Core.Quality.QualityManager.OnIconQualityChanged += RefreshAll;
             }
             catch (Exception e)
             {
@@ -140,13 +151,23 @@ namespace Wild.UI
             _contextMenu.Popup();
         }
 
+        public void SetExternalContainer(InventoryContainer container)
+        {
+            _externalContainer = container;
+        }
+
         public void Open()
         {
             Visible = true;
             UpdateBottomBar();
             
+            // Si hay un contenedor externo (cofre), seleccionarlo por defecto
+            if (_externalContainer != null)
+            {
+                OnContainerSelected(_externalContainer);
+            }
             // Seleccionar el primer contenedor por defecto (ej: Mano Izquierda)
-            if (InventoryManager.Instance != null)
+            else if (InventoryManager.Instance != null)
             {
                 var containers = InventoryManager.Instance.GetActiveContainers();
                 if (containers != null && containers.Count > 0)
@@ -156,12 +177,15 @@ namespace Wild.UI
             }
             
             GD.Print("[UI][InventoryUI] Inventario abierto.");
+            EmitSignal(SignalName.Opened);
         }
 
         public void Close()
         {
             Visible = false;
+            _externalContainer = null;
             GD.Print("[UI][InventoryUI] Inventario cerrado.");
+            EmitSignal(SignalName.Closed);
         }
 
         public void UpdateBottomBar()
@@ -176,6 +200,15 @@ namespace Wild.UI
             if (InventoryManager.Instance == null) return;
 
             var containers = InventoryManager.Instance.GetActiveContainers();
+            
+            // Añadir contenedor externo (cofre) al principio si existe
+            if (_externalContainer != null)
+            {
+                var extBtn = new InventoryContainerButtonUI();
+                _containerList.AddChild(extBtn);
+                extBtn.Setup(_externalContainer, this, _selectedContainer == _externalContainer);
+            }
+
             foreach (var container in containers)
             {
                 var containerBtn = new InventoryContainerButtonUI();
@@ -253,6 +286,12 @@ namespace Wild.UI
         public bool IsOpen()
         {
             return Visible;
+        }
+
+        public override void _ExitTree()
+        {
+            Wild.Core.Quality.QualityManager.OnIconQualityChanged -= RefreshAll;
+            if (Instance == this) Instance = null;
         }
     }
 }

@@ -30,10 +30,10 @@ namespace Wild.UI
             margin.MouseFilter = Control.MouseFilterEnum.Ignore;
             AddChild(margin);
 
-            if (!string.IsNullOrEmpty(container.IconPath))
+            if (!string.IsNullOrEmpty(container.GetIconPath()))
             {
                 _icon = new TextureRect();
-                _icon.Texture = GD.Load<Texture2D>(container.IconPath);
+                _icon.Texture = GD.Load<Texture2D>(container.GetIconPath());
                 _icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
                 _icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
                 _icon.MouseFilter = Control.MouseFilterEnum.Ignore;

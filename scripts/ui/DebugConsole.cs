@@ -40,6 +40,7 @@ namespace Wild.UI
             AddCommand(new HelpCommand(this, _commands));
             AddCommand(new ClearCommand(this));
             AddCommand(new GiveItemCommand(this));
+            AddCommand(new SpawnDeployableCommand(this));
         }
 
         public void AddCommand(IConsoleCommand command)

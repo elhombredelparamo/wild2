@@ -152,9 +152,11 @@ namespace Wild.Data.Inventory
             // Las manos solo tienen 1 slot y soportan max 10kg
             HandLeft = new InventoryContainer("hand_left", "Mano Izquierda", 1, 10.0f);
             HandLeft.IconPath = "res://assets/textures/items/manoizq.png";
+            HandLeft.QualityIconId = "manoizq";
             
             HandRight = new InventoryContainer("hand_right", "Mano Derecha", 1, 10.0f);
             HandRight.IconPath = "res://assets/textures/items/manoder.png";
+            HandRight.QualityIconId = "manoder";
             
             Containers.Add(HandLeft);
             Containers.Add(HandRight);
@@ -167,6 +169,7 @@ namespace Wild.Data.Inventory
             Equipment = new InventoryContainer("equipment", "Equipamiento", 1, 10.0f);
             BackpackStorage = new InventoryContainer("backpack_storage", "Mochila", 20, 50.0f);
             BackpackStorage.IconPath = "res://assets/textures/items/mochila1.png";
+            BackpackStorage.QualityIconId = "mochila1";
             
             // NO añadimos Equipment a Containers para que no salga en la UI
         }

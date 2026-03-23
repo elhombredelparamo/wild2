@@ -84,6 +84,7 @@ namespace Wild.Core.Terrain
 
             QualityManager.OnVegetationQualityChanged += ForceFullReload;
             QualityManager.OnTerrainQualityChanged += ForceFullReload;
+            QualityManager.OnDeployableQualityChanged += ForceFullReload;
         }
 
         private void ApplyRenderSettings()
@@ -368,6 +369,12 @@ namespace Wild.Core.Terrain
 
         public void Cleanup()
         {
+            Logger.LogInfo("TERRAIN: Iniciando Cleanup. Guardando estado de todos los chunks activos...");
+            foreach (var coord in _chunks.Keys.ToArray())
+            {
+                SaveChunkState(coord);
+            }
+
             _cts.Cancel();
             _cts.Dispose();
             _cts = new System.Threading.CancellationTokenSource();
@@ -378,6 +385,7 @@ namespace Wild.Core.Terrain
             SessionData.Instance.OnSettingsApplied -= ApplyRenderSettings;
             QualityManager.OnVegetationQualityChanged -= ForceFullReload;
             QualityManager.OnTerrainQualityChanged -= ForceFullReload;
+            QualityManager.OnDeployableQualityChanged -= ForceFullReload;
             Cleanup();
             if (Instance == this) Instance = null;
         }
@@ -419,6 +427,7 @@ namespace Wild.Core.Terrain
                 var coord = _queueDescarga.Dequeue();
                 if (_chunks.TryGetValue(coord, out var renderer))
                 {
+                    SaveChunkState(coord);
                     renderer.QueueFree();
                     _chunks.Remove(coord);
                 }
@@ -446,19 +455,25 @@ namespace Wild.Core.Terrain
                     {
                         var json = File.ReadAllText(filePath);
                         var chunkState = JsonSerializer.Deserialize<ChunkStateData>(json);
-                        if (chunkState != null && chunkState.RemovedVegetationIndices != null)
+                        
+                        if (chunkState != null)
                         {
-                            if (!_removedVegetation.ContainsKey(coord)) 
-                                _removedVegetation[coord] = new HashSet<int>();
-
-                            foreach (var index in chunkState.RemovedVegetationIndices)
+                            // 1. Cargar Vegetación Eliminada
+                            if (chunkState.RemovedVegetationIndices != null)
                             {
-                                _removedVegetation[coord].Add(index);
+                                if (!_removedVegetation.ContainsKey(coord)) 
+                                    _removedVegetation[coord] = new HashSet<int>();
+
+                                foreach (var index in chunkState.RemovedVegetationIndices)
+                                {
+                                    _removedVegetation[coord].Add(index);
+                                }
                             }
 
-                            // Cargar Deployables (Cofres, etc.)
-                            if (chunkState.AddedDeployables != null)
+                            // 2. Cargar Deployables (Cofres, etc.)
+                            if (chunkState.AddedDeployables != null && chunkState.AddedDeployables.Count > 0)
                             {
+                                Logger.LogInfo($"TERRAIN: Cargando {chunkState.AddedDeployables.Count} deployables para chunk {coord}");
                                 foreach (var dData in chunkState.AddedDeployables)
                                 {
                                     CreateDeployableNode(renderer, dData, coord);
@@ -655,17 +670,67 @@ namespace Wild.Core.Terrain
             }
         }
 
-        private void SaveChunkState(Vector2I coord)
+        public void AddDeployable(string typeId, Vector3 globalPos, Vector3 rotation)
+        {
+            var coord = WorldToChunk(globalPos);
+            if (_chunks.TryGetValue(coord, out var renderer))
+            {
+                Vector3 localPos = globalPos - new Vector3(coord.X * ChunkSize, 0, coord.Y * ChunkSize);
+                var dData = new DeployableData {
+                    TypeId = typeId,
+                    Position = new SerializableVector3(localPos),
+                    Rotation = new SerializableVector3(rotation)
+                };
+                CreateDeployableNode(renderer, dData, coord);
+                SaveChunkState(coord);
+                Logger.LogInfo($"TERRAIN: Deployable '{typeId}' spawneado manualmente en {globalPos} (Local: {localPos})");
+            }
+            else
+            {
+                Logger.LogWarning($"TERRAIN: No se puede spawnear {typeId} en {coord} porque el chunk no está cargado (Cerca del jugador).");
+            }
+        }
+
+        public void SaveChunkState(Vector2I coord)
         {
             try
             {
-                if (!_removedVegetation.TryGetValue(coord, out var removedInChunk))
-                    return;
-
-                var chunkState = new ChunkStateData { RemovedVegetationIndices = removedInChunk.ToList() };
-                var json = JsonSerializer.Serialize(chunkState, new JsonSerializerOptions { WriteIndented = true });
+                bool hasRemovedVeg = _removedVegetation.TryGetValue(coord, out var removedInChunk);
                 
+                var chunkState = new ChunkStateData();
+                if (hasRemovedVeg) chunkState.RemovedVegetationIndices = removedInChunk.ToList();
+
+                // Recopilar deployables activos en el chunk
+                if (_chunks.TryGetValue(coord, out var renderer))
+                {
+                    foreach (Node child in renderer.GetChildren())
+                    {
+                        if (child is DeployableBase deployable)
+                        {
+                            chunkState.AddedDeployables.Add(new DeployableData
+                            {
+                                TypeId = deployable.TypeId,
+                                Position = new SerializableVector3(deployable.Position), // Usar posicion LOCAL al chunk
+                                Rotation = new SerializableVector3(deployable.Rotation),
+                                CustomData = deployable.SaveData()
+                            });
+                        }
+                    }
+                }
+
+                // Si no hay nada que guardar, NO borramos el archivo si existía (podría haber otros datos)
+                // Pero en nuestro sistema, este JSON es el ÚNICO lugar para veg eliminada y deployables.
+                if (chunkState.RemovedVegetationIndices.Count == 0 && chunkState.AddedDeployables.Count == 0)
+                {
+                    // Si el archivo existía, quizás deberíamos borrarlo para no cargar basura después?
+                    // Por ahora simplemente no hacemos nada para evitar IO innecesario.
+                    return;
+                }
+
+                var json = JsonSerializer.Serialize(chunkState, new JsonSerializerOptions { WriteIndented = true });
                 string fileName = $"chunk_{coord.X}_{coord.Y}.json";
+                
+                Logger.LogInfo($"TERRAIN: Guardando estado del chunk {coord} (Veg: {chunkState.RemovedVegetationIndices.Count}, Dep: {chunkState.AddedDeployables.Count})");
                 WorldObjectRegistrar.RegistrarObjeto(fileName, json);
             }
             catch (Exception ex)
@@ -683,7 +748,8 @@ namespace Wild.Core.Terrain
                 if (dData.TypeId == "cofre1")
                 {
                     node = new CofreDeployable();
-                    modelPath = "res://assets/models/deploy/cofre/1/ultra/cofreCesta1.glb";
+                    var quality = QualityManager.Instance.Settings.DeployableQuality.ToString().ToLower();
+                    modelPath = $"res://assets/models/deploy/cofre/1/{quality}/cofreCesta1.glb";
                 }
 
                 if (node == null) return;

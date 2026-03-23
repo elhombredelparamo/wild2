@@ -14,9 +14,13 @@ namespace Wild.Core.Quality
         /// </summary>
         public static event System.Action OnVegetationQualityChanged;
         public static event System.Action OnTerrainQualityChanged;
+        public static event System.Action OnDeployableQualityChanged;
+        public static event System.Action OnIconQualityChanged;
 
         private QualityLevel _lastVegetationQuality = QualityLevel.Medium;
         private QualityLevel _lastTerrainQuality = QualityLevel.Medium;
+        private QualityLevel _lastDeployableQuality = QualityLevel.Medium;
+        private QualityLevel _lastIconQuality = QualityLevel.Medium;
 
         [Signal]
         public delegate void QualityChangedEventHandler(QualityProfileType newProfile);
@@ -114,6 +118,18 @@ namespace Wild.Core.Quality
             {
                 _lastTerrainQuality = Settings.TerrainQuality;
                 OnTerrainQualityChanged?.Invoke();
+            }
+
+            if (Settings.DeployableQuality != _lastDeployableQuality)
+            {
+                _lastDeployableQuality = Settings.DeployableQuality;
+                OnDeployableQualityChanged?.Invoke();
+            }
+
+            if (Settings.IconQuality != _lastIconQuality)
+            {
+                _lastIconQuality = Settings.IconQuality;
+                OnIconQualityChanged?.Invoke();
             }
         }
 

@@ -49,9 +49,9 @@ namespace Wild.UI
 
             if (!slot.IsEmpty())
             {
-                if (!string.IsNullOrEmpty(slot.Item.IconPath))
+                if (!string.IsNullOrEmpty(slot.Item.GetIconPath()))
                 {
-                    _icon.Texture = GD.Load<Texture2D>(slot.Item.IconPath);
+                    _icon.Texture = GD.Load<Texture2D>(slot.Item.GetIconPath());
                 }
                 _icon.Visible = true;
                 
@@ -82,8 +82,8 @@ namespace Wild.UI
 
             // Visualización del drag
             TextureRect preview = new TextureRect();
-            if (!string.IsNullOrEmpty(slot.Item.IconPath))
-                preview.Texture = GD.Load<Texture2D>(slot.Item.IconPath);
+            if (!string.IsNullOrEmpty(slot.Item.GetIconPath()))
+                preview.Texture = GD.Load<Texture2D>(slot.Item.GetIconPath());
             
             preview.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
             preview.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;

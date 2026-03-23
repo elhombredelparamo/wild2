@@ -82,6 +82,20 @@ text = "Objetos:"
 [node name="ObjectQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
 layout_mode = 2
 
+[node name="LabelDeploy" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Deployables:"
+
+[node name="DeployQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
+[node name="LabelIcon" type="Label" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+text = "Iconos:"
+
+[node name="IconQuality" type="OptionButton" parent="VBox/Scroll/Grid"]
+layout_mode = 2
+
 [node name="LabelGroundTex" type="Label" parent="VBox/Scroll/Grid"]
 layout_mode = 2
 text = "Tex. Suelo:"
