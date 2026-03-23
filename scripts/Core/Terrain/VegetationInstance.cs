@@ -4,6 +4,7 @@ namespace Wild.Core.Terrain
 {
     public struct VegetationInstance
     {
+        public int Index;
         public string ModelPath;
         public Vector3 Position;
         public float RotationY;

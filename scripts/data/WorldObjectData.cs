@@ -15,24 +15,6 @@ namespace Wild.Data
         public SerializableVector3 scale { get; set; }
         public Dictionary<string, object> metadata { get; set; } = new();
 
-        /// <summary>
-        /// Estructura interna para serializar vectores de Godot.
-        /// </summary>
-        public class SerializableVector3
-        {
-            public float x { get; set; }
-            public float y { get; set; }
-            public float z { get; set; }
-
-            public SerializableVector3() { }
-            public SerializableVector3(Vector3 v)
-            {
-                x = v.X;
-                y = v.Y;
-                z = v.Z;
-            }
-        }
-
         public WorldObjectData() { }
 
         public WorldObjectData(string type, Vector3 pos, Vector3 rot, Vector3 scl)

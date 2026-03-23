@@ -5,46 +5,89 @@ using Wild.Utils;
 namespace Wild.Core.Player
 {
     /// <summary>
-    /// Maneja la interacción del jugador con el entorno mediante Raycasts.
+    /// Maneja la interacción del jugador con el entorno mediante Raycasts desde la cámara.
     /// </summary>
     public partial class InteraccionJugador : Node3D
     {
-        [Export] public float DistanciaInteraccion = 3.0f;
-        [Export] public RayCast3D RayoInteraccion;
+        [Export] public float DistanciaInteraccion = 5.0f;
 
         public override void _Ready()
         {
-            if (RayoInteraccion == null)
-            {
-                RayoInteraccion = GetNodeOrNull<RayCast3D>("RayCast3D");
-            }
-            
-            if (RayoInteraccion != null)
-            {
-                RayoInteraccion.TargetPosition = new Vector3(0, 0, -DistanciaInteraccion);
-                RayoInteraccion.Enabled = true;
-            }
+            Logger.LogInfo("PLAYER: InteraccionJugador (Camera Raycast) configurado correctamente.");
         }
 
         public override void _Process(double delta)
         {
-            if (RayoInteraccion == null || !RayoInteraccion.IsColliding()) return;
+            bool isInteractPressed = Input.IsActionJustPressed("ui_interact") || Input.IsActionJustPressed("interactuar") || Input.IsKeyPressed(Key.E);
 
-            if (Input.IsActionJustPressed("ui_interact")) // Asumiendo que existe ui_interact
+            if (isInteractPressed)
             {
-                ProcesarInteraccion();
+                var camera = GetViewport().GetCamera3D();
+                if (camera == null)
+                {
+                    Logger.LogWarning("PLAYER: No se encontró cámara activa para lanzar rayo de interacción.");
+                    return;
+                }
+
+                float distanciaReal = 8.0f;
+                var origin = camera.GlobalPosition;
+                var end = origin + (-camera.GlobalTransform.Basis.Z.Normalized() * distanciaReal);
+
+                var spaceState = GetWorld3D().DirectSpaceState;
+                var query = PhysicsRayQueryParameters3D.Create(origin, end);
+                query.CollisionMask = 8; // Solo Capa 4 (Interacciones/Mushroom), ignoramos Terreno
+                query.CollideWithAreas = true;
+                query.CollideWithBodies = false; // Solo queremos triggers
+                query.HitFromInside = true;      // CRÍTICO
+
+                var result = spaceState.IntersectRay(query);
+
+                if (result.Count > 0)
+                {
+                    var collider = (Node)result["collider"];
+                    Logger.LogInfo($"PLAYER: Intento interacción. Rayo colisiona con: {collider.Name} (Tipo: {collider.GetType()})");
+
+                    if (collider is Area3D area && area.HasMeta("is_mushroom"))
+                    {
+                        Logger.LogInfo($"PLAYER: ¡INTERACCIÓN EXITOSA con seta en {area.GlobalPosition}!");
+                        
+                        bool added = Wild.Data.Inventory.InventoryManager.Instance?.GiveItem("seta1", 1) ?? false;
+                        
+                        if (added)
+                        {
+                            Logger.LogInfo("PLAYER: Seta añadida al inventario.");
+                            Wild.Core.Terrain.TerrainManager.Instance?.RemoveVegetationAt(area.GlobalPosition, "seta");
+                        }
+                        else
+                        {
+                            Logger.LogWarning("PLAYER: Inventario lleno, no se puede recoger la seta.");
+                        }
+                    }
+                }
+                else
+                {
+                    Logger.LogInfo($"PLAYER: Intento interacción (E). El rayo de la cámara NO colisiona con nada (Distancia de rayo: {distanciaReal}).");
+                    
+                    // DEBUG: ¿Existen colliders de setas activos?
+                    var terr = Wild.Core.Terrain.TerrainManager.Instance;
+                    if (terr != null)
+                    {
+                        int areaCount = 0;
+                        foreach (var kvp in terr.GetActiveCollidersForDebug())
+                        {
+                            if (kvp.Value is Area3D area)
+                            {
+                                areaCount++;
+                                float d = camera.GlobalPosition.DistanceTo(area.GlobalPosition);
+                                Logger.LogInfo($"   -> DEBUG: Existe Area3D en {area.GlobalPosition} a {d:0.00} metros de la cámara. Meta: {area.HasMeta("is_mushroom")}");
+                            }
+                        }
+                        if (areaCount == 0)
+                            Logger.LogInfo("   -> DEBUG: TerrainManager dice que NO HAY ningún Area3D de seta activo en este momento.");
+                    }
+                }
             }
-        }
-
-        private void ProcesarInteraccion()
-        {
-            GodotObject collider = RayoInteraccion.GetCollider();
-            if (collider == null) return;
-
-            Vector3 point = RayoInteraccion.GetCollisionPoint();
-            Logger.LogDebug($"PLAYER: Interactuando con {collider} en {point}");
-
-            // Aquí se integrará con el sistema de objetos e inventario más adelante
         }
     }
 }
+

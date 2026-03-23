@@ -31,22 +31,15 @@ namespace Wild.Utils
 
                 string fullPath = Path.Combine(objectsDir, fileName);
 
-                if (!File.Exists(fullPath))
-                {
-                    System.Threading.Tasks.Task.Run(() => {
-                        try {
-                            File.WriteAllText(fullPath, jsonContent);
-                        } catch (Exception ex) {
-                            Logger.LogError($"WorldObjectRegistrar: Error en Escritura: {ex.Message}");
-                        }
-                    });
-                    
-                    Logger.LogDebug($"WorldObjectRegistrar: OK -> {fileName}");
-                }
-                else
-                {
-                    Logger.LogDebug($"WorldObjectRegistrar: Saltado (ya existe) -> {fileName}");
-                }
+                System.Threading.Tasks.Task.Run(() => {
+                    try {
+                        File.WriteAllText(fullPath, jsonContent);
+                    } catch (Exception ex) {
+                        Logger.LogError($"WorldObjectRegistrar: Error en Escritura de {fileName}: {ex.Message}");
+                    }
+                });
+                
+                Logger.LogDebug($"WorldObjectRegistrar: OK -> {fileName}");
             }
             catch (Exception ex)
             {

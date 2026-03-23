@@ -277,6 +277,10 @@ namespace Wild.UI
             {
                 _jugador.PhysicsEnabled = true;
             }
+
+            // Forzar el spawn de triggers de setas (chunks ya cargados, jugador puede interactuar)
+            Vector3 pos = (_jugador != null) ? _jugador.GlobalPosition : _camera.GlobalPosition;
+            _terrainManager?.ForceCollisionUpdate(pos);
         }
 
         // ── Process ───────────────────────────────────────────────────────────

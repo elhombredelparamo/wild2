@@ -63,6 +63,7 @@ namespace Wild.Core.Terrain
                 var list = new List<VegetationInstance>();
                 var rng = new RandomNumberGenerator();
 
+                int indexCounter = 0;
                 for (int z = 0; z < vertexCount; z++)
                 for (int x = 0; x < vertexCount; x++)
                 {
@@ -79,6 +80,7 @@ namespace Wild.Core.Terrain
                         if (rng.Randf() < bosque.VegetationDensity * densityMultiplier)
                         {
                             list.Add(new VegetationInstance {
+                                Index = indexCounter,
                                 ModelPath = bosque.TreeModels[rng.Randi() % (uint)bosque.TreeModels.Length],
                                 Position = new Vector3(worldX, height, worldZ),
                                 RotationY = rng.Randf() * Mathf.Pi * 2.0f,
@@ -86,6 +88,7 @@ namespace Wild.Core.Terrain
                             });
                         }
                     }
+                    indexCounter++;
 
                     // B) Otras entradas (Plantas)
                     if (localBioma.VegetationEntries != null)
@@ -97,62 +100,19 @@ namespace Wild.Core.Terrain
                             if (rng.Randf() < entry.SpawnChance * densityMultiplier)
                             {
                                 list.Add(new VegetationInstance {
+                                    Index = indexCounter,
                                     ModelPath = entry.ModelPath,
                                     Position = new Vector3(worldX, height, worldZ),
                                     RotationY = rng.Randf() * Mathf.Pi * 2.0f,
                                     Scale = rng.RandfRange(entry.MinScale, entry.MaxScale)
                                 });
                             }
+                            indexCounter++;
                         }
                     }
                 }
                 return list;
             });
-
-            if (instances.Count == 0) return instances;
-
-            // ── 2. Renderizado MultiMesh (Hilo Principal via Callable) ───────
-            var grouped = new Dictionary<string, List<VegetationInstance>>();
-            foreach (var inst in instances)
-            {
-                if (!grouped.ContainsKey(inst.ModelPath)) grouped[inst.ModelPath] = new();
-                grouped[inst.ModelPath].Add(inst);
-            }
-
-            foreach (var entry in grouped)
-            {
-                var visualData = VegetationLibrary.GetVisualMeshes(entry.Key);
-                if (visualData == null) continue;
-
-                foreach (var meshMat in visualData)
-                {
-                    var mmInst = new MultiMeshInstance3D();
-                    var mm = new MultiMesh { 
-                        TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, 
-                        Mesh = meshMat.mesh, 
-                        InstanceCount = entry.Value.Count 
-                    };
-
-                    for (int i = 0; i < entry.Value.Count; i++)
-                    {
-                        var inst = entry.Value[i];
-                        // CORRECCIÓN COORDINADAS: mundo -> local del chunk
-                        float localX = inst.Position.X - (coord.X * chunkSize);
-                        float localZ = inst.Position.Z - (coord.Y * chunkSize);
-                        
-                        var localTransform = new Transform3D(
-                            Basis.Identity.Rotated(Vector3.Up, inst.RotationY).Scaled(Vector3.One * inst.Scale),
-                            new Vector3(localX, inst.Position.Y, localZ)
-                        );
-                        
-                        mm.SetInstanceTransform(i, localTransform * meshMat.localTransform);
-                    }
-
-                    mmInst.Multimesh = mm;
-                    if (meshMat.material != null) mmInst.MaterialOverride = meshMat.material;
-                    renderer.CallDeferred(Node.MethodName.AddChild, mmInst);
-                }
-            }
 
             return instances;
         }

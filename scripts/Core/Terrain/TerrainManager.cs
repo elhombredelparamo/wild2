@@ -4,6 +4,7 @@
 // Carga y descarga chunks en torno a una posición de referencia (cámara/jugador).
 // Emite la señal ChunkInicialListo cuando el primer lote de chunks termina.
 // -----------------------------------------------------------------------------
+using System;
 using System.IO;
 using Godot;
 using System.Collections.Generic;
@@ -13,11 +14,14 @@ using Wild.Data;
 using Wild.Utils;
 using System.Linq;
 using Wild.Core.Quality;
+using System.Text.Json;
 
 namespace Wild.Core.Terrain
 {
     public partial class TerrainManager : Node3D
     {
+        public static TerrainManager Instance { get; private set; }
+
         [Export] public int LoadRadius  = 5;   
         [Export] public int UnloadRadius = 8;   
         [Export] public int ChunkSize   = 10;   
@@ -33,12 +37,13 @@ namespace Wild.Core.Terrain
         private readonly LRUCache<Vector2I, (Mesh mesh, Vector3[] faces)> _meshCache = new(200);
         private readonly LRUCache<Vector2I, List<VegetationInstance>> _vegCache = new(200);
 
-        private readonly Dictionary<Vector3, StaticBody3D> _activeColliders = new();
+        private readonly Dictionary<Vector3, Node3D> _activeColliders = new();
+        private readonly Dictionary<Vector2I, HashSet<int>> _removedVegetation = new();
         private const float CollisionRadius = 20.0f;
         private const float CollisionCleanupRadius = 25.0f;
 
 
-        private Vector3 _lastUpdatePos = new Vector3(float.MinValue, 0, float.MinValue);
+        private Vector3 _lastUpdatePos = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
         private const float UpdateThreshold = 2.0f; 
         private bool _procesandoCola = false;
         private bool _procesandoDescarga = false;
@@ -57,8 +62,11 @@ namespace Wild.Core.Terrain
         private bool     _primeraOlaDespachada = false;
         private int      _chunksInicialPendientes = 0;
 
+        public System.Collections.Generic.Dictionary<Vector3, Node3D> GetActiveCollidersForDebug() { return _activeColliders; }
+
         public override void _Ready()
         {
+            Instance = this;
             _seed = 12345;
             var mundoActual = MundoManager.Instance.ObtenerMundoActual();
             if (mundoActual != null) _seed = mundoActual.GetSeedInt();
@@ -103,51 +111,121 @@ namespace Wild.Core.Terrain
             UpdateDynamicCollisions(refPos);
         }
 
+        /// <summary>
+        /// Fuerza una actualización de colisiones ignorando el threshold de posición.
+        /// Se llama cuando los chunks acaban de cargar por primera vez.
+        /// </summary>
+        public void ForceCollisionUpdate(Vector3 refPos)
+        {
+            _lastUpdatePos = refPos; // Para que la siguiente llamada normal también funcione
+            UpdateDynamicCollisions(refPos);
+            Logger.LogInfo("TERRAIN: ForceCollisionUpdate ejecutado en spawn.");
+        }
+
         private async void UpdateDynamicCollisions(Vector3 playerPos)
         {
             if (_collisionUpdateInProgress) return;
             _collisionUpdateInProgress = true;
 
+            const float InteractionRadius = 8.0f;
+
             // CAPTURAR una foto de las coordenadas actuales de forma segura
             var activeCoords = _chunks.Keys.ToArray();
 
-            var treesToActivate = await Task.Run(() => {
+            var vegToActivate = await Task.Run(() => {
                 var list = new List<VegetationInstance>();
                 foreach (var coord in activeCoords)
                 {
-                    if (((Vector2)(coord - _chunkCentral)).Length() > 2.2f) continue;
+                    // Solo chunks muy cercanos
+                    if ((coord - _chunkCentral).Length() > 2.5f) continue;
 
                     if (_vegCache.Contains(coord))
                     {
-                        var treeList = _vegCache.Get(coord);
-                        foreach (var tree in treeList)
+                        var vegList = _vegCache.Get(coord);
+                        foreach (var veg in vegList)
                         {
-                            if (tree.Position.DistanceTo(playerPos) < CollisionRadius)
-                                list.Add(tree);
+                            float dist = veg.Position.DistanceTo(playerPos);
+                            
+                            // Árboles: usar CollisionRadius (20m)
+                            bool isTree = !veg.ModelPath.Contains("seta", StringComparison.OrdinalIgnoreCase);
+                            if (isTree && dist < CollisionRadius) list.Add(veg);
+                            
+                            // Setas: usar InteractionRadius (8m)
+                            bool isSeta = veg.ModelPath.Contains("seta", StringComparison.OrdinalIgnoreCase);
+                            if (isSeta)
+                            {
+                                // Siempre logueamos si vemos una seta en los chunks cargados para confirmar que la cache funciona.
+                                // Logger.LogDebug($"TERRAIN: Seta en cache en {veg.Position}. Dist: {dist}");
+                                
+                                if (dist < InteractionRadius) 
+                                {
+                                    Logger.LogInfo($"TERRAIN: Seta en radio de interacción: {veg.Position} (Dist: {dist})");
+                                    list.Add(veg);
+                                }
+                            }
                         }
                     }
                 }
                 return list;
             });
 
-            foreach (var tree in treesToActivate)
+            foreach (var veg in vegToActivate)
             {
-                if (!_activeColliders.ContainsKey(tree.Position))
-                    SpawnTreeCollision(tree);
+                if (!_activeColliders.ContainsKey(veg.Position))
+                {
+                    if (veg.ModelPath.Contains("seta", StringComparison.OrdinalIgnoreCase))
+                        SpawnMushroomTrigger(veg);
+                    else
+                        SpawnTreeCollision(veg);
+                }
             }
 
             var toRemove = new List<Vector3>();
             foreach (var kvp in _activeColliders)
             {
-                if (kvp.Key.DistanceTo(playerPos) > CollisionCleanupRadius)
+                float dist = kvp.Key.DistanceTo(playerPos);
+                bool isSeta = kvp.Value is Area3D;
+                float currentCleanup = isSeta ? InteractionRadius + 2.0f : CollisionCleanupRadius;
+
+                if (dist > currentCleanup)
                 {
                     kvp.Value.QueueFree();
                     toRemove.Add(kvp.Key);
                 }
             }
+            int removedCount = toRemove.Count;
             foreach (var key in toRemove) _activeColliders.Remove(key);
 
+            if (vegToActivate.Count > 0 || removedCount > 0)
+            {
+                Logger.LogDebug($"TERRAIN: UpdateDynamicCollisions finalizado. Triggers activos: {_activeColliders.Count}");
+            }
+
             _collisionUpdateInProgress = false;
+        }
+
+        private void SpawnMushroomTrigger(VegetationInstance veg)
+        {
+            var area = new Area3D();
+            area.Name = "MushroomDetector";
+            area.SetMeta("is_mushroom", true); // Básico e infalible
+            AddChild(area);
+            area.GlobalPosition = veg.Position;
+            
+            // Capa 4: Interacciones (bit 8)
+            area.CollisionLayer = 1 << 3; 
+            area.CollisionMask = 0;
+            area.Monitoring = false;
+            area.Monitorable = true;
+
+            var colShape = new CollisionShape3D();
+            // Tamaño MUY grande y desplazado hacia arriba para garantizar que jamás quede bajo el suelo.
+            colShape.Shape = new SphereShape3D { Radius = 1.5f }; 
+            colShape.Position = new Vector3(0, 0.5f, 0); // Offset vertical
+            area.AddChild(colShape);
+
+            _activeColliders[veg.Position] = area;
+            Logger.LogInfo($"TERRAIN: Trigger de seta ACTIVADO en {veg.Position}");
         }
 
         private void SpawnTreeCollision(VegetationInstance tree)
@@ -296,6 +374,7 @@ namespace Wild.Core.Terrain
             QualityManager.OnVegetationQualityChanged -= ForceFullReload;
             QualityManager.OnTerrainQualityChanged -= ForceFullReload;
             Cleanup();
+            if (Instance == this) Instance = null;
         }
 
         private void ForceFullReload()
@@ -310,6 +389,7 @@ namespace Wild.Core.Terrain
             _queueDescarga.Clear();
             foreach (var collider in _activeColliders.Values) collider.QueueFree();
             _activeColliders.Clear();
+            _removedVegetation.Clear();
             _lastUpdatePos = new Vector3(float.MinValue, 0, float.MinValue);
         }
 
@@ -349,17 +429,58 @@ namespace Wild.Core.Terrain
         {
             if (!GodotObject.IsInstanceValid(renderer)) return;
             
+            // Intentar cargar JSON del chunk si no se ha cargado antes
+            string chunkFileName = $"chunk_{coord.X}_{coord.Y}.json";
+            string objectsDir = MundoManager.Instance.ObtenerRutaObjetosActual();
+            if (!string.IsNullOrEmpty(objectsDir))
+            {
+                string filePath = Path.Combine(objectsDir, chunkFileName);
+                if (File.Exists(filePath))
+                {
+                    try
+                    {
+                        var json = File.ReadAllText(filePath);
+                        var chunkState = JsonSerializer.Deserialize<ChunkStateData>(json);
+                        if (chunkState != null && chunkState.RemovedVegetationIndices != null)
+                        {
+                            if (!_removedVegetation.ContainsKey(coord)) 
+                                _removedVegetation[coord] = new HashSet<int>();
+
+                            foreach (var index in chunkState.RemovedVegetationIndices)
+                            {
+                                _removedVegetation[coord].Add(index);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError($"TERRAIN: Error leyendo {chunkFileName}: {ex.Message}");
+                    }
+                }
+            }
+
             List<VegetationInstance> objectsToSpawn;
             if (_vegCache.Contains(coord))
             {
                 objectsToSpawn = _vegCache.Get(coord);
-                // Si está en cache, aún necesitamos renderizarlo visualmente
                 await RenderVegetationFromList(renderer, objectsToSpawn, coord);
             }
             else
             {
-                objectsToSpawn = await _vegetationSpawner.SpawnForChunk(renderer, data, coord);
+                var rawInstances = await _vegetationSpawner.SpawnForChunk(renderer, data, coord);
+                
+                // Filtrar usando los índices removidos para este chunk
+                if (_removedVegetation.TryGetValue(coord, out var removedIndices))
+                {
+                    objectsToSpawn = rawInstances.FindAll(inst => !removedIndices.Contains(inst.Index));
+                }
+                else
+                {
+                    objectsToSpawn = rawInstances;
+                }
+
                 _vegCache.Add(coord, objectsToSpawn);
+                await RenderVegetationFromList(renderer, objectsToSpawn, coord);
             }
         }
 
@@ -438,5 +559,105 @@ namespace Wild.Core.Terrain
         }
 
         public float GetHeightAt(float x, float z) => _generator?.GetNoiseHeight(x, z) ?? 0f;
+
+        public void RemoveVegetationAt(Vector3 globalPos, string keyword)
+        {
+            var chunkCoord = WorldToChunk(globalPos);
+
+            if (_vegCache.Contains(chunkCoord))
+            {
+                var list = _vegCache.Get(chunkCoord);
+                
+                // Buscar la instancia más cercana que contenga la palabra clave
+                int bestIndex = -1;
+                float bestDist = float.MaxValue;
+
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (list[i].ModelPath.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                    {
+                        float d = list[i].Position.DistanceTo(globalPos);
+                        if (d < bestDist && d < 2.0f) // Tolerancia razonable
+                        {
+                            bestDist = d;
+                            bestIndex = i;
+                        }
+                    }
+                }
+
+                if (bestIndex != -1)
+                {
+                    var veg = list[bestIndex];
+                    list.RemoveAt(bestIndex);
+                    
+                    // Añadir al set del chunk y guardar persistencia
+                    if (!_removedVegetation.ContainsKey(chunkCoord))
+                        _removedVegetation[chunkCoord] = new HashSet<int>();
+                    
+                    _removedVegetation[chunkCoord].Add(veg.Index);
+                    SaveChunkState(chunkCoord);
+
+                    // Limpiar colisiones activas (Búsqueda por proximidad para evitar fallos de precisión float)
+                    Vector3 bestColliderKey = Vector3.Zero;
+                    float bestColDist = float.MaxValue;
+                    foreach (var key in _activeColliders.Keys)
+                    {
+                        float d = key.DistanceTo(veg.Position);
+                        if (d < bestColDist)
+                        {
+                            bestColDist = d;
+                            bestColliderKey = key;
+                        }
+                    }
+
+                    if (bestColDist < 0.5f)
+                    {
+                        var collider = _activeColliders[bestColliderKey];
+                        if (GodotObject.IsInstanceValid(collider)) collider.QueueFree();
+                        _activeColliders.Remove(bestColliderKey);
+                        Logger.LogInfo($"TERRAIN: Collider de '{keyword}' detectado y eliminado en {bestColliderKey} (distancia: {bestColDist})");
+                    }
+                    else
+                    {
+                        Logger.LogWarning($"TERRAIN: No se encontró collider activo cerca de {veg.Position} (mejor distancia: {bestColDist}) para remover.");
+                    }
+
+                    // Reconstruir visuales del chunk
+                    if (_chunks.TryGetValue(chunkCoord, out var renderer))
+                    {
+                        foreach (Node child in renderer.GetChildren())
+                        {
+                            if (child is MultiMeshInstance3D) child.QueueFree();
+                        }
+                        
+                        _ = RenderVegetationFromList(renderer, list, chunkCoord);
+                        Logger.LogInfo($"TERRAIN: Vegetación ({keyword}) removida exitosamente en {veg.Position}");
+                    }
+                }
+                else
+                {
+                    Logger.LogWarning($"TERRAIN: No se encontró vegetación cercana a {globalPos} para remover.");
+                }
+            }
+        }
+
+        private void SaveChunkState(Vector2I coord)
+        {
+            try
+            {
+                if (!_removedVegetation.TryGetValue(coord, out var removedInChunk))
+                    return;
+
+                var chunkState = new ChunkStateData { RemovedVegetationIndices = removedInChunk.ToList() };
+                var json = JsonSerializer.Serialize(chunkState, new JsonSerializerOptions { WriteIndented = true });
+                
+                string fileName = $"chunk_{coord.X}_{coord.Y}.json";
+                WorldObjectRegistrar.RegistrarObjeto(fileName, json);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"TERRAIN: Error al guardar estado del chunk {coord} -> {ex.Message}");
+            }
+        }
     }
 }
