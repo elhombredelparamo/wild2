@@ -35,33 +35,49 @@ namespace Wild.Core.Player
 
                 var spaceState = GetWorld3D().DirectSpaceState;
                 var query = PhysicsRayQueryParameters3D.Create(origin, end);
-                query.CollisionMask = 8; // Solo Capa 4 (Interacciones/Mushroom), ignoramos Terreno
+                query.CollisionMask = 8; // Capa 4: Interacciones
                 query.CollideWithAreas = true;
-                query.CollideWithBodies = false; // Solo queremos triggers
-                query.HitFromInside = true;      // CRÍTICO
+                query.CollideWithBodies = true; // Soportar StaticBody3D de deployables
+                query.HitFromInside = true;
 
                 var result = spaceState.IntersectRay(query);
 
                 if (result.Count > 0)
                 {
                     var collider = (Node)result["collider"];
-                    Logger.LogInfo($"PLAYER: Intento interacción. Rayo colisiona con: {collider.Name} (Tipo: {collider.GetType()})");
+                    Logger.LogInfo($"PLAYER: Interacción con: {collider.Name} (Capa: {collider.GetMeta("_collision_layer", 0)})");
 
+                    // Caso A: Recolectable (Area3D con metadatos)
                     if (collider is Area3D area && area.HasMeta("item_id"))
                     {
                         string itemId = area.GetMeta("item_id").ToString();
-                        Logger.LogInfo($"PLAYER: ¡INTERACCIÓN EXITOSA con '{itemId}' en {area.GlobalPosition}!");
-                        
                         bool added = Wild.Data.Inventory.InventoryManager.Instance?.GiveItem(itemId, 1) ?? false;
-                        
                         if (added)
                         {
-                            Logger.LogInfo($"PLAYER: Item '{itemId}' añadido al inventario.");
+                            Logger.LogInfo($"PLAYER: Item '{itemId}' recogido.");
                             Wild.Core.Terrain.TerrainManager.Instance?.RemoveVegetationAt(area.GlobalPosition, itemId);
+                        }
+                    }
+                    // Caso B: Deployable (StaticBody3D - buscamos DeployableBase en padres)
+                    else
+                    {
+                        Node current = collider;
+                        Logger.LogDebug($"PLAYER: Investigando posible deployable en {collider.Name}...");
+                        
+                        while (current != null && !(current is Wild.Core.Deployables.DeployableBase))
+                        {
+                            Logger.LogDebug($"   -> Subiendo desde {current.Name} (Tipo: {current.GetType().Name})");
+                            current = current.GetParent();
+                        }
+
+                        if (current is Wild.Core.Deployables.DeployableBase deployable)
+                        {
+                            Logger.LogInfo($"PLAYER: Click en DEPLOYABLE '{deployable.TypeId}'");
+                            deployable.Interact();
                         }
                         else
                         {
-                            Logger.LogWarning($"PLAYER: Inventario lleno, no se puede recoger '{itemId}'.");
+                            Logger.LogDebug("PLAYER: No se encontró DeployableBase en el árbol del colisionador.");
                         }
                     }
                 }

@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Wild.Core.Biomes;
 using Wild.Data;
+using Wild.Core.Deployables;
 using Wild.Utils;
 using System.Linq;
 using Wild.Core.Quality;
@@ -454,6 +455,15 @@ namespace Wild.Core.Terrain
                             {
                                 _removedVegetation[coord].Add(index);
                             }
+
+                            // Cargar Deployables (Cofres, etc.)
+                            if (chunkState.AddedDeployables != null)
+                            {
+                                foreach (var dData in chunkState.AddedDeployables)
+                                {
+                                    CreateDeployableNode(renderer, dData, coord);
+                                }
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -662,6 +672,130 @@ namespace Wild.Core.Terrain
             {
                 Logger.LogError($"TERRAIN: Error al guardar estado del chunk {coord} -> {ex.Message}");
             }
+        }
+        private void CreateDeployableNode(ChunkRenderer renderer, DeployableData dData, Vector2I coord)
+        {
+            try
+            {
+                DeployableBase node = null;
+                string modelPath = "";
+
+                if (dData.TypeId == "cofre1")
+                {
+                    node = new CofreDeployable();
+                    modelPath = "res://assets/models/deploy/cofre/1/ultra/cofreCesta1.glb";
+                }
+
+                if (node == null) return;
+
+                node.TypeId = dData.TypeId;
+                node.ChunkCoord = coord;
+                node.Position = dData.Position.ToVector3();
+                node.Rotation = dData.Rotation.ToVector3();
+                
+                if (!string.IsNullOrEmpty(modelPath) && ResourceLoader.Exists(modelPath))
+                {
+                    var scene = ResourceLoader.Load<PackedScene>(modelPath);
+                    var mesh = scene.Instantiate();
+                    node.AddChild(mesh);
+
+                    Logger.LogDebug($"TERRAIN: Estructura del modelo '{dData.TypeId}':");
+                    LogNodeTree(mesh, "  ");
+
+                    // Configurar Capa de Colisión para interacción (Capa 4) y física (Capa 1)
+                    int bodiesFound = SetCollisionLayerRecursive(mesh, (1 << 0) | (1 << 3));
+
+                    if (bodiesFound == 0)
+                    {
+                        Aabb aabb = CalculateAABBRecursive(mesh);
+                        Logger.LogWarning($"TERRAIN: El modelo '{dData.TypeId}' no tiene colisionadores internos. Creando colisionador de caja basado en AABB ({aabb.Size}).");
+                        
+                        var staticBody = new StaticBody3D();
+                        staticBody.CollisionLayer = (1 << 0) | (1 << 3);
+                        
+                        var colShape = new CollisionShape3D();
+                        var box = new BoxShape3D { Size = aabb.Size };
+                        colShape.Shape = box;
+                        colShape.Position = aabb.Position + (aabb.Size * 0.5f); // Centro del AABB
+                        
+                        staticBody.AddChild(colShape);
+                        node.AddChild(staticBody);
+                    }
+                }
+
+                // Cargar datos específicos
+                node.LoadData(dData.CustomData);
+
+                // Añadir al chunk
+                renderer.AddChild(node);
+                
+                // Asegurar que tenga colisión para interactuar
+                // NOTA: Si el .glb no trae colisión, habría que añadirla aquí.
+                // Usualmente los .glb de importación traen StaticBody si se configuró en Godot.
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"TERRAIN: Error instanciando deployable {dData.TypeId} en {coord}: {ex.Message}");
+            }
+        }
+
+        private int SetCollisionLayerRecursive(Node node, uint layer)
+        {
+            int found = 0;
+            if (node is CollisionObject3D body)
+            {
+                Logger.LogInfo($"TERRAIN: Configurando colisión en '{node.Name}' (Tipo: {node.GetType().Name}) -> Layer {layer}");
+                body.CollisionLayer = layer;
+                found++;
+            }
+
+            foreach (Node child in node.GetChildren())
+            {
+                found += SetCollisionLayerRecursive(child, layer);
+            }
+            return found;
+        }
+
+        private void LogNodeTree(Node node, string indent)
+        {
+            Logger.LogDebug($"{indent}- {node.Name} ({node.GetType().Name})");
+            foreach (Node child in node.GetChildren())
+            {
+                LogNodeTree(child, indent + "  ");
+            }
+        }
+
+        private Aabb CalculateAABBRecursive(Node node)
+        {
+            Aabb totalAABB = new Aabb();
+            bool first = true;
+
+            void Walk(Node n, Transform3D accumulatedTransform)
+            {
+                Transform3D currentTransform = accumulatedTransform;
+                if (n is Node3D n3d)
+                {
+                    currentTransform = accumulatedTransform * n3d.Transform;
+                }
+
+                if (n is MeshInstance3D meshInstance)
+                {
+                    Aabb localAABB = meshInstance.GetAabb();
+                    Aabb rootSpaceAABB = currentTransform * localAABB;
+
+                    if (first) { totalAABB = rootSpaceAABB; first = false; }
+                    else { totalAABB = totalAABB.Merge(rootSpaceAABB); }
+                }
+
+                foreach (Node child in n.GetChildren()) Walk(child, currentTransform);
+            }
+
+            Walk(node, Transform3D.Identity);
+            
+            // Si no se encontró nada, devolver un cubo mínimo
+            if (first) return new Aabb(new Vector3(-0.5f, 0, -0.5f), new Vector3(1, 1, 1));
+            
+            return totalAABB;
         }
     }
 }
