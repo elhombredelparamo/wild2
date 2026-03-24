@@ -22,6 +22,9 @@ namespace Wild.Core.Player
             _camera = new Camera3D();
             AddChild(_camera);
             _camera.Current = true;
+            // Forzar CullMask completo (todas las capas, incluyendo Layer 2 del cuerpo del jugador local).
+            // Camera3D creada por código puede no heredar el default del editor (0xFFFFF).
+            _camera.CullMask = 0xFFFFF;
 
             // Añadir una colisión básica para que no atraviese el suelo/paredes
             var collision = new CollisionShape3D();

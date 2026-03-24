@@ -92,10 +92,18 @@ Usar archivos en `contexto/` y `codigo/` según necesidad específica.
 6. **Feature 6:** Sistema de Jugador ✅ (física y controles)
 7. **Feature 7:** Sistema de Objetos 3D ✅ (completada)
 8. **Feature 8:** Sistema de Calidad ✅ (completada)
-9. **Feature 9:** Sistema de Inventario (2 días) ⏳ (actual)
-10. **Feature 10:** Sistema de Salud (2 días)
-11. **Feature 11:** Red y Multijugador (3 días)
-12. **Feature 12:** Pulido y Contenido (2 días)
+9. **Feature 9:** Sistema de Inventario ✅ (completada)
+10. **Feature 10:** Sistema de Deployables ⏳ (actual)
+11. **Feature 11:** Sistema de Crafteos (2 días)
+12. **Feature 12:** Sistema de Salud (2 días)
+13. **Feature 13:** Red y Multijugador (3 días)
+14. **Feature 14:** Pulido Previo Beta (2 días)
+15. **Feature 15:** Contenido de Océano y Sistema de Agua (3 días)
+16. **Feature 16:** Contenido de Costa (2 días)
+17. **Feature 17:** Contenido de Pradera (2 días)
+18. **Feature 18:** Contenido de Bosque (2 días)
+19. **Feature 19:** Contenido de Montaña (2 días)
+20. **Feature 20:** Deployables y Crafteos Iniciales (3 días)
 
 ## 🎯 Estándares del Proyecto
 

@@ -42,9 +42,9 @@ namespace Wild.Data
         {
             string ruta = genero.ToLower() switch
             {
-                "hombre" => "res://assets/models/human/male1.blend",
-                "mujer" => "res://assets/models/human/female1.blend",
-                _ => "res://assets/models/human/male1.blend" // Default por seguridad
+                "hombre" => "res://scenes/player/animado_con_tree.tscn", // Nuevo archivo con AnimationTree
+                "mujer" => "res://scenes/player/animada_con_tree.tscn", // Nuevo archivo con AnimationTree
+                _ => "res://scenes/player/animado_con_tree.tscn" // Default por seguridad
             };
             Wild.Utils.Logger.LogDebug($"Personaje: Ruta de modelo resuelta: {ruta} (genero: {genero})");
             return ruta;

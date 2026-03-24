@@ -28,29 +28,29 @@ namespace Wild.Core.Player
         [Export] public StatsJugador Stats;
 
         [Export] public bool PhysicsEnabled = true;
-        [Export] public float EscalaVisual = 0.11f; // Ajustado: 0.1 era un pelín bajo, probando 0.11
+        [Export] public float EscalaHombre = 0.041f; // Ajustado manualmente por el usuario
+        [Export] public float EscalaMujer = 1.0f;
         [Export] public float RotacionVisualY = 180f; 
-        [Export] public float AlturaCamara = 1.5f; // Altura de los ojos
+        
+        [ExportGroup("Cámaras por Género")]
+        [Export] public float AlturaMujer = 1.65f;
+        [Export] public float OffsetFrontalMujer = 0.15f;
+        [Export] public float AlturaHombre = 1.68f; 
+        [Export] public float OffsetFrontalHombre = 0.22f; 
+
+        public string Genero { get; set; } = "hombre";
 
         private Node3D _visualsContainer;
         private AnimationPlayer _animationPlayer;
+        private AnimationTree _animationTree;
         private Skeleton3D _skeleton;
-        private float _proceduralAnimTime = 0f;
-        private System.Collections.Generic.Dictionary<string, int> _boneIndices = new();
+        private Vector2 _lastInputMotion = Vector2.Zero;
 
         [ExportGroup("Animaciones")]
         [Export] public string AnimIdle = "idle";
         [Export] public string AnimWalk = "walk";
+        [Export] public string AnimJump = "jump";
         [Export] public float AnimBlendTime = 0.2f;
-
-        [ExportGroup("Animacion Procedural")]
-        [Export] public float WalkBobAmplitude = 0.05f;
-        [Export] public float WalkBobSpeed = 10f;
-        [Export] public float WalkGaitImpulse = 0.5f; // Fuerza del "rebote" al caminar
-        [Export] public float LimbSwingAmplitude = 0.4f;
-        [Export] public float ArmRelaxAngle = 0.8f; // Reducido de 1.2 para que no se crucen
-        
-        private float _gaitStepCycle = 0f;
         
         private Vector3 _velocity = Vector3.Zero;
         private float _rotationX = 0f;
@@ -79,7 +79,9 @@ namespace Wild.Core.Player
 
             if (Camara != null)
             {
-                Camara.Position = new Vector3(Camara.Position.X, AlturaCamara, Camara.Position.Z);
+                UpdateCameraPosition();
+                // Ocultar Capa 2 (Cabeza) para la cámara del jugador (Capa 2 = bit index 1)
+                Camara.CullMask &= ~(1u << 1); 
             }
 
             Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -105,37 +107,133 @@ namespace Wild.Core.Player
 
             if (model != null)
             {
+                float escalaUsar = Genero.ToLower() == "mujer" ? EscalaMujer : EscalaHombre;
                 _visualsContainer.AddChild(model);
-                _visualsContainer.Scale = Vector3.One * EscalaVisual;
+                _visualsContainer.Scale = Vector3.One * escalaUsar;
                 _visualsContainer.RotationDegrees = new Vector3(0, RotacionVisualY, 0);
                 
-                // Buscar AnimationPlayer recursivamente
+                model.Visible = true;
+                if (model is Node3D n3d) n3d.Show();
+
+                UpdateCameraPosition();
+
                 _animationPlayer = model.FindChild("AnimationPlayer", true) as AnimationPlayer;
-                
-                // Buscar Skeleton3D recursivamente
                 _skeleton = model.FindChild("Skeleton3D", true) as Skeleton3D;
                 if (_skeleton != null)
                 {
                     Logger.LogInfo($"JugadorController: Skeleton3D detectado con {_skeleton.GetBoneCount()} huesos.");
-                    MapBones();
                 }
 
                 if (_animationPlayer != null)
                 {
-                    var animList = string.Join(", ", _animationPlayer.GetAnimationList());
-                    Logger.LogInfo($"JugadorController: AnimationPlayer detectado. Animaciones: [{animList}]");
-                    _animationPlayer.Play(AnimIdle);
+                    _animationPlayer.PlaybackActive = true;
+                    var animList = _animationPlayer.GetAnimationList();
+                    foreach (var anim in animList)
+                    {
+                        string animLower = anim.ToString().ToLower();
+                        if (animLower.Contains("walk") || animLower.Contains("run")) AnimWalk = anim;
+                        if (animLower.Contains("idle")) AnimIdle = anim;
+                        if (animLower.Contains("jump")) AnimJump = anim;
+                    }
+
+                    _animationTree = model.FindChild("*", true, false) as AnimationTree;
+                    if (_animationTree == null) _animationTree = model.GetParent()?.FindChild("*", true, false) as AnimationTree;
+                    
+                    if (_animationTree != null)
+                    {
+                        _animationTree.Active = true;
+                        Logger.LogInfo($"JugadorController: AnimationTree '{_animationTree.Name}' detectado.");
+                    }
+                    
+                    if (_animationTree == null)
+                    {
+                        ForzarLoopsAnimacion(_animationPlayer);
+                        if (_animationPlayer.HasAnimation(AnimIdle)) _animationPlayer.Play(AnimIdle);
+                    }
                 }
-                else
+
+                Logger.LogInfo($"JugadorController: Modelo visual asignado ({Genero}).");
+                AplicarCullingLocal(model);
+            }
+        }
+
+        private void UpdateCameraPosition()
+        {
+            if (Camara == null) return;
+            
+            float height = Genero.ToLower() == "mujer" ? AlturaMujer : AlturaHombre;
+            float offset = Genero.ToLower() == "mujer" ? OffsetFrontalMujer : OffsetFrontalHombre;
+            
+            Camara.Position = new Vector3(Camara.Position.X, height, -offset);
+        }
+
+        private void ForzarLoopsAnimacion(AnimationPlayer player)
+        {
+            foreach (var aName in player.GetAnimationList())
+            {
+                if (aName.ToString().ToLower().Contains("walk") || aName.ToString().ToLower().Contains("idle"))
                 {
-                    Logger.LogWarning("JugadorController: NO se encontró AnimationPlayer. Usando fallback esquelético procedural.");
+                    foreach (var libName in player.GetAnimationLibraryList())
+                    {
+                        var lib = player.GetAnimationLibrary(libName);
+                        if (lib != null && lib.HasAnimation(aName))
+                        {
+                            var anim = lib.GetAnimation(aName).Duplicate() as Animation;
+                            if (anim != null)
+                            {
+                                anim.LoopMode = Animation.LoopModeEnum.Linear;
+                                lib.RemoveAnimation(aName);
+                                lib.AddAnimation(aName, anim);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Solución True First Person: duplica el material de las mallas (solo para jugador local)
+        /// y activa el Backface Culling (CullMode.Back). Esto hace que las caras interiores
+        /// de la piel no se rendericen, permitiendo que la cámara dentro de la cabeza
+        /// no vea la textura por dentro, pero manteniendo los brazos visibles.
+        /// </summary>
+        private void AplicarCullingLocal(Node node)
+        {
+            if (node is MeshInstance3D meshInstance)
+            {
+                for (int i = 0; i < meshInstance.GetSurfaceOverrideMaterialCount(); i++)
+                {
+                    var mat = meshInstance.GetSurfaceOverrideMaterial(i) as BaseMaterial3D;
+                    if (mat != null)
+                    {
+                        var matLocal = (BaseMaterial3D)mat.Duplicate();
+                        // Textura por fuera, invisible por dentro
+                        matLocal.CullMode = BaseMaterial3D.CullModeEnum.Back;
+                        meshInstance.SetSurfaceOverrideMaterial(i, matLocal);
+                        Logger.LogDebug($"JugadorController: Culling aplicado a override mat en {meshInstance.Name}");
+                    }
                 }
 
-                // Loggear siempre la estructura para ver por qué es invisible
-                Logger.LogInfo("JugadorController: Estructura y estado de visibilidad:");
-                LogNodeHierarchy(model, 0);
+                if (meshInstance.Mesh != null)
+                {
+                    for (int i = 0; i < meshInstance.Mesh.GetSurfaceCount(); i++)
+                    {
+                        var mat = meshInstance.Mesh.SurfaceGetMaterial(i) as BaseMaterial3D;
+                        if (mat != null && meshInstance.GetSurfaceOverrideMaterial(i) == null)
+                        {
+                            var matLocal = (BaseMaterial3D)mat.Duplicate();
+                            // Textura por fuera, invisible por dentro
+                            matLocal.CullMode = BaseMaterial3D.CullModeEnum.Back;
+                            meshInstance.SetSurfaceOverrideMaterial(i, matLocal);
+                            Logger.LogDebug($"JugadorController: Culling aplicado a base mat en {meshInstance.Name}");
+                        }
+                    }
+                }
+            }
 
-                Logger.LogInfo($"JugadorController: Modelo visual asignado con escala {EscalaVisual} y rotación {RotacionVisualY}.");
+            foreach (Node child in node.GetChildren())
+            {
+                AplicarCullingLocal(child);
             }
         }
 
@@ -206,6 +304,10 @@ namespace Wild.Core.Player
                 {
                     _velocity.Y = FuerzaSalto;
                     
+                    // Disparar animación de salto (A: Player)
+                    if (_animationTree == null && _animationPlayer != null && _animationPlayer.HasAnimation(AnimJump))
+                        _animationPlayer.Play(AnimJump);
+
                     // Pequeño truco: si saltas, te subimos un pelín por si estás hundido en la malla
                     Position = new Vector3(Position.X, Position.Y + 0.05f, Position.Z);
                     
@@ -216,13 +318,13 @@ namespace Wild.Core.Player
                 if (IsOnFloor()) _airTime = 0;
                 else _airTime += (float)delta;
 
-                // Obtener dirección de input (WASD)
                 Vector2 inputDir = Vector2.Zero;
                 if (Input.IsKeyPressed(Key.W)) inputDir.Y -= 1;
                 if (Input.IsKeyPressed(Key.S)) inputDir.Y += 1;
                 if (Input.IsKeyPressed(Key.A)) inputDir.X -= 1;
                 if (Input.IsKeyPressed(Key.D)) inputDir.X += 1;
                 inputDir = inputDir.Normalized();
+                _lastInputMotion = inputDir;
 
                 Vector3 direction = (Transform.Basis * new Vector3(inputDir.X, 0, inputDir.Y)).Normalized();
 
@@ -232,27 +334,11 @@ namespace Wild.Core.Player
                 {
                     _velocity.X = direction.X * velocidadActual;
                     _velocity.Z = direction.Z * velocidadActual;
-
-                    // MECANICA DE GAIT (Caminata Humana)
-                    // Aplicar pequeños impulsos verticales para simular el paso
-                    if (IsOnFloor())
-                    {
-                        float prevCycle = _gaitStepCycle;
-                        _gaitStepCycle += (float)delta * WalkBobSpeed;
-                        
-                        // En cada paso (frecuencia doble que el ciclo completo)
-                        if (Mathf.Sin(prevCycle) < 0 && Mathf.Sin(_gaitStepCycle) >= 0)
-                        {
-                            // Estamos en el punto de contacto/impulso
-                            _velocity.Y = WalkGaitImpulse * (Input.IsActionPressed("ui_shift") ? 1.5f : 1.0f);
-                        }
-                    }
                 }
                 else
                 {
                     _velocity.X = Mathf.MoveToward(Velocity.X, 0, velocidadActual);
                     _velocity.Z = Mathf.MoveToward(Velocity.Z, 0, velocidadActual);
-                    _gaitStepCycle = 0f;
                 }
 
                 Velocity = _velocity;
@@ -367,12 +453,28 @@ namespace Wild.Core.Player
 
         private void UpdateAnimations()
         {
-            float delta = (float)GetPhysicsProcessDeltaTime();
-            
-            // Calcular velocidad horizontal real o forzada por Free Cam
-            Vector2 horizontalVelocity = new Vector2(Velocity.X, Velocity.Z);
-            bool isMoving = (horizontalVelocity.Length() > 0.1f && IsOnFloor()) || (!PhysicsEnabled && _keepAnimationPlaying);
+            // isMoving: Usamos el INPUT en lugar de la velocidad física para evitar "cortes" al chocar con paredes (Punto 1)
+            bool isMoving = _lastInputMotion.Length() > 0.05f || (!PhysicsEnabled && _keepAnimationPlaying);
 
+            // Temporizador sutil de log para no saturar
+            if (isMoving && Engine.GetProcessFrames() % 60 == 0)
+                Logger.LogDebug($"JugadorController Animation: isMoving={isMoving} input={_lastInputMotion} (Tree:{_animationTree != null})");
+
+            // Opción A: Tenemos un AnimationTree (Punto 2)
+            if (_animationTree != null && _animationTree.Active)
+            {
+                // Solo activamos movimiento/idle si estamos en el suelo para evitar conflictos con el salto
+                _animationTree.Set("parameters/conditions/is_moving", IsOnFloor() && isMoving);
+                _animationTree.Set("parameters/conditions/is_idle", IsOnFloor() && !isMoving);
+                _animationTree.Set("parameters/conditions/is_on_floor", IsOnFloor());
+                _animationTree.Set("parameters/conditions/is_jumping", !IsOnFloor());
+                
+                // Si es un BlendSpace2D, le pasamos el vector de movimiento
+                _animationTree.Set("parameters/move_pos/blend_position", _lastInputMotion);
+                return;
+            }
+
+            // Opción B: Control manual por AnimationPlayer (Fallback robusto)
             if (_animationPlayer != null && _animationPlayer.HasAnimation(AnimWalk))
             {
                 if (isMoving)
@@ -380,186 +482,31 @@ namespace Wild.Core.Player
                 else
                     PlayAnimation(AnimIdle);
             }
-            else if (_skeleton != null)
-            {
-                UpdateSkeletalAnimations(delta, isMoving);
-            }
-        }
-
-        private void MapBones()
-        {
-            if (_skeleton == null) return;
-            _boneIndices.Clear();
-            
-            for (int i = 0; i < _skeleton.GetBoneCount(); i++)
-            {
-                string name = _skeleton.GetBoneName(i).ToLower();
-                _boneIndices[name] = i;
-                Logger.LogDebug($"JugadorController: Hueso detectado: {name} (idx: {i})");
-            }
-        }
-
-        private void UpdateSkeletalAnimations(float delta, bool isMoving)
-        {
-            if (_skeleton == null) return;
-
-            if (isMoving)
-            {
-                // Sincronizar con el ciclo físico de pasos
-                _proceduralAnimTime = _gaitStepCycle;
-                float swing = Mathf.Sin(_proceduralAnimTime) * LimbSwingAmplitude;
-                float bob = Mathf.Abs(Mathf.Cos(_proceduralAnimTime)) * WalkBobAmplitude;
-
-                // Aplicar movimiento a las piernas (oscilación eje X)
-                RotateBoneIfExists("thigh.l", swing);
-                RotateBoneIfExists("shin.l", swing * 0.3f); 
-                RotateBoneIfExists("thigh.r", -swing);
-                RotateBoneIfExists("shin.r", -swing * 0.3f);
-
-                // Oscilación de brazos y muñecas
-                RotateBoneIfExists("upper_arm.l", swing * 0.8f, true);
-                RotateBoneIfExists("forearm.l", swing * 0.4f, true);
-                RotateBoneIfExists("hand.l", 0.0f, true);
-                RotateBoneIfExists("upper_arm.r", swing * 0.8f, true); 
-                RotateBoneIfExists("forearm.r", swing * 0.4f, true); 
-                RotateBoneIfExists("hand.r", 0.0f, true);
-
-                // Bobbing vertical (Y)
-                _visualsContainer.Position = new Vector3(0, -bob, 0);
-            }
-            else
-            {
-                // Resetear suavemente
-                _proceduralAnimTime = Mathf.Lerp(_proceduralAnimTime, 0, delta * 5f);
-                _visualsContainer.Position = _visualsContainer.Position.Lerp(Vector3.Zero, delta * 5f);
-                
-                // Resetear cada hueso a su pose de descanso (rest pose) de forma suave
-                foreach (int idx in _boneIndices.Values)
-                {
-                    string name = _skeleton.GetBoneName(idx).ToLower();
-                    Quaternion restRot = _skeleton.GetBoneRest(idx).Basis.GetRotationQuaternion();
-                    Quaternion targetRot = restRot;
-
-                    // Si es un brazo o mano, mantener la pose HUD de supervivencia
-                    if (name.Contains("upper_arm") || name.Contains("forearm") || name.Contains("hand"))
-                    {
-                        float side = name.Contains(".l") ? -1.0f : 1.0f;
-                        bool isUpperArm = name.Contains("upper_arm");
-                        bool isForearm = name.Contains("forearm");
-                        bool isHand = name.Contains("hand");
-                        
-                        // --- DOCUMENTACION DE ROTACIONES EMPIRICAS EN ESTE RIG ---
-                        // UPPER ARM (Hombro): 
-                        //   X neg (-): Hombro cae hacia abajo (hacia el cuerpo). Pitch negativo.
-                        //   X pos (+): Hombro sube (menos util).
-                        //   Y: Roll del hombro sobre su propio eje (no usado todavia).
-                        //   Z (con sideZ): Balancea el brazo hacia adelante/atras. Su eje principal de swing.
-                        // FOREARM (Codo):
-                        //   X neg (-): El codo se dobla hacia ATRAS (fuera de la pantalla). No sirve.
-                        //   X pos (+): El codo abre hacia los lados como "alas de pollo". No sirve.
-                        //   Y: Roll del antebrazo sobre su eje longitudinal. Util para compensar retorcimiento.
-                        //   Z (con sideZ): La UNICA bisagra que dobla el codo hacia ADELANTE.
-                        //      Efecto secundario: retuerce la malla del antebrazo (papel caramelo).
-                        //   Y + sideY (mismo signo que sideZ): Dobla el brazo hacia ATRAS (manos en caderas). Mal.
-                        //   Y + sideY (signo OPUESTO a sideZ): Reduce el retorcimiento! Pero a 1.5 flarea el brazo.
-                        //      -> La amplitud de Y hay que calibrarla. Probamos Y=-0.7 (sideY invertido).
-                        // HAND (Muneca):
-                        //   Z (con sideZ): Gira-tuerce la muneca. Puede compensar el papel de caramelo del antebrazo.
-                        //   X: Flexion/Extension de la muneca (arriba/abajo). A explorar.
-                        //   Y: Desviacion radial/cubital de la muneca (lateral). A explorar.
-                        // ---------------------------------------------------------
-                        
-                        // Paso 1: Bajar brazos relajados (X) + swing forward (Z) en el upper arm.
-                        // Las manos solo se ven mirando hacia abajo: necesitamos menos drop(X) y mas forward(Z).
-                        // FPS survival target: brazos a nivel del pecho, visibles mirando recto.
-                        float xRot = isUpperArm ? -0.3f : 0.0f;  // Reducido: menos caida
-                        float zRotUpperArm = isUpperArm ? 1.0f : 0.0f; // 0.8->1.0: mas avance hacia la camara
-                        
-                        // Paso 2: Bisagra del codo con los 3 ejes.
-                        float zRot = isForearm ? 0.7f : 0.0f;
-                        float yRotForearm = isForearm ? -0.5f : 0.0f;
-                        float xRotForearm = isForearm ? -0.3f : 0.0f;
-                        
-                        float sideZMultiplier = name.Contains(".l") ? -1.0f : 1.0f;
-                        float sideYMultiplier = name.Contains(".l") ? 1.0f : -1.0f;
-                        
-                        // Paso 3: Mano. Todos a 0 como baseline. Iremos ajustando uno a uno.
-                        // zRotHand: tuerce la muneca (roll). xRotHand: flexion muneca. yRotHand: desviacion lateral.
-                        float zRotHand = 0.0f;
-                        float xRotHand = 0.0f;
-                        float yRotHand = 0.0f;
-                        
-                        Quaternion relaxX = new Quaternion(new Vector3(1, 0, 0), xRot + xRotForearm + xRotHand);
-                        Quaternion relaxY = new Quaternion(new Vector3(0, 1, 0), (yRotForearm + yRotHand) * sideYMultiplier);
-                        Quaternion relaxZ = new Quaternion(new Vector3(0, 0, 1), (zRot + zRotHand + zRotUpperArm) * sideZMultiplier);
-                        
-                        targetRot = restRot * relaxX * relaxY * relaxZ;
-                    }
-
-                    Quaternion current = _skeleton.GetBonePoseRotation(idx);
-                    _skeleton.SetBonePoseRotation(idx, current.Slerp(targetRot, delta * 5f));
-                }
-            }
-        }
-
-        private void RotateBoneIfExists(string partialName, float angle, bool isArm = false)
-        {
-            foreach (var kvp in _boneIndices)
-            {
-                if (kvp.Key.Contains(partialName))
-                {
-                    int boneIdx = kvp.Value;
-                    Quaternion restRotation = _skeleton.GetBoneRest(boneIdx).Basis.GetRotationQuaternion();
-                    
-                    // Rotación de balanceo (eje X para piernas, eje Z para brazos)
-                    Quaternion swingRot = new Quaternion(isArm ? new Vector3(0, 0, 1) : new Vector3(1, 0, 0), angle);
-                    
-                    if (isArm)
-                    {
-                        // Pose HUD de supervivencia
-                        float side = kvp.Key.Contains(".l") ? -1.0f : 1.0f;
-                        bool isUpperArm = kvp.Key.Contains("upper_arm");
-                        bool isForearm = kvp.Key.Contains("forearm");
-                        bool isHand = kvp.Key.Contains("hand");
-                        
-                        // Resumen de ejes: Hombro baja en X, Codo (Z + Y opuesto sideY), Mano (0)
-                        float xRot = isUpperArm ? -0.3f : 0.0f;
-                        float zRotUpperArm = isUpperArm ? 1.0f : 0.0f;
-                        
-                        float zRot = isForearm ? 0.7f : 0.0f; 
-                        float yRotForearm = isForearm ? -0.5f : 0.0f;
-                        float xRotForearm = isForearm ? -0.3f : 0.0f;
-                        
-                        float sideZMultiplier = kvp.Key.Contains(".l") ? -1.0f : 1.0f;
-                        float sideYMultiplier = kvp.Key.Contains(".l") ? 1.0f : -1.0f;
-                        
-                        float zRotHand = 0.0f; 
-                        float xRotHand = 0.0f;
-                        float yRotHand = 0.0f; 
-                        
-                        Quaternion relaxX = new Quaternion(new Vector3(1, 0, 0), xRot + xRotForearm + xRotHand);
-                        Quaternion relaxY = new Quaternion(new Vector3(0, 1, 0), (yRotForearm + yRotHand) * sideYMultiplier);
-                        Quaternion relaxZ = new Quaternion(new Vector3(0, 0, 1), (zRot + zRotHand + zRotUpperArm) * sideZMultiplier);
-                        
-                        _skeleton.SetBonePoseRotation(boneIdx, restRotation * relaxX * relaxY * relaxZ * swingRot);
-                    }
-                    else
-                    {
-                        _skeleton.SetBonePoseRotation(boneIdx, restRotation * swingRot);
-                    }
-                }
-            }
         }
 
         private void PlayAnimation(string animName)
         {
             if (_animationPlayer == null || string.IsNullOrEmpty(animName)) return;
             
-            if (_animationPlayer.CurrentAnimation != animName)
+            // Si es una animación distinta, o si es la misma pero se ha detenido (no era loop)
+            if (_animationPlayer.CurrentAnimation != animName || !_animationPlayer.IsPlaying())
             {
                 if (_animationPlayer.HasAnimation(animName))
                 {
-                    _animationPlayer.Play(animName, AnimBlendTime);
+                    // Intento de forzar loop en animaciones de movimiento/reposo. 
+                    // Si el recurso es read-only (típico de .glb), fallará silenciosamente,
+                    // pero el IsPlaying() de arriba actuará como salvavidas reiniciándola cada vez que acabe.
+                    var anim = _animationPlayer.GetAnimation(animName);
+                    if (anim != null && (animName.Contains("walk") || animName.Contains("idle") || animName.Contains("run")))
+                    {
+                        if (anim.LoopMode == Animation.LoopModeEnum.None)
+                        {
+                            try { anim.LoopMode = Animation.LoopModeEnum.Linear; } catch {}
+                        }
+                    }
+
+                    // Se reproduce de forma inmediata.
+                    _animationPlayer.Play(animName);
                 }
             }
         }

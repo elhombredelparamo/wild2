@@ -653,6 +653,7 @@ namespace Wild.Data
 
                 Wild.Utils.Logger.LogInfo($"PersonajeManager: Aplicando materiales externos forzados ({genero})");
 
+                // Para los nuevos modelos animados, intentamos ser más selectivos
                 AsignarMaterialRecursivo(instancia, matCuerpo, matOjos, matMandibula);
             }
             catch (System.Exception ex)
@@ -708,8 +709,10 @@ namespace Wild.Data
                         meshInstance.SetSurfaceOverrideMaterial(i, ojos);
                     else if (matName.Contains("jaw")) 
                         meshInstance.SetSurfaceOverrideMaterial(i, mandibula);
-                    else 
+                    else if (matName.Contains("skin") || matName.Contains("body") || matName.Contains("cuerpo"))
                         meshInstance.SetSurfaceOverrideMaterial(i, cuerpo);
+                    else
+                        Wild.Utils.Logger.LogDebug($"PersonajeManager: Manteniendo material original para superficie {i}: {matName}");
                 }
             }
 

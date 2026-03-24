@@ -68,6 +68,9 @@ namespace Wild.Core.Player
             var personaje = PersonajeManager.Instance.ObtenerPersonaje(personajeId);
             if (personaje != null)
             {
+                // CRÍTICO: asignar género ANTES de SetVisualModel para que la escala sea correcta
+                _jugadorActual.Genero = personaje.genero;
+
                 var modelo = PersonajeManager.Instance.InstanciarPersonaje(personaje);
                 if (modelo != null)
                 {
