@@ -22,12 +22,16 @@ namespace Wild.Core.Terrain
     public partial class TerrainManager : Node3D
     {
         public static TerrainManager Instance { get; private set; }
+        
+        // Flag para evitar que el TerrainManager se limpie al moverlo entre LoadingScene y GameWorld
+        public bool IsTransferring { get; set; } = false;
 
         [Export] public int LoadRadius  = 5;   
         [Export] public int UnloadRadius = 8;   
         [Export] public int ChunkSize   = 10;   
 
         [Signal] public delegate void ChunkInicialListoEventHandler();
+        public bool IsInitialReady { get; private set; } = false;
 
         private readonly Dictionary<Vector2I, ChunkRenderer> _chunks = new();
         private readonly HashSet<Vector2I>  _cargando = new();
@@ -67,6 +71,17 @@ namespace Wild.Core.Terrain
 
         public override void _Ready()
         {
+            // Si estamos en medio de una transferencia entre escenas, NO reinicializamos.
+            // El nodo ya está configurado y su caché (_vegCache, _removedVegetation, etc.)
+            // debe conservarse intacto. Solo actualizamos el Singleton.
+            if (IsTransferring)
+            {
+                Logger.LogDebug("TERRAIN: _Ready() ignorado durante transferencia. Conservando caché.");
+                Instance = this;
+                IsTransferring = false; // La transferencia ha concluido, ya estamos en GameWorld
+                return;
+            }
+
             Instance = this;
             _seed = 12345;
             var mundoActual = MundoManager.Instance.ObtenerMundoActual();
@@ -100,6 +115,15 @@ namespace Wild.Core.Terrain
             }
         }
 
+        /// <summary>
+        /// Fuerza que el próximo Update() siempre pase el threshold de distancia.
+        /// Útil al teleportar al jugador o al entrar en GameWorld con terreno pre-generado.
+        /// </summary>
+        public void ResetUpdateThreshold()
+        {
+            _lastUpdatePos = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+        }
+
         public void Update(Vector3 refPos)
         {
             if (refPos.DistanceTo(_lastUpdatePos) < UpdateThreshold)
@@ -107,24 +131,24 @@ namespace Wild.Core.Terrain
 
             _lastUpdatePos = refPos;
             _chunkCentral = WorldToChunk(refPos);
-
+ 
             CargarChunksNuevos();
             DescargarChunksLejanos();
-            UpdateDynamicCollisions(refPos);
+            _ = UpdateDynamicCollisionsAsync(refPos); // Fuego y olvidamos para actualizaciones en tiempo real
         }
 
         /// <summary>
         /// Fuerza una actualización de colisiones ignorando el threshold de posición.
         /// Se llama cuando los chunks acaban de cargar por primera vez.
         /// </summary>
-        public void ForceCollisionUpdate(Vector3 refPos)
+        public async Task ForceCollisionUpdateAsync(Vector3 refPos)
         {
-            _lastUpdatePos = refPos; // Para que la siguiente llamada normal también funcione
-            UpdateDynamicCollisions(refPos);
-            Logger.LogInfo("TERRAIN: ForceCollisionUpdate ejecutado en spawn.");
+            _lastUpdatePos = refPos;
+            await UpdateDynamicCollisionsAsync(refPos);
+            Logger.LogInfo("TERRAIN: ForceCollisionUpdateAsync ejecutado en spawn.");
         }
 
-        private async void UpdateDynamicCollisions(Vector3 playerPos)
+        private async Task UpdateDynamicCollisionsAsync(Vector3 playerPos)
         {
             if (_collisionUpdateInProgress) return;
             _collisionUpdateInProgress = true;
@@ -212,6 +236,12 @@ namespace Wild.Core.Terrain
         {
             if (_activeColliders.ContainsKey(veg.Position)) return;
 
+            var chunkCoord = WorldToChunk(veg.Position);
+            if (_removedVegetation.TryGetValue(chunkCoord, out var removedInChunk))
+            {
+                if (removedInChunk.Contains(veg.Index)) return; // Ya fue recolectada globalmente!
+            }
+
             var area = new Area3D();
             area.Position = veg.Position + Vector3.Up * 0.5f; // Elevado un poco para facilitar interacción
 
@@ -222,6 +252,11 @@ namespace Wild.Core.Terrain
 
             // Metadatos para el raycast del jugador
             area.SetMeta("item_id", veg.ItemId);
+            // Guardar la posición REAL de la vegetación (sin el +0.5 de offset del trigger)
+            // para que InteraccionJugador pueda pasársela a RemoveVegetationAt correctamente.
+            area.SetMeta("veg_pos_x", veg.Position.X);
+            area.SetMeta("veg_pos_y", veg.Position.Y);
+            area.SetMeta("veg_pos_z", veg.Position.Z);
 
             // Capas de colisión para que el raycast lo vea (Capa 4: Interacciones)
             area.CollisionLayer = 1 << 3; 
@@ -363,7 +398,11 @@ namespace Wild.Core.Terrain
             if (_chunksInicialPendientes > 0)
             {
                 _chunksInicialPendientes--;
-                if (_chunksInicialPendientes == 0) EmitSignal(SignalName.ChunkInicialListo);
+                if (_chunksInicialPendientes == 0)
+                {
+                    IsInitialReady = true;
+                    EmitSignal(SignalName.ChunkInicialListo);
+                }
             }
         }
 
@@ -382,6 +421,12 @@ namespace Wild.Core.Terrain
 
         public override void _ExitTree()
         {
+            if (IsTransferring) 
+            {
+                Logger.LogDebug("TERRAIN: Saltando _ExitTree (Transferencia a GameWorld).");
+                return;
+            }
+
             SessionData.Instance.OnSettingsApplied -= ApplyRenderSettings;
             QualityManager.OnVegetationQualityChanged -= ForceFullReload;
             QualityManager.OnTerrainQualityChanged -= ForceFullReload;
@@ -593,6 +638,11 @@ namespace Wild.Core.Terrain
         {
             var chunkCoord = WorldToChunk(globalPos);
 
+            if (!_vegCache.Contains(chunkCoord))
+            {
+                Logger.LogWarning($"TERRAIN: RemoveVegetationAt - Chunk {chunkCoord} NO está en caché. No se puede remover '{keyword}' en {globalPos}");
+                return;
+            }
             if (_vegCache.Contains(chunkCoord))
             {
                 var list = _vegCache.Get(chunkCoord);
@@ -603,7 +653,10 @@ namespace Wild.Core.Terrain
 
                 for (int i = 0; i < list.Count; i++)
                 {
-                    if (list[i].ModelPath.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                    bool isMatch = string.Equals(list[i].ItemId, keyword, StringComparison.OrdinalIgnoreCase) ||
+                                   (list[i].ModelPath != null && list[i].ModelPath.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+                                   
+                    if (isMatch)
                     {
                         float d = list[i].Position.DistanceTo(globalPos);
                         if (d < bestDist && d < 2.0f) // Tolerancia razonable

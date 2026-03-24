@@ -19,6 +19,7 @@ using Wild.Core.Player;
 using Wild.Data;
 using Wild.Utils;
 using Wild.Core.Quality;
+using Wild.Core;
 
 namespace Wild.UI
 {
@@ -78,17 +79,41 @@ namespace Wild.UI
 
         private void SetupTerrainManager()
         {
-            _terrainManager = new TerrainManager();
+            // Intentamos reclamar el terreno que se pre-generó en la escena de carga
+            _terrainManager = GameLoader.Instance?.ClaimTerrain();
+            
+            if (_terrainManager == null)
+            {
+                Logger.LogInfo("GameWorld: No se encontró terreno pre-generado. Creando uno nuevo...");
+                _terrainManager = new TerrainManager();
+            }
+            else
+            {
+                Logger.LogInfo("GameWorld: Reutilizando terreno pre-generado desde GameLoader.");
+            }
+
             AddChild(_terrainManager);
 
             // Ocultar overlay cuando el primer lote de chunks este listo
             _terrainManager.Connect(TerrainManager.SignalName.ChunkInicialListo, Callable.From(OnChunkInicialListo));
             _terrainManager.Connect(TerrainManager.SignalName.ChunkInicialListo, Callable.From(OnTerrainReady));
 
-            // Arrancar la primera actualización con la posición del jugador (o cámara si no hay)
+            // Arrancar la actualización con la posición del jugador.
+            // Reseteamos el threshold para que Update() siempre se ejecute aunque
+            // la posición sea la misma que usó la LoadingScene al pre-generar el terreno.
             Vector3 startPos = (_jugador != null) ? _jugador.GlobalPosition : _camera.GlobalPosition;
+            _terrainManager.ResetUpdateThreshold();
             _terrainManager.Update(startPos);
-            Logger.LogInfo("GameWorld: TerrainManager iniciado.");
+
+            
+            // Si ya estaba listo (ya generado en LoadingScene), disparamos los eventos manualmente
+            // ya que la señal ChunkInicialListo ya se emitió y no volverá a dispararse.
+            if (_terrainManager.IsInitialReady)
+            {
+                Logger.LogInfo("GameWorld: Terreno detectado como listo al entrar. Activando mundo manualmente.");
+                OnChunkInicialListo();
+                OnTerrainReady();
+            }
         }
 
         private void SetupEnvironment()
@@ -122,8 +147,14 @@ namespace Wild.UI
             }
         }
 
-        private void OnChunkInicialListo()
+        private async void OnChunkInicialListo()
         {
+            // Esperar 2 frames para que la GPU renderice el terreno antes de revelar el mundo.
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+            if (!IsInstanceValid(this)) return;
+
             if (_loadingOverlay != null) _loadingOverlay.Visible = false;
             if (_labelObjective != null) _labelObjective.Visible = false;
             Logger.LogInfo("GameWorld: Primer lote listo. Overlay ocultado, render 3D activo.");
@@ -133,7 +164,10 @@ namespace Wild.UI
         {
             try
             {
-                _pauseMenu = GD.Load<PackedScene>("res://scenes/ui/pause_menu.tscn").Instantiate<PauseMenu>();
+                // Intentar obtener de la caché del GameLoader primero
+                string path = "res://scenes/ui/pause_menu.tscn";
+                var cached = GameLoader.Instance?.GetResource<PackedScene>(path);
+                _pauseMenu = (cached ?? GD.Load<PackedScene>(path)).Instantiate<PauseMenu>();
 
                 if (_pauseMenu != null)
                 {
@@ -160,7 +194,10 @@ namespace Wild.UI
         {
             try
             {
-                _inventoryUI = GD.Load<PackedScene>("res://scenes/ui/inventory_ui.tscn").Instantiate<InventoryUI>();
+                // Intentar obtener de la caché del GameLoader primero
+                string path = "res://scenes/ui/inventory_ui.tscn";
+                var cached = GameLoader.Instance?.GetResource<PackedScene>(path);
+                _inventoryUI = (cached ?? GD.Load<PackedScene>(path)).Instantiate<InventoryUI>();
 
                 if (_inventoryUI != null)
                 {
@@ -215,8 +252,10 @@ namespace Wild.UI
                 _playerManager = new PlayerManager();
                 AddChild(_playerManager);
 
-                // Cargar el prefab del jugador
-                _playerManager.FichaJugadorScene = GD.Load<PackedScene>("res://scenes/player/ficha_jugador.tscn");
+                // Cargar el prefab del jugador (usar caché si existe)
+                string path = "res://scenes/player/ficha_jugador.tscn";
+                var cached = GameLoader.Instance?.GetResource<PackedScene>(path);
+                _playerManager.FichaJugadorScene = cached ?? GD.Load<PackedScene>(path);
 
                 // Spamear al jugador usando el personaje actual
                 string personajeId = PersonajeManager.Instance?.PersonajeActualId ?? "default";
@@ -274,7 +313,7 @@ namespace Wild.UI
             }
         }
 
-        private void OnTerrainReady()
+        private async void OnTerrainReady()
         {
             Logger.LogInfo("GameWorld: Terreno inicial listo. Activando física del jugador.");
             if (_jugador != null)
@@ -284,7 +323,10 @@ namespace Wild.UI
 
             // Forzar el spawn de triggers de setas (chunks ya cargados, jugador puede interactuar)
             Vector3 pos = (_jugador != null) ? _jugador.GlobalPosition : _camera.GlobalPosition;
-            _terrainManager?.ForceCollisionUpdate(pos);
+            if (_terrainManager != null)
+            {
+                await _terrainManager.ForceCollisionUpdateAsync(pos);
+            }
         }
 
         // ── Process ───────────────────────────────────────────────────────────

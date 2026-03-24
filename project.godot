@@ -22,6 +22,7 @@ MundoManager="*res://scripts/data/MundoManager.cs"
 PersonajeManager="*res://scripts/data/PersonajeManager.cs"
 QualityManager="*res://scripts/Core/Quality/QualityManager.cs"
 InventoryManager="*res://scripts/data/inventory/InventoryManager.cs"
+GameLoader="*res://scripts/Core/GameLoader.cs"
 
 [display]
 

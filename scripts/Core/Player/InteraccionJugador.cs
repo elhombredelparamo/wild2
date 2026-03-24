@@ -55,7 +55,18 @@ namespace Wild.Core.Player
                         if (added)
                         {
                             Logger.LogInfo($"PLAYER: Item '{itemId}' recogido.");
-                            Wild.Core.Terrain.TerrainManager.Instance?.RemoveVegetationAt(area.GlobalPosition, itemId);
+                            // Usamos la posición REAL de la vegetación guardada en metadata
+                            // (area.GlobalPosition tiene un offset de +0.5Y del trigger)
+                            Vector3 vegPos = area.GlobalPosition;
+                            if (area.HasMeta("veg_pos_x"))
+                            {
+                                vegPos = new Vector3(
+                                    (float)area.GetMeta("veg_pos_x"),
+                                    (float)area.GetMeta("veg_pos_y"),
+                                    (float)area.GetMeta("veg_pos_z")
+                                );
+                            }
+                            Wild.Core.Terrain.TerrainManager.Instance?.RemoveVegetationAt(vegPos, itemId);
                         }
                     }
                     // Caso B: Deployable (StaticBody3D - buscamos DeployableBase en padres)

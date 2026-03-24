@@ -18,6 +18,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Linq;
+using Wild.Core;
+using Wild.Utils;
 
 namespace Wild.Data
 {
@@ -579,8 +581,16 @@ namespace Wild.Data
             try
             {
                 string rutaModelo = personaje.ObtenerRutaModelo();
-                Wild.Utils.Logger.LogInfo($"PersonajeManager: Cargando modelo desde {rutaModelo}");
                 
+                // Intentar obtener de la caché del GameLoader primero
+                var cached = GameLoader.Instance?.GetResource<PackedScene>(rutaModelo);
+                if (cached != null)
+                {
+                    Wild.Utils.Logger.LogDebug($"PersonajeManager: Reutilizando modelo precargado de {rutaModelo}");
+                    return cached;
+                }
+
+                Wild.Utils.Logger.LogInfo($"PersonajeManager: Cargando modelo (fallback) desde {rutaModelo}");
                 var escena = GD.Load<PackedScene>(rutaModelo);
                 if (escena == null)
                 {

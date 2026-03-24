@@ -3,6 +3,7 @@ using System;
 using Wild.Data;
 using Wild.Data.Inventory;
 using Wild.Utils;
+using Wild.Core;
 
 namespace Wild.Core.Player
 {
@@ -78,7 +79,22 @@ namespace Wild.Core.Player
                 }
             }
 
-            PlayerData savedData = MundoManager.Instance.CargarDatosJugador(personajeId);
+            // Intentar obtener datos precargados desde GameLoader (Paso 4 de optimización)
+            PlayerData savedData = GameLoader.Instance?.CachedPlayerData;
+            
+            // Si no hay datos precargados o son de otro personaje, cargarlos ahora (fallback)
+            if (savedData == null || savedData.id_personaje != personajeId)
+            {
+                Logger.LogDebug($"PlayerManager: No hay datos precargados para {personajeId}. Cargando disco...");
+                savedData = MundoManager.Instance.CargarDatosJugador(personajeId);
+            }
+            else
+            {
+                Logger.LogInfo($"PlayerManager: Reutilizando datos precargados desde GameLoader para {personajeId}.");
+                // Limpiar caché para evitar reutilizaciones accidentales en próximos spawns
+                GameLoader.Instance.CachedPlayerData = null;
+            }
+
             if (savedData != null)
             {
                 _jugadorActual.GlobalPosition = savedData.GetPosition();
