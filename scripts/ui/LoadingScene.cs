@@ -170,6 +170,9 @@ namespace Wild.UI
                 // Paso 3: Mundo
                 await UpdateProgress(3, "Mundo...");
                 
+                // Horneado de la librería de vegetación de alto rendimiento
+                VegetationRegistry.Bake();
+                
                 // Instanciamos el terreno aquí para que empiece a trabajar
                 var terrain = new TerrainManager();
                 AddChild(terrain);

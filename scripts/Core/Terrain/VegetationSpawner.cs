@@ -49,14 +49,15 @@ namespace Wild.Core.Terrain
 
             // PRE-CARGA de modelos en el HILO PRINCIPAL
             var biomaBase = _biomaManager.GetBiomaAt(coord.X * chunkSize, coord.Y * chunkSize);
-            if (biomaBase is BosqueBioma bBase) VegetationLibrary.Preload(bBase.TreeModels);
-            if (biomaBase.VegetationEntries != null)
+            if (biomaBase.VegetationEntries != null && biomaBase.VegetationEntries.Length > 0)
             {
                 var paths = new List<string>();
-                foreach (var e in biomaBase.VegetationEntries) if (!string.IsNullOrEmpty(e.ModelPath)) paths.Add(e.ModelPath);
-                VegetationLibrary.PreloadPlants(paths.ToArray());
+                foreach (var e in biomaBase.VegetationEntries) 
+                    if (!string.IsNullOrEmpty(e.ModelPath)) paths.Add(e.ModelPath);
+                
+                VegetationLibrary.Preload(paths.ToArray());
             }
-
+            
             // ── 1. Cálculo de Posiciones (Segundo Plano) ─────────────────────
             var instances = await Task.Run(() =>
             {
@@ -72,31 +73,15 @@ namespace Wild.Core.Terrain
                     float height = data.Altitudes[(z * vertexCount) + x];
                     
                     BiomaType localBioma = _biomaManager.GetBiomaAt(worldX, worldZ);
-                    
-                    // A) Bosque (Árboles)
-                    if (localBioma is BosqueBioma bosque)
-                    {
-                        rng.Seed = (ulong)(_seed + (long)worldX * 31337 + (long)worldZ * 73);
-                        if (rng.Randf() < bosque.VegetationDensity * densityMultiplier)
-                        {
-                            list.Add(new VegetationInstance {
-                                Index = indexCounter,
-                                ModelPath = bosque.TreeModels[rng.Randi() % (uint)bosque.TreeModels.Length],
-                                Position = new Vector3(worldX, height, worldZ),
-                                RotationY = rng.Randf() * Mathf.Pi * 2.0f,
-                                Scale = rng.RandfRange(0.8f, 1.4f)
-                            });
-                        }
-                    }
-                    indexCounter++;
+                    var entries = localBioma.VegetationEntries;
 
-                    // B) Otras entradas (Plantas)
-                    if (localBioma.VegetationEntries != null)
+                    if (entries != null)
                     {
-                        for (int i = 0; i < localBioma.VegetationEntries.Length; i++)
+                        for (int i = 0; i < entries.Length; i++)
                         {
-                            var entry = localBioma.VegetationEntries[i];
+                            var entry = entries[i];
                             rng.Seed = (ulong)(_seed + (long)worldX * SeedMixX + (long)worldZ * SeedMixZ + (long)i * SeedMixEntry);
+                            
                             if (rng.Randf() < entry.SpawnChance * densityMultiplier)
                             {
                                 list.Add(new VegetationInstance {

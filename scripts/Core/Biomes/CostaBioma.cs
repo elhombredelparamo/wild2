@@ -3,6 +3,7 @@ using Godot;
 public partial class CostaBioma : BiomaType
 {
     public override string Name => "Costa";
+    public override BiomeId Id => BiomeId.Costa;
     // Color arena claro
     public override Color BaseColor => new Color(0.95f, 0.9f, 0.6f);
     // Justo por encima del nivel del mar (0)

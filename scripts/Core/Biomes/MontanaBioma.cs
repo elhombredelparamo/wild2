@@ -3,6 +3,7 @@ using Godot;
 public partial class MontanaBioma : BiomaType
 {
     public override string Name => "Montana";
+    public override BiomeId Id => BiomeId.Montana;
     // Gris roca
     public override Color BaseColor => new Color(0.4f, 0.4f, 0.45f);
     // Grandes altitudes

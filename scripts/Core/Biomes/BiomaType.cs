@@ -3,14 +3,14 @@ using Godot;
 public abstract partial class BiomaType : RefCounted
 {
     public abstract string Name { get; }
+    public abstract BiomeId Id { get; }
     public abstract Color BaseColor { get; }
     public abstract float BaseHeight { get; }
     public abstract float HeightVariation { get; }
 
     /// <summary>
-    /// Lista de vegetación que puede aparecer en este bioma.
-    /// Cada entrada define un tipo de planta con su propia probabilidad de spawn.
-    /// Por defecto vacía — cada bioma concreto puede sobreescribirla.
+    /// Lista de vegetación que aparece en este bioma, consultada desde el Registro central.
+    /// Acceso O(1) y Zero-Alloc tras el Bake inicial.
     /// </summary>
-    public virtual VegetationEntry[] VegetationEntries => System.Array.Empty<VegetationEntry>();
+    public virtual VegetationEntry[] VegetationEntries => VegetationRegistry.GetEntriesForBiome(this.Id);
 }
