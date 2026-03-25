@@ -34,9 +34,9 @@ namespace Wild.Core.Player
         
         [ExportGroup("Cámaras por Género")]
         [Export] public float AlturaMujer = 1.65f;
-        [Export] public float OffsetFrontalMujer = 0.15f;
+        [Export] public float OffsetFrontalMujer = 0.22f;
         [Export] public float AlturaHombre = 1.68f; 
-        [Export] public float OffsetFrontalHombre = 0.22f; 
+        [Export] public float OffsetFrontalHombre = 0.44f; 
 
         public string Genero { get; set; } = "hombre";
 
