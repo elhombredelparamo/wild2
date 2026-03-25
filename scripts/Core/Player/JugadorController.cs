@@ -43,6 +43,7 @@ namespace Wild.Core.Player
         private Node3D _visualsContainer;
         private AnimationPlayer _animationPlayer;
         private AnimationTree _animationTree;
+        private AnimationNodeStateMachinePlayback _stateMachinePlayback;
         private Skeleton3D _skeleton;
         private Vector2 _lastInputMotion = Vector2.Zero;
 
@@ -136,13 +137,14 @@ namespace Wild.Core.Player
                         if (animLower.Contains("jump")) AnimJump = anim;
                     }
 
-                    _animationTree = model.FindChild("*", true, false) as AnimationTree;
-                    if (_animationTree == null) _animationTree = model.GetParent()?.FindChild("*", true, false) as AnimationTree;
+                    _animationTree = model.FindChild("AnimationTree", true, false) as AnimationTree;
+                    if (_animationTree == null) _animationTree = model.GetParent()?.FindChild("AnimationTree", true, false) as AnimationTree;
                     
                     if (_animationTree != null)
                     {
                         _animationTree.Active = true;
-                        Logger.LogInfo($"JugadorController: AnimationTree '{_animationTree.Name}' detectado.");
+                        _stateMachinePlayback = _animationTree.Get("parameters/playback").As<AnimationNodeStateMachinePlayback>();
+                        Logger.LogInfo($"JugadorController: AnimationTree '{_animationTree.Name}' detectado. Playback: {(_stateMachinePlayback != null ? "OK" : "NULL")}");
                     }
                     
                     if (_animationTree == null)
@@ -460,17 +462,21 @@ namespace Wild.Core.Player
             if (isMoving && Engine.GetProcessFrames() % 60 == 0)
                 Logger.LogDebug($"JugadorController Animation: isMoving={isMoving} input={_lastInputMotion} (Tree:{_animationTree != null})");
 
-            // Opción A: Tenemos un AnimationTree (Punto 2)
-            if (_animationTree != null && _animationTree.Active)
+            // Opción A: Tenemos un AnimationTree con StateMachine → usar Travel() (más robusto que condiciones)
+            if (_animationTree != null && _animationTree.Active && _stateMachinePlayback != null)
             {
-                // Solo activamos movimiento/idle si estamos en el suelo para evitar conflictos con el salto
-                _animationTree.Set("parameters/conditions/is_moving", IsOnFloor() && isMoving);
-                _animationTree.Set("parameters/conditions/is_idle", IsOnFloor() && !isMoving);
-                _animationTree.Set("parameters/conditions/is_on_floor", IsOnFloor());
-                _animationTree.Set("parameters/conditions/is_jumping", !IsOnFloor());
-                
-                // Si es un BlendSpace2D, le pasamos el vector de movimiento
-                _animationTree.Set("parameters/move_pos/blend_position", _lastInputMotion);
+                string targetState;
+                if (!IsOnFloor())
+                    targetState = "jump";
+                else if (isMoving)
+                    targetState = "walk";
+                else
+                    targetState = "idle";
+
+                // Travel() navega al estado destino usando las transiciones existentes
+                if (_stateMachinePlayback.GetCurrentNode() != targetState)
+                    _stateMachinePlayback.Travel(targetState);
+
                 return;
             }
 

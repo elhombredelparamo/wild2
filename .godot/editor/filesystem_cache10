@@ -1,5 +1,5 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1774364549
+::res://::1774435566
 inspect_mesh.gd::GDScript::7192377888411095163::1773598021::0::1::::<>SceneTree<><>0<>0<><>::
 mapa.md::TextFile::-1::1774345458::0::1::::<><><>0<>0<><>::
 ::res://assets/::1774209234
@@ -261,7 +261,7 @@ resumen.md::TextFile::-1::1773736748::0::1::::<><><>0<>0<><>::
 ::res://fdd/::1774345605
 ::res://fdd/active/::1774205202
 current-feature.md::TextFile::-1::1774345143::0::1::::<><><>0<>0<><>::
-::res://fdd/active/daily-notes/::1774344900
+::res://fdd/active/daily-notes/::1774430981
 2026-03-11.md::TextFile::-1::1773256995::0::1::::<><><>0<>0<><>::
 2026-03-12-10-06.md::TextFile::-1::1773306420::0::1::::<><><>0<>0<><>::
 2026-03-14_Feature3_Completado.md::TextFile::-1::1773498174::0::1::::<><><>0<>0<><>::
@@ -277,7 +277,8 @@ current-feature.md::TextFile::-1::1774345143::0::1::::<><><>0<>0<><>::
 2026-03-17.md::TextFile::-1::1773780408::0::1::::<><><>0<>0<><>::
 2026-03-22.md::TextFile::-1::1774220718::0::1::::<><><>0<>0<><>::
 2026-03-23.md::TextFile::-1::1774292095::0::1::::<><><>0<>0<><>::
-2026-03-24.md::TextFile::-1::1774362423::0::1::::<><><>0<>0<><>::
+2026-03-24.md::TextFile::-1::1774387386::0::1::::<><><>0<>0<><>::
+2026-03-25-10-30.md::TextFile::-1::1774435391::0::1::::<><><>0<>0<><>::
 ::res://fdd/completed/::1774292177
 current-feature.md::TextFile::-1::1773428058::0::1::::<><><>0<>0<><>::
 F1-interfaces-basicas.md::TextFile::-1::1773321724::0::1::::<><><>0<>0<><>::
@@ -336,7 +337,8 @@ splash_screen.tscn::PackedScene::-1::1773310575::0::1::::<><><>0<>0<><>::res://s
 world_select_menu.tscn::PackedScene::-1::1773314080::0::1::::<><><>0<>0<><>::res://scripts/ui/WorldSelectMenu.cs
 ::res://scripts/::1773587524
 ::res://scripts/Core/::1774362803
-::res://scripts/Core/Biomes/::1773773899
+::res://scripts/Core/Biomes/::1774432545
+::res://scripts/Core/Biomes/Vegetation/::1774432528
 ::res://scripts/Core/Deployables/::1774259573
 ::res://scripts/Core/Player/::1774214425
 ::res://scripts/Core/Quality/::1773757424
