@@ -27,7 +27,7 @@ namespace Wild.Data
         // -----------------------------------------------------------------
         public string id { get; set; } = "";                    // ID único (generado al crear)
         public string apodo { get; set; } = "";                 // Apodo del personaje
-        public string genero { get; set; } = "hombre";          // Género (hombre/mujer)
+        public string tipo_personaje { get; set; } = "hombre1"; // ID del modelo (TipoPersonaje)
         public DateTime fecha_creacion { get; set; }            // Fecha de creación
         public DateTime ultimo_acceso { get; set; }            // Último acceso
         public DateTime ultima_seleccion { get; set; } = DateTime.Now; // Última selección
@@ -37,17 +37,19 @@ namespace Wild.Data
         // -------------------------------------------------------------------------
         public string modelo_ruta { get; set; } = "";            // Ruta del modelo 3D
         
-        // Método para obtener la ruta según género
+        // Método para obtener la ruta según el tipo de personaje
         public string ObtenerRutaModelo()
         {
-            string ruta = genero.ToLower() switch
-            {
-                "hombre" => "res://scenes/player/animado_con_tree.tscn", // Nuevo archivo con AnimationTree
-                "mujer" => "res://scenes/player/animada_con_tree.tscn", // Nuevo archivo con AnimationTree
-                _ => "res://scenes/player/animado_con_tree.tscn" // Default por seguridad
-            };
-            Wild.Utils.Logger.LogDebug($"Personaje: Ruta de modelo resuelta: {ruta} (genero: {genero})");
+            var config = Wild.Core.Player.ModeloRegistry.GetConfig(tipo_personaje);
+            string ruta = config.RutaEscena;
+            Wild.Utils.Logger.LogDebug($"Personaje: Ruta de modelo resuelta: {ruta} (tipo: {tipo_personaje})");
             return ruta;
+        }
+
+        // Obtener la configuración técnica completa
+        public Wild.Core.Player.IModeloConfig ObtenerConfiguracion()
+        {
+            return Wild.Core.Player.ModeloRegistry.GetConfig(tipo_personaje);
         }
 
         // -----------------------------------------------------------------
@@ -83,10 +85,10 @@ namespace Wild.Data
                     return false;
                 }
 
-                // Validar género
-                if (genero != "hombre" && genero != "mujer")
+                // Validar tipo de personaje
+                if (string.IsNullOrEmpty(tipo_personaje))
                 {
-                    Wild.Utils.Logger.LogWarning($"Personaje: Género inválido: {genero}");
+                    Wild.Utils.Logger.LogWarning($"Personaje: Tipo de personaje inválido (vacío)");
                     return false;
                 }
 
@@ -104,7 +106,7 @@ namespace Wild.Data
         // -----------------------------------------------------------------
         public override string ToString()
         {
-            return $"Personaje[{id}] {apodo} - {genero}";
+            return $"Personaje[{id}] {apodo} - {tipo_personaje}";
         }
     }
 

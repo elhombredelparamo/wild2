@@ -115,7 +115,7 @@ namespace Wild.Data
         // -------------------------------------------------------------------------
         // GESTIÓN DE PERSONAJES
         // -------------------------------------------------------------------------
-        public ResultadoCreacionPersonaje CrearPersonaje(string apodo, string genero = "hombre")
+        public ResultadoCreacionPersonaje CrearPersonaje(string apodo, string tipoPersonaje = "hombre1")
         {
             try
             {
@@ -128,11 +128,12 @@ namespace Wild.Data
                     return resultado;
                 }
 
-                // Validar género
-                if (genero != "hombre" && genero != "mujer")
+                // Validar tipo de personaje
+                var config = Wild.Core.Player.ModeloRegistry.GetConfig(tipoPersonaje);
+                if (config == null)
                 {
-                    Wild.Utils.Logger.LogError($"PersonajeManager: Género inválido: {genero}");
-                    return new ResultadoCreacionPersonaje(false, $"Género inválido: {genero}");
+                    Wild.Utils.Logger.LogError($"PersonajeManager: Tipo de personaje desconocido: {tipoPersonaje}");
+                    return new ResultadoCreacionPersonaje(false, $"Tipo de personaje inválido: {tipoPersonaje}");
                 }
 
                 // Verificar límite de personajes
@@ -160,7 +161,7 @@ namespace Wild.Data
                 {
                     id = idPersonaje,
                     apodo = apodo,
-                    genero = genero,
+                    tipo_personaje = tipoPersonaje,
                     fecha_creacion = DateTime.Now,
                     ultimo_acceso = DateTime.Now
                 };
@@ -530,7 +531,7 @@ namespace Wild.Data
                 {
                     Wild.Utils.Logger.LogInfo("PersonajeManager: No hay personajes, creando personaje por defecto");
                     
-                    var resultado = CrearPersonaje("Aventurero", "hombre");
+                    var resultado = CrearPersonaje("Aventurero", "hombre1");
                     if (resultado.exito)
                     {
                         SeleccionarPersonaje(resultado.personaje.id);
@@ -638,8 +639,9 @@ namespace Wild.Data
                 // Limpiar nodos basura (luces, entornos) que vienen de Blender
                 LimpiarEscenaImportada(instancia);
 
-                // Aplicar materiales externos forzadamente para evitar modelos grises
-                AplicarMaterialesExternos(instancia, personaje.genero);
+                // Aplicar configuración técnica (materiales, culling, etc.) desde la clase del modelo
+                var config = personaje.ObtenerConfiguracion();
+                config.AplicarConfiguracion(instancia);
 
                 Wild.Utils.Logger.LogInfo($"PersonajeManager: Personaje {personaje.apodo} instanciado exitosamente");
                 return instancia;
@@ -651,26 +653,6 @@ namespace Wild.Data
             }
         }
 
-        private void AplicarMaterialesExternos(Node3D instancia, string genero)
-        {
-            try
-            {
-                // Cargar materiales externos
-                string rutaCuerpo = genero == "mujer" ? "res://assets/models/human/fem.tres" : "res://assets/models/human/male.tres";
-                Material matCuerpo = GD.Load<Material>(rutaCuerpo);
-                Material matOjos = GD.Load<Material>("res://assets/models/human/eyeball.tres");
-                Material matMandibula = GD.Load<Material>("res://assets/models/human/jaw.tres");
-
-                Wild.Utils.Logger.LogInfo($"PersonajeManager: Aplicando materiales externos forzados ({genero})");
-
-                // Para los nuevos modelos animados, intentamos ser más selectivos
-                AsignarMaterialRecursivo(instancia, matCuerpo, matOjos, matMandibula);
-            }
-            catch (System.Exception ex)
-            {
-                Wild.Utils.Logger.LogError($"PersonajeManager: Error en AplicarMaterialesExternos: {ex.Message}");
-            }
-        }
 
         private void LimpiarEscenaImportada(Node3D instancia)
         {
@@ -704,33 +686,6 @@ namespace Wild.Data
             }
         }
 
-        private void AsignarMaterialRecursivo(Node node, Material cuerpo, Material ojos, Material mandibula)
-        {
-            if (node is MeshInstance3D meshInstance)
-            {
-                // El modelo tiene varias superficies. Intentamos asignar por nombre si es posible, 
-                // o por defecto el de cuerpo a todas las superficies que parezcan piel.
-                for (int i = 0; i < meshInstance.GetSurfaceOverrideMaterialCount(); i++)
-                {
-                    Material surfaceMat = meshInstance.Mesh.SurfaceGetMaterial(i);
-                    string matName = surfaceMat?.ResourceName.ToLower() ?? "";
-                    
-                    if (matName.Contains("eye")) 
-                        meshInstance.SetSurfaceOverrideMaterial(i, ojos);
-                    else if (matName.Contains("jaw")) 
-                        meshInstance.SetSurfaceOverrideMaterial(i, mandibula);
-                    else if (matName.Contains("skin") || matName.Contains("body") || matName.Contains("cuerpo"))
-                        meshInstance.SetSurfaceOverrideMaterial(i, cuerpo);
-                    else
-                        Wild.Utils.Logger.LogDebug($"PersonajeManager: Manteniendo material original para superficie {i}: {matName}");
-                }
-            }
-
-            foreach (Node child in node.GetChildren())
-            {
-                AsignarMaterialRecursivo(child, cuerpo, ojos, mandibula);
-            }
-        }
 
         private void LogNodeHierarchy(Node node, int level)
         {

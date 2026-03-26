@@ -65,12 +65,11 @@ namespace Wild.Core.Player
             _jugadorActual.PersonajeId = personajeId;
             _jugadorActual.WorldId = MundoManager.Instance.ObtenerMundoActual()?.id ?? "";
 
-            // Asignar modelo visual según género
+            // Asignar modelo visual según tipo de personaje
             var personaje = PersonajeManager.Instance.ObtenerPersonaje(personajeId);
             if (personaje != null)
             {
-                // CRÍTICO: asignar género ANTES de SetVisualModel para que la escala sea correcta
-                _jugadorActual.Genero = personaje.genero;
+                _jugadorActual.TipoPersonaje = personaje.tipo_personaje;
 
                 var modelo = PersonajeManager.Instance.InstanciarPersonaje(personaje);
                 if (modelo != null)
@@ -79,7 +78,7 @@ namespace Wild.Core.Player
                 }
             }
 
-            // Intentar obtener datos precargados desde GameLoader (Paso 4 de optimización)
+            // Intentar obtener datos precargados desde GameLoader
             PlayerData savedData = GameLoader.Instance?.CachedPlayerData;
             
             // Si no hay datos precargados o son de otro personaje, cargarlos ahora (fallback)
@@ -91,7 +90,6 @@ namespace Wild.Core.Player
             else
             {
                 Logger.LogInfo($"PlayerManager: Reutilizando datos precargados desde GameLoader para {personajeId}.");
-                // Limpiar caché para evitar reutilizaciones accidentales en próximos spawns
                 GameLoader.Instance.CachedPlayerData = null;
             }
 
@@ -108,18 +106,17 @@ namespace Wild.Core.Player
                     _jugadorActual.Stats.Energia = savedData.energia;
                 }
 
-                // Cargar Inventario
                 if (savedData.inventario != null && InventoryManager.Instance != null)
                 {
                     InventoryManager.Instance.LoadPersistenceData(savedData.inventario);
                 }
                 
-                Logger.LogInfo($"PlayerManager: Jugador {personajeId} ({personaje?.genero}) cargado en el mundo.");
+                Logger.LogInfo($"PlayerManager: Jugador {personajeId} ({personaje?.tipo_personaje}) cargado en el mundo.");
             }
             else
             {
                 _jugadorActual.GlobalPosition = posicionDefecto;
-                Logger.LogInfo($"PlayerManager: Jugador {personajeId} ({personaje?.genero}) spawneado por primera vez.");
+                Logger.LogInfo($"PlayerManager: Jugador {personajeId} ({personaje?.tipo_personaje}) spawneado por primera vez.");
             }
         }
 

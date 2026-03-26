@@ -60,12 +60,17 @@ namespace Wild.UI
                 _buttonCancel = GetNode<Button>("CenterContainer/Panel/MarginContainer/VBox/Buttons/ButtonCancel");
                 _buttonCreate = GetNode<Button>("CenterContainer/Panel/MarginContainer/VBox/Buttons/ButtonCreate");
 
-                // Configurar opciones de género
+                // Configurar opciones de modelo dinámicamente desde el registro
                 if (_optionGender != null)
                 {
                     _optionGender.Clear();
-                    _optionGender.AddItem("Hombre", 0);
-                    _optionGender.AddItem("Mujer", 1);
+                    int index = 0;
+                    foreach (var config in Wild.Core.Player.ModeloRegistry.GetAllConfigs())
+                    {
+                        _optionGender.AddItem(config.NombreDisplay, index);
+                        _optionGender.SetItemMetadata(index, config.Id);
+                        index++;
+                    }
                     _optionGender.Selected = 0;
                 }
 
@@ -116,8 +121,8 @@ namespace Wild.UI
         {
             try
             {
-                string gender = index == 0 ? "hombre" : "mujer";
-                LogUI($"CharacterCreateMenu.OnGenderChanged() - Género seleccionado: {gender}");
+                string tipoId = _optionGender?.GetItemMetadata((int)index).AsString() ?? "hombre1";
+                LogUI($"CharacterCreateMenu.OnModelChanged() - Tipo seleccionado: {tipoId}");
             }
             catch (System.Exception e)
             {
@@ -157,11 +162,13 @@ namespace Wild.UI
 
                 LogUI($"CharacterCreateMenu.OnCreatePressed() - Creando personaje: {characterName}");
                 
-                // Crear personaje usando PersonajeManager
+                // Crear personaje usando PersonajeManager y el ID del modelo seleccionado
                 if (PersonajeManager.Instance != null)
                 {
-                    string gender = _optionGender?.Selected == 1 ? "mujer" : "hombre";
-                    var resultado = PersonajeManager.Instance.CrearPersonaje(characterName, gender);
+                    int selectedIndex = _optionGender?.Selected ?? 0;
+                    string tipoId = _optionGender?.GetItemMetadata(selectedIndex).AsString() ?? "hombre1";
+                    
+                    var resultado = PersonajeManager.Instance.CrearPersonaje(characterName, tipoId);
                     
                     if (resultado.exito)
                     {

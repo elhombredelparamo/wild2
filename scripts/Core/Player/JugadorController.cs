@@ -28,17 +28,10 @@ namespace Wild.Core.Player
         [Export] public StatsJugador Stats;
 
         [Export] public bool PhysicsEnabled = true;
-        [Export] public float EscalaHombre = 0.041f; // Ajustado manualmente por el usuario
-        [Export] public float EscalaMujer = 1.0f;
         [Export] public float RotacionVisualY = 180f; 
         
-        [ExportGroup("Cámaras por Género")]
-        [Export] public float AlturaMujer = 1.65f;
-        [Export] public float OffsetFrontalMujer = 0.22f;
-        [Export] public float AlturaHombre = 1.68f; 
-        [Export] public float OffsetFrontalHombre = 0.44f; 
-
-        public string Genero { get; set; } = "hombre";
+        private IModeloConfig _modeloConfig;
+        public string TipoPersonaje { get; set; } = "hombre1";
 
         private Node3D _visualsContainer;
         private AnimationPlayer _animationPlayer;
@@ -108,9 +101,10 @@ namespace Wild.Core.Player
 
             if (model != null)
             {
-                float escalaUsar = Genero.ToLower() == "mujer" ? EscalaMujer : EscalaHombre;
+                _modeloConfig = ModeloRegistry.GetConfig(TipoPersonaje);
+                
                 _visualsContainer.AddChild(model);
-                _visualsContainer.Scale = Vector3.One * escalaUsar;
+                _visualsContainer.Scale = Vector3.One * _modeloConfig.EscalaBase;
                 _visualsContainer.RotationDegrees = new Vector3(0, RotacionVisualY, 0);
                 
                 model.Visible = true;
@@ -154,17 +148,17 @@ namespace Wild.Core.Player
                     }
                 }
 
-                Logger.LogInfo($"JugadorController: Modelo visual asignado ({Genero}).");
-                AplicarCullingLocal(model);
+                Logger.LogInfo($"JugadorController: Modelo visual asignado ({TipoPersonaje}).");
+                _modeloConfig.AplicarConfiguracion(model);
             }
         }
 
         private void UpdateCameraPosition()
         {
-            if (Camara == null) return;
+            if (Camara == null || _modeloConfig == null) return;
             
-            float height = Genero.ToLower() == "mujer" ? AlturaMujer : AlturaHombre;
-            float offset = Genero.ToLower() == "mujer" ? OffsetFrontalMujer : OffsetFrontalHombre;
+            float height = _modeloConfig.AlturaCamara;
+            float offset = _modeloConfig.OffsetCamaraFrontal;
             
             Camara.Position = new Vector3(Camara.Position.X, height, -offset);
         }
@@ -199,45 +193,6 @@ namespace Wild.Core.Player
         /// de la piel no se rendericen, permitiendo que la cámara dentro de la cabeza
         /// no vea la textura por dentro, pero manteniendo los brazos visibles.
         /// </summary>
-        private void AplicarCullingLocal(Node node)
-        {
-            if (node is MeshInstance3D meshInstance)
-            {
-                for (int i = 0; i < meshInstance.GetSurfaceOverrideMaterialCount(); i++)
-                {
-                    var mat = meshInstance.GetSurfaceOverrideMaterial(i) as BaseMaterial3D;
-                    if (mat != null)
-                    {
-                        var matLocal = (BaseMaterial3D)mat.Duplicate();
-                        // Textura por fuera, invisible por dentro
-                        matLocal.CullMode = BaseMaterial3D.CullModeEnum.Back;
-                        meshInstance.SetSurfaceOverrideMaterial(i, matLocal);
-                        Logger.LogDebug($"JugadorController: Culling aplicado a override mat en {meshInstance.Name}");
-                    }
-                }
-
-                if (meshInstance.Mesh != null)
-                {
-                    for (int i = 0; i < meshInstance.Mesh.GetSurfaceCount(); i++)
-                    {
-                        var mat = meshInstance.Mesh.SurfaceGetMaterial(i) as BaseMaterial3D;
-                        if (mat != null && meshInstance.GetSurfaceOverrideMaterial(i) == null)
-                        {
-                            var matLocal = (BaseMaterial3D)mat.Duplicate();
-                            // Textura por fuera, invisible por dentro
-                            matLocal.CullMode = BaseMaterial3D.CullModeEnum.Back;
-                            meshInstance.SetSurfaceOverrideMaterial(i, matLocal);
-                            Logger.LogDebug($"JugadorController: Culling aplicado a base mat en {meshInstance.Name}");
-                        }
-                    }
-                }
-            }
-
-            foreach (Node child in node.GetChildren())
-            {
-                AplicarCullingLocal(child);
-            }
-        }
 
         private void LogNodeHierarchy(Node node, int level)
         {
@@ -487,6 +442,14 @@ namespace Wild.Core.Player
                     PlayAnimation(AnimWalk);
                 else
                     PlayAnimation(AnimIdle);
+                
+                return;
+            }
+
+            // Opción C: Animación Procedural (Respaldo total para modelos sin animaciones)
+            if (_modeloConfig != null && _skeleton != null)
+            {
+                _modeloConfig.ActualizarAnimacionProcedural(_visualsContainer, _skeleton, (float)GetProcessDeltaTime(), isMoving);
             }
         }
 

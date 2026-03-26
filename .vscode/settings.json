@@ -8,5 +8,6 @@
     },
     "csharp.semanticHighlighting.enabled": true,
     "csharp.format.enable": true,
-    "omnisharp.enableRoslynAnalyzers": true
+    "omnisharp.enableRoslynAnalyzers": true,
+    "godotTools.editorPath.godot4": "c:\\Godot\\Godot_v4.6.1-stable_win64.exe"
 }

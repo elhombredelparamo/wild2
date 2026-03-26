@@ -135,7 +135,7 @@ namespace Wild.UI
             try
             {
                 var button = new Button();
-                button.Text = $"{character.apodo}\n{character.genero}\nCreado: {character.fecha_creacion:dd/MM/yyyy}";
+                button.Text = $"{character.apodo}\n{character.ObtenerConfiguracion().NombreDisplay}\nCreado: {character.fecha_creacion:dd/MM/yyyy}";
                 button.CustomMinimumSize = new Vector2(500, 80);
                 
                 // Conectar evento
