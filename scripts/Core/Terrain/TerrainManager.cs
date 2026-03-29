@@ -173,7 +173,7 @@ namespace Wild.Core.Terrain
                             float dist = veg.Position.DistanceTo(playerPos);
                             
                             // Árboles: usar CollisionRadius (20m)
-                            bool isCollectible = !string.IsNullOrEmpty(veg.ItemId);
+                            bool isCollectible = !string.IsNullOrEmpty(veg.LootTableId);
                             if (isCollectible)
                             {
                                 if (dist < InteractionRadius)
@@ -195,8 +195,8 @@ namespace Wild.Core.Terrain
             {
                 if (!_activeColliders.ContainsKey(veg.Position))
                 {
-                    // B) Objetos recolectables (basado en ItemId)
-                    if (!string.IsNullOrEmpty(veg.ItemId))
+                    // B) Objetos recolectables (basado en LootTableId)
+                    if (!string.IsNullOrEmpty(veg.LootTableId))
                     {
                         SpawnCollectibleTrigger(veg);
                     }
@@ -251,7 +251,7 @@ namespace Wild.Core.Terrain
             area.AddChild(shape);
 
             // Metadatos para el raycast del jugador
-            area.SetMeta("item_id", veg.ItemId);
+            area.SetMeta("loot_id", veg.LootTableId);
             // Guardar la posición REAL de la vegetación (sin el +0.5 de offset del trigger)
             // para que InteraccionJugador pueda pasársela a RemoveVegetationAt correctamente.
             area.SetMeta("veg_pos_x", veg.Position.X);
@@ -266,7 +266,7 @@ namespace Wild.Core.Terrain
 
             AddChild(area);
             _activeColliders[veg.Position] = area;
-            Logger.LogInfo($"TERRAIN: Trigger de '{veg.ItemId}' ACTIVADO en {veg.Position}");
+            Logger.LogInfo($"TERRAIN: Trigger de loot '{veg.LootTableId}' ACTIVADO en {veg.Position}");
         }
 
         private void SpawnTreeCollision(VegetationInstance tree)
@@ -653,7 +653,7 @@ namespace Wild.Core.Terrain
 
                 for (int i = 0; i < list.Count; i++)
                 {
-                    bool isMatch = string.Equals(list[i].ItemId, keyword, StringComparison.OrdinalIgnoreCase) ||
+                    bool isMatch = string.Equals(list[i].LootTableId, keyword, StringComparison.OrdinalIgnoreCase) ||
                                    (list[i].ModelPath != null && list[i].ModelPath.Contains(keyword, StringComparison.OrdinalIgnoreCase));
                                    
                     if (isMatch)

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Wild.Core.Biomes;
 
 /// <summary>
 /// Estructura base para los datos de un tipo de vegetación.
@@ -7,17 +8,19 @@ using System.Collections.Generic;
 public struct VegetationData
 {
     public string ModelPath;
-    public string ItemId;
+    public string LootTableId; // Identificador único de la tabla de botín (ej: "junco")
+    public List<LootEntry> LootTable; 
     public float MinScale;
     public float MaxScale;
     
     public Dictionary<BiomeId, float> SpawnChances;
     public bool HasCollision;
 
-    public VegetationData(string modelPath, string itemId = null, float minScale = 0.8f, float maxScale = 1.2f, bool hasCollision = true)
+    public VegetationData(string modelPath, string lootTableId = null, float minScale = 0.8f, float maxScale = 1.2f, bool hasCollision = true)
     {
         ModelPath = modelPath;
-        ItemId = itemId;
+        LootTableId = lootTableId;
+        LootTable = new List<LootEntry>();
         MinScale = minScale;
         MaxScale = maxScale;
         HasCollision = hasCollision;

@@ -1,15 +1,17 @@
 using System.Collections.Generic;
+using Wild.Core.Biomes;
 
 public static class HierbaData
 {
     public static readonly VegetationData Data = new VegetationData(
         modelPath: "res://assets/models/plants/hierba/1/ultra/hierba1.glb",
-        itemId: null, // No recolectable por ahora
+        lootTableId: null,
         minScale: 0.8f,
         maxScale: 1.4f,
         hasCollision: false
     )
     {
+        LootTable = new List<LootEntry>(),
         SpawnChances = new Dictionary<BiomeId, float>
         {
             { BiomeId.Pradera, 0.60f },

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Wild.Core.Biomes;
 using Wild.Utils;
 
 /// <summary>
@@ -9,6 +10,7 @@ using Wild.Utils;
 public static class VegetationRegistry
 {
     private static VegetationEntry[][] _bakedEntries;
+    private static Dictionary<string, VegetationData> _lootTables = new Dictionary<string, VegetationData>();
     private static bool _isBaked = false;
 
     /// <summary>
@@ -25,6 +27,7 @@ public static class VegetationRegistry
         var biomeIds = (BiomeId[])System.Enum.GetValues(typeof(BiomeId));
         int biomeCount = biomeIds.Length;
         _bakedEntries = new VegetationEntry[biomeCount][];
+        _lootTables.Clear();
 
         // 2. Definir manualmente (de momento) los tipos de vegetación registrados
         // En el futuro esto podría automatizarse con Reflection si fuera necesario.
@@ -36,6 +39,13 @@ public static class VegetationRegistry
             HierbaData.Data,
             JuncoData.Data
         };
+
+        // Registrar tablas de botín para consulta rápida
+        foreach (var veg in registry)
+        {
+            if (!string.IsNullOrEmpty(veg.LootTableId))
+                _lootTables[veg.LootTableId] = veg;
+        }
 
         // 3. Bake por cada bioma (Garantizando longitud fija para estabilidad de índices)
         foreach (var biomeId in biomeIds)
@@ -55,7 +65,7 @@ public static class VegetationRegistry
                     spawnChance: chance,
                     minScale: veg.MinScale,
                     maxScale: veg.MaxScale,
-                    itemId: veg.ItemId,
+                    lootTableId: veg.LootTableId,
                     hasCollision: veg.HasCollision
                 );
             }
@@ -81,5 +91,12 @@ public static class VegetationRegistry
         }
 
         return _bakedEntries[(int)biomeId];
+    }
+
+    public static List<LootEntry> GetLootTable(string lootTableId)
+    {
+        if (_lootTables.TryGetValue(lootTableId, out var data))
+            return data.LootTable;
+        return null;
     }
 }

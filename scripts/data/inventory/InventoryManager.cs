@@ -75,7 +75,6 @@ namespace Wild.Data.Inventory
             var item = GetItemById(id);
             if (item == null) return false;
 
-            // Intentar añadir a cualquier contenedor disponible (prioridad manos)
             foreach (var container in Containers)
             {
                 if (container.AddItem(item, quantity))
@@ -84,8 +83,74 @@ namespace Wild.Data.Inventory
                     return true;
                 }
             }
-            
             return false;
+        }
+
+        /// <summary>
+        /// Comprueba si todos los items especificados caben en el inventario (Peso y Slots).
+        /// </summary>
+        public bool CanFitItems(Dictionary<string, int> itemsToFit)
+        {
+            float extraWeight = 0;
+            int neededSlots = 0;
+            
+            // Diccionario para rastrear cuánto espacio queda en stacks existentes por ItemId
+            var stackSpace = new Dictionary<string, int>();
+
+            foreach (var kvp in itemsToFit)
+            {
+                var item = GetItemById(kvp.Key);
+                if (item == null) continue;
+                
+                extraWeight += item.Weight * kvp.Value;
+                
+                // Calcular cuánto de este item podemos meter en stacks existentes
+                int currentInStacks = 0;
+                foreach (var container in Containers)
+                {
+                    foreach (var slot in container.Slots)
+                    {
+                        if (!slot.IsEmpty() && slot.Item.Id == item.Id)
+                        {
+                            currentInStacks += (item.StackSize - slot.Quantity);
+                        }
+                    }
+                }
+                
+                int remainingAfterStacks = Mathf.Max(0, kvp.Value - currentInStacks);
+                if (remainingAfterStacks > 0)
+                {
+                    neededSlots += Mathf.CeilToInt((float)remainingAfterStacks / item.StackSize);
+                }
+            }
+
+            // 1. Validar Peso Total
+            float totalMaxWeight = 0;
+            float currentTotalWeight = 0;
+            foreach (var c in Containers) {
+                totalMaxWeight += c.MaxWeight;
+                currentTotalWeight += c.GetCurrentWeight();
+            }
+            if (currentTotalWeight + extraWeight > totalMaxWeight) return false;
+
+            // 2. Validar Slots Vacíos
+            int emptySlots = 0;
+            foreach (var c in Containers) {
+                foreach (var s in c.Slots) if (s.IsEmpty()) emptySlots++;
+            }
+            
+            return emptySlots >= neededSlots;
+        }
+
+        /// <summary>
+        /// Añade múltiples ítems al inventario. Solo usar tras CanFitItems.
+        /// </summary>
+        public void GiveItems(Dictionary<string, int> itemsToAdd)
+        {
+            foreach (var kvp in itemsToAdd)
+            {
+                GiveItem(kvp.Key, kvp.Value);
+            }
         }
 
         public List<InventoryContainerData> GetPersistenceData()

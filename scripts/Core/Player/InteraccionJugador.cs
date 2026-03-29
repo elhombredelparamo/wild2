@@ -1,6 +1,8 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using Wild.Utils;
+using Wild.Core.Biomes;
 
 namespace Wild.Core.Player
 {
@@ -47,26 +49,46 @@ namespace Wild.Core.Player
                     var collider = (Node)result["collider"];
                     Logger.LogInfo($"PLAYER: Interacción con: {collider.Name} (Capa: {collider.GetMeta("_collision_layer", 0)})");
 
-                    // Caso A: Recolectable (Area3D con metadatos)
-                    if (collider is Area3D area && area.HasMeta("item_id"))
+                    // Caso A: Recolectable (Area3D con metadatos de Loot Table)
+                    if (collider is Area3D area && area.HasMeta("loot_id"))
                     {
-                        string itemId = area.GetMeta("item_id").ToString();
-                        bool added = Wild.Data.Inventory.InventoryManager.Instance?.GiveItem(itemId, 1) ?? false;
-                        if (added)
+                        string lootId = area.GetMeta("loot_id").ToString();
+                        var lootTable = VegetationRegistry.GetLootTable(lootId);
+                        
+                        if (lootTable == null || lootTable.Count == 0)
                         {
-                            Logger.LogInfo($"PLAYER: Item '{itemId}' recogido.");
-                            // Usamos la posición REAL de la vegetación guardada en metadata
-                            // (area.GlobalPosition tiene un offset de +0.5Y del trigger)
-                            Vector3 vegPos = area.GlobalPosition;
-                            if (area.HasMeta("veg_pos_x"))
-                            {
-                                vegPos = new Vector3(
-                                    (float)area.GetMeta("veg_pos_x"),
-                                    (float)area.GetMeta("veg_pos_y"),
-                                    (float)area.GetMeta("veg_pos_z")
-                                );
-                            }
-                            Wild.Core.Terrain.TerrainManager.Instance?.RemoveVegetationAt(vegPos, itemId);
+                            Logger.LogWarning($"PLAYER: El vegetal '{lootId}' no tiene tabla de botín configurada.");
+                            return;
+                        }
+
+                        // 1. Calcular botín final (Rolling por cada entrada)
+                        var finalLoot = new Dictionary<string, int>();
+                        var rng = new RandomNumberGenerator();
+                        rng.Randomize();
+
+                        foreach (var entry in lootTable)
+                        {
+                            int qty = rng.RandiRange(entry.MinAmount, entry.MaxAmount);
+                            if (qty > 0) finalLoot[entry.ItemId] = qty;
+                        }
+
+                        if (finalLoot.Count == 0) {
+                            Logger.LogInfo("PLAYER: La planta no ha dado ningún botín esta vez.");
+                            ProcederARemoverVegetacion(area, lootId);
+                            return;
+                        }
+
+                        // 2. Comprobar espacio en inventario de forma ATÓMICA
+                        var inv = Wild.Data.Inventory.InventoryManager.Instance;
+                        if (inv != null && inv.CanFitItems(finalLoot))
+                        {
+                            inv.GiveItems(finalLoot);
+                            foreach (var kvp in finalLoot) Logger.LogInfo($"PLAYER: Recogido {kvp.Value}x '{kvp.Key}'.");
+                            ProcederARemoverVegetacion(area, lootId);
+                        }
+                        else
+                        {
+                            Logger.LogInfo("PLAYER: No tienes espacio suficiente para recoger todo el botín.");
                         }
                     }
                     // Caso B: Deployable (StaticBody3D - buscamos DeployableBase en padres)
@@ -115,6 +137,20 @@ namespace Wild.Core.Player
                     }
                 }
             }
+        }
+
+        private void ProcederARemoverVegetacion(Area3D area, string lootId)
+        {
+            Vector3 vegPos = area.GlobalPosition;
+            if (area.HasMeta("veg_pos_x"))
+            {
+                vegPos = new Vector3(
+                    (float)area.GetMeta("veg_pos_x"),
+                    (float)area.GetMeta("veg_pos_y"),
+                    (float)area.GetMeta("veg_pos_z")
+                );
+            }
+            Wild.Core.Terrain.TerrainManager.Instance?.RemoveVegetationAt(vegPos, lootId);
         }
     }
 }

@@ -11,16 +11,16 @@ public struct VegetationEntry
     /// Ejemplo: "res://assets/models/vegetation/seta/1/ultra/seta1.glb"
     /// </summary>
     public string ModelPath;
-    public string ItemId;
+    public string LootTableId;
     public float SpawnChance;
     public float MinScale;
     public float MaxScale;
     public bool HasCollision;
 
-    public VegetationEntry(string modelPath, float spawnChance, float minScale = 0.8f, float maxScale = 1.2f, string itemId = null, bool hasCollision = true)
+    public VegetationEntry(string modelPath, float spawnChance, float minScale = 0.8f, float maxScale = 1.2f, string lootTableId = null, bool hasCollision = true)
     {
         ModelPath   = modelPath;
-        ItemId      = itemId;
+        LootTableId = lootTableId;
         SpawnChance = spawnChance;
         MinScale    = minScale;
         MaxScale    = maxScale;

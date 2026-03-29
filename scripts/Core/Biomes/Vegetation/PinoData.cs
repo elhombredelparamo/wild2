@@ -1,10 +1,11 @@
 using System.Collections.Generic;
+using Wild.Core.Biomes;
 
 public static class PinoData
 {
     public static readonly VegetationData Data = new VegetationData(
         modelPath: "res://assets/models/trees/pino/1/ultra/pino1.glb",
-        itemId: null,
+        lootTableId: null,
         minScale: 0.9f,
         maxScale: 1.5f
     )

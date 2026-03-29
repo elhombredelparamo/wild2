@@ -1,10 +1,11 @@
 using System.Collections.Generic;
+using Wild.Core.Biomes;
 
 public static class RobleData
 {
     public static readonly VegetationData Data = new VegetationData(
         modelPath: "res://assets/models/trees/roble/1/ultra/roble1.glb",
-        itemId: null, // Si fuera recolectable
+        lootTableId: null,
         minScale: 0.8f,
         maxScale: 1.4f
     )
