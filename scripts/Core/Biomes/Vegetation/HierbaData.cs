@@ -6,7 +6,8 @@ public static class HierbaData
         modelPath: "res://assets/models/plants/hierba/1/ultra/hierba1.glb",
         itemId: null, // No recolectable por ahora
         minScale: 0.8f,
-        maxScale: 1.4f
+        maxScale: 1.4f,
+        hasCollision: false
     )
     {
         SpawnChances = new Dictionary<BiomeId, float>

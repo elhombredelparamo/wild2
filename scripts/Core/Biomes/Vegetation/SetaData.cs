@@ -6,7 +6,8 @@ public static class SetaData
         modelPath: "res://assets/models/plants/seta/1/ultra/seta1.glb",
         itemId: "seta1",
         minScale: 0.7f,
-        maxScale: 1.3f
+        maxScale: 1.3f,
+        hasCollision: false
     )
     {
         SpawnChances = new Dictionary<BiomeId, float>

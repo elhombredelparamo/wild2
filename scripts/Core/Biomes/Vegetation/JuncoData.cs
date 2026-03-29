@@ -8,7 +8,8 @@ public static class JuncoData
         modelPath: "res://assets/models/plants/junco/1/ultra/junco1.glb",
         itemId: null, // null si es decorativo
         minScale: 0.014f, // Altura aprox 85cm
-        maxScale: 0.018f  // Altura aprox 110cm
+        maxScale: 0.018f, // Altura aprox 110cm
+        hasCollision: false
     )
     {
         // PROBABILIDADES: Suma no debe superar 1.0 por bioma

@@ -17,6 +17,7 @@ Debes preguntar al usuario para configurar el archivo de datos:
 1. **Biomas**: ¿En qué biomas debe aparecer? (Pradera, Bosque, Costa, Montaña, Océano).
 2. **Frecuencia**: ¿Cómo de común es? (Muy frecuente, Normal, Poco frecuente, Rara).
 3. **Funcionalidad**: ¿Es recolectable por el jugador? (Si/No).
+4. **Física**: ¿Debe tener colisión sólida el jugador con ella? (Si/No).
 
 ### 💡 Guía de Conversión (Para la IA):
 - **Muy frecuente**: `0.80f`
@@ -57,7 +58,8 @@ public static class {U_ID}Data
         modelPath: "res://assets/models/plants/{ID}/{VAR}/ultra/{ID}{VAR}.glb",
         itemId: {ITEM_ID}, // "item_{ID}" o null
         minScale: 0.7f,
-        maxScale: 1.3f
+        maxScale: 1.3f,
+        hasCollision: {HAS_COLLISION} // true para árboles, false para plantas pequeñas
     )
     {
         SpawnChances = new Dictionary<BiomeId, float>

@@ -90,7 +90,8 @@ namespace Wild.Core.Terrain
                                     ModelPath = entry.ModelPath,
                                     Position = new Vector3(worldX, height, worldZ),
                                     RotationY = rng.Randf() * Mathf.Pi * 2.0f,
-                                    Scale = rng.RandfRange(entry.MinScale, entry.MaxScale)
+                                    Scale = rng.RandfRange(entry.MinScale, entry.MaxScale),
+                                    HasCollision = entry.HasCollision
                                 });
                             }
                             indexCounter++;

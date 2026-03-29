@@ -11,15 +11,16 @@ public struct VegetationData
     public float MinScale;
     public float MaxScale;
     
-    // Tabla de probabilidades por ID de bioma
     public Dictionary<BiomeId, float> SpawnChances;
+    public bool HasCollision;
 
-    public VegetationData(string modelPath, string itemId = null, float minScale = 0.8f, float maxScale = 1.2f)
+    public VegetationData(string modelPath, string itemId = null, float minScale = 0.8f, float maxScale = 1.2f, bool hasCollision = true)
     {
         ModelPath = modelPath;
         ItemId = itemId;
         MinScale = minScale;
         MaxScale = maxScale;
+        HasCollision = hasCollision;
         SpawnChances = new Dictionary<BiomeId, float>();
     }
 }

@@ -55,7 +55,8 @@ public static class VegetationRegistry
                     spawnChance: chance,
                     minScale: veg.MinScale,
                     maxScale: veg.MaxScale,
-                    itemId: veg.ItemId
+                    itemId: veg.ItemId,
+                    hasCollision: veg.HasCollision
                 );
             }
 

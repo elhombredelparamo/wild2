@@ -15,13 +15,15 @@ public struct VegetationEntry
     public float SpawnChance;
     public float MinScale;
     public float MaxScale;
+    public bool HasCollision;
 
-    public VegetationEntry(string modelPath, float spawnChance, float minScale = 0.8f, float maxScale = 1.2f, string itemId = null)
+    public VegetationEntry(string modelPath, float spawnChance, float minScale = 0.8f, float maxScale = 1.2f, string itemId = null, bool hasCollision = true)
     {
         ModelPath   = modelPath;
         ItemId      = itemId;
         SpawnChance = spawnChance;
         MinScale    = minScale;
         MaxScale    = maxScale;
+        HasCollision = hasCollision;
     }
 }

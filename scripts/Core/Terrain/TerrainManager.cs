@@ -181,7 +181,7 @@ namespace Wild.Core.Terrain
                                     list.Add(veg);
                                 }
                             }
-                            else if (dist < CollisionRadius) // Árboles
+                            else if (veg.HasCollision && dist < CollisionRadius) // Solo si tiene colisión (Árboles)
                             {
                                 list.Add(veg);
                             }
