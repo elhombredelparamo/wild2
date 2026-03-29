@@ -33,7 +33,8 @@ public static class VegetationRegistry
             RobleData.Data,
             PinoData.Data,
             SetaData.Data,
-            HierbaData.Data
+            HierbaData.Data,
+            JuncoData.Data
         };
 
         // 3. Bake por cada bioma (Garantizando longitud fija para estabilidad de índices)

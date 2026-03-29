@@ -1,0 +1,82 @@
+---
+
+## ⏺️ PASO 0: Sincronización de Contexto (OBLIGATORIO) 
+Antes de realizar cualquier acción, ejecuta el comando `view_file` sobre este mismo archivo (`procedimientos/anadir-planta.ia`).
+> [!IMPORTANT]
+> Esto asegura que Cascade tenga la versión más reciente del procedimiento y evita errores por saturación de contexto. NO procedas sin haber leído el archivo completo en esta sesión.
+
+---
+
+## 🗣️ PASO I: Localización de Origen (INTERACTIVO)
+Pregunta al usuario: "¿En qué carpeta están los archivos `.glb` y `.png` originales?"
+
+---
+
+## 📊 PASO II: Parámetros de Spawn (INTERACTIVO)
+Debes preguntar al usuario para configurar el archivo de datos:
+1. **Biomas**: ¿En qué biomas debe aparecer? (Pradera, Bosque, Costa, Montaña, Océano).
+2. **Frecuencia**: ¿Cómo de común es? (Muy frecuente, Normal, Poco frecuente, Rara).
+3. **Funcionalidad**: ¿Es recolectable por el jugador? (Si/No).
+
+### 💡 Guía de Conversión (Para la IA):
+- **Muy frecuente**: `0.80f`
+- **Normal**: `0.40f`
+- **Poco frecuente**: `0.10f`
+- **Rara**: `0.02f`
+
+---
+
+## 🏗️ FASE III: Estructura de Destino (Assets)
+Crea la siguiente jerarquía de carpetas y archivos. Reemplaza `{ID}` por el nombre de la planta (ej: `margarita`) y `{VAR}` por la variante (ej: `1`).
+
+### 📂 Carpetas Requeridas
+Debes crear exactamente estas 5 carpetas en `res://assets/models/plants/{ID}/{VAR}/`:
+1. `ultra/`, 2. `high/`, 3. `medium/`, 4. `low/`, 5. `toaster/`
+
+### 📄 Archivos Requeridos (Por carpeta)
+En cada una de las 5 carpetas anteriores, debe haber:
+- `{ID}{VAR}.glb` y `{ID}{VAR}.png`
+
+---
+
+## 💻 FASE IV: Definición de Datos (C#)
+> [!CAUTION]
+> **UBICACIÓN CRÍTICA**: El archivo **DEBE** crearse dentro de la carpeta de vegetación. 
+> Ruta exacta: `scripts/Core/Biomes/Vegetation/{U_ID}Data.cs`
+
+No lo crees en la raíz de `Biomes` ni en `scripts/`. Debe ir en la subcarpeta `Vegetation`.
+
+### 📋 Plantilla de Código (IA: Copia y pega esto)
+```csharp
+using System.Collections.Generic;
+
+// El archivo DEBE estar en: scripts/Core/Biomes/Vegetation/{U_ID}Data.cs
+public static class {U_ID}Data
+{
+    public static readonly VegetationData Data = new VegetationData(
+        modelPath: "res://assets/models/plants/{ID}/{VAR}/ultra/{ID}{VAR}.glb",
+        itemId: {ITEM_ID}, // "item_{ID}" o null
+        minScale: 0.7f,
+        maxScale: 1.3f
+    )
+    {
+        SpawnChances = new Dictionary<BiomeId, float>
+        {
+            { BiomeId.{BIOMA_SELECCIONADO}, {VALOR_PROBABILIDAD} }
+        }
+    };
+}
+```
+
+---
+
+## 🔄 FASE V: Registro en el Motor (Bake)
+1. Abre `scripts/Core/Biomes/VegetationRegistry.cs`.
+2. Añade `{U_ID}Data.Data` a la lista `registry` dentro del método `Bake()`.
+
+---
+
+## 🔍 FASE VI: Protocolo de Verificación
+1. **Check de Archivos**: ¿Están los 5 niveles de calidad en `assets/models/plants/`?
+2. **Check de Ubicación**: ¿Está el archivo `.cs` en `scripts/Core/Biomes/Vegetation/`?
+3. **Check de Bake**: ¿Se ha añadido la línea en `VegetationRegistry.cs`?
