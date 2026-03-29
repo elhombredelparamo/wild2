@@ -587,11 +587,12 @@ namespace Wild.Data
                 var cached = GameLoader.Instance?.GetResource<PackedScene>(rutaModelo);
                 if (cached != null)
                 {
-                    Wild.Utils.Logger.LogDebug($"PersonajeManager: Reutilizando modelo precargado de {rutaModelo}");
+                Wild.Utils.Logger.LogDebug($"PersonajeManager: Reutilizando modelo precargado de {rutaModelo}");
                     return cached;
                 }
 
                 Wild.Utils.Logger.LogInfo($"PersonajeManager: Cargando modelo (fallback) desde {rutaModelo}");
+                
                 var escena = GD.Load<PackedScene>(rutaModelo);
                 if (escena == null)
                 {
@@ -623,24 +624,15 @@ namespace Wild.Data
                 var instancia = escenaModelo.Instantiate<Node3D>();
                 
                 // Buscar AnimationPlayer para depuración
-                var animPlayer = instancia.FindChild("AnimationPlayer", true) as AnimationPlayer;
-                if (animPlayer != null)
-                {
-                    var animList = string.Join(", ", animPlayer.GetAnimationList());
-                    Wild.Utils.Logger.LogInfo($"PersonajeManager: Animaciones encontradas: [{animList}]");
-                }
-                else
-                {
-                    Wild.Utils.Logger.LogWarning("PersonajeManager: No se encontró AnimationPlayer en el modelo.");
-                    Wild.Utils.Logger.LogInfo("PersonajeManager: Estructura del modelo:");
-                    LogNodeHierarchy(instancia, 0);
-                }
+                Logger.LogInfo("PersonajeManager: Estructura completa del modelo:");
+                LogNodeHierarchy(instancia, 0);
 
                 // Limpiar nodos basura (luces, entornos) que vienen de Blender
                 LimpiarEscenaImportada(instancia);
 
                 // Aplicar configuración técnica (materiales, culling, etc.) desde la clase del modelo
                 var config = personaje.ObtenerConfiguracion();
+                Logger.LogInfo($"PersonajeManager: Aplicando configuración ID '{config.Id}' al modelo.");
                 config.AplicarConfiguracion(instancia);
 
                 Wild.Utils.Logger.LogInfo($"PersonajeManager: Personaje {personaje.apodo} instanciado exitosamente");
@@ -691,7 +683,16 @@ namespace Wild.Data
         {
             if (node == null) return;
             string indent = new string(' ', level * 2);
-            Wild.Utils.Logger.LogInfo($"{indent}- {node.Name} ({node.GetType().Name})");
+            string extra = "";
+            if (node is Node3D n3d)
+            {
+                extra += $" | Visible: {n3d.Visible}";
+                if (n3d is VisualInstance3D vi)
+                {
+                    extra += $" | AABB: {vi.GetAabb()} | Layers: {vi.Layers}";
+                }
+            }
+            Wild.Utils.Logger.LogInfo($"{indent}- {node.Name} ({node.GetType().Name}){extra}");
             foreach (Node child in node.GetChildren())
             {
                 LogNodeHierarchy(child, level + 1);

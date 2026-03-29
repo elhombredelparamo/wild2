@@ -106,14 +106,21 @@ namespace Wild.Core.Player
                 _visualsContainer.AddChild(model);
                 _visualsContainer.Scale = Vector3.One * _modeloConfig.EscalaBase;
                 _visualsContainer.RotationDegrees = new Vector3(0, RotacionVisualY, 0);
+
+                model.Position = Vector3.Zero;
+                
+                Logger.LogInfo($"JugadorController: Modelo añadido a _visualsContainer. Nombre: {model.Name}, Escala final: {_visualsContainer.Scale}, Posición Local: {model.Position}");
                 
                 model.Visible = true;
-                if (model is Node3D n3d) n3d.Show();
+                Node3D model3d = model as Node3D;
+                if (model3d != null) model3d.Show();
+                
+                Logger.LogInfo($"JugadorController: Model.Show() llamado. GlobalPos: {model3d?.GlobalPosition}");
 
                 UpdateCameraPosition();
 
                 _animationPlayer = model.FindChild("AnimationPlayer", true) as AnimationPlayer;
-                _skeleton = model.FindChild("Skeleton3D", true) as Skeleton3D;
+                _skeleton = BuscarHijoPorTipo<Skeleton3D>(model);
                 if (_skeleton != null)
                 {
                     Logger.LogInfo($"JugadorController: Skeleton3D detectado con {_skeleton.GetBoneCount()} huesos.");
@@ -136,9 +143,10 @@ namespace Wild.Core.Player
                     
                     if (_animationTree != null)
                     {
-                        _animationTree.Active = true;
+                        // COMENTADO PARA PRUEBA DE VISIBILIDAD: ¿El AnimationTree está escalando a 0 o moviendo el modelo?
+                        // _animationTree.Active = true; 
                         _stateMachinePlayback = _animationTree.Get("parameters/playback").As<AnimationNodeStateMachinePlayback>();
-                        Logger.LogInfo($"JugadorController: AnimationTree '{_animationTree.Name}' detectado. Playback: {(_stateMachinePlayback != null ? "OK" : "NULL")}");
+                        Logger.LogInfo($"JugadorController: [TEST] AnimationTree desactivado para descartar interferencia de Root Motion.");
                     }
                     
                     if (_animationTree == null)
@@ -542,6 +550,17 @@ namespace Wild.Core.Player
                 _keepAnimationPlaying = false;
                 Logger.LogInfo("JugadorController: Jugador descongelado.");
             }
+        }
+
+        private T BuscarHijoPorTipo<T>(Node parent) where T : class
+        {
+            if (parent is T result) return result;
+            for (int i = 0; i < parent.GetChildCount(); i++)
+            {
+                var found = BuscarHijoPorTipo<T>(parent.GetChild(i));
+                if (found != null) return found;
+            }
+            return null;
         }
     }
 }

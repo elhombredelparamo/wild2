@@ -1,5 +1,5 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1774435566
+::res://::1774813084
 inspect_mesh.gd::GDScript::7192377888411095163::1773598021::0::1::::<>SceneTree<><>0<>0<><>::
 mapa.md::TextFile::-1::1774345458::0::1::::<><><>0<>0<><>::
 ::res://assets/::1774209234
@@ -36,11 +36,12 @@ cofreCesta1.glb::PackedScene::6381853947282897824::1774259049::1774267296::1::::
 cofreCesta1_0.jpg::CompressedTexture2D::5807615989610533731::1774260559::1774267256::1::::<><><>0<>0<>45660d5efe7dcf175b91c6a7fc7d81bb<>res://.godot/imported/cofreCesta1_0.jpg-cb2750728eac9261b8510752d81264d6.s3tc.ctex::
 cofreCesta1_1.png::CompressedTexture2D::5061985179796100278::1774260576::1774267257::1::::<><><>0<>0<>835c59a828fcbb3ae6632a21d71f8328<>res://.godot/imported/cofreCesta1_1.png-b2ab14ce1941c6cd0bc9e6241903c5fd.s3tc.ctex::
 cofreCesta1_2.png::CompressedTexture2D::865805869665712558::1774260593::1774267260::1::::<><><>0<>0<>13a0b5732b490b4dde447fc07e264ee8<>res://.godot/imported/cofreCesta1_2.png-9442646125c0317117db40725c7358f4.s3tc.ctex::
-::res://assets/models/human/::1774355502
-animada.glb::PackedScene::2210273309218897036::1774273801::1774355502::1::::<><><>0<>0<>b105e36a1d0fb3abfd01a1ff7146839a<>res://.godot/imported/animada.glb-9a7722e190916c7063044629d8407cba.scn::uid://ba23txoewo87t::::res://assets/models/human/animada_Image_0.jpg<>uid://dcgycml4omnd0::::res://assets/models/human/animada_Image_2.jpg
-animada_Image_0.jpg::CompressedTexture2D::2443894118810414759::1774274469::1774355490::1::::<><><>0<>0<>c99c6ee21276672e82c38af7785ad595<>res://.godot/imported/animada_Image_0.jpg-d5cf58af75aee4397eb710e27dde8b95.s3tc.ctex::
-animada_Image_2.jpg::CompressedTexture2D::7313487432903804627::1774274464::1774355493::1::::<><><>0<>0<>2b956c673788158c5eb5a81bcaadd5b4<>res://.godot/imported/animada_Image_2.jpg-89bb5fb3be636b98f64f39f899db2ebb.s3tc.ctex::
-animado.glb::PackedScene::2457430839522320600::1774274360::1774347753::1::::<><><>0<>0<>0ad21f5e908e77605c4d4dc728ee4f69<>res://.godot/imported/animado.glb-0d66cb3b228d60307f5f31b0e22dcb47.scn::
+::res://assets/models/human/::1774811707
+animada.glb::PackedScene::2210273309218897036::1774517835::1774526262::1::::<><><>0<>0<>b105e36a1d0fb3abfd01a1ff7146839a<>res://.godot/imported/animada.glb-9a7722e190916c7063044629d8407cba.scn::uid://ba23txoewo87t::::res://assets/models/human/animada_Image_0.jpg<>uid://dcgycml4omnd0::::res://assets/models/human/animada_Image_2.jpg
+animada_Image_0.jpg::CompressedTexture2D::2443894118810414759::1774274469::1774517948::1::::<><><>0<>0<>c99c6ee21276672e82c38af7785ad595<>res://.godot/imported/animada_Image_0.jpg-d5cf58af75aee4397eb710e27dde8b95.s3tc.ctex::
+animada_Image_2.jpg::CompressedTexture2D::7313487432903804627::1774274464::1774517949::1::::<><><>0<>0<>2b956c673788158c5eb5a81bcaadd5b4<>res://.godot/imported/animada_Image_2.jpg-89bb5fb3be636b98f64f39f899db2ebb.s3tc.ctex::
+animado.glb::PackedScene::2457430839522320600::1774811611::1774811702::1::::<><><>0<>0<>0ad21f5e908e77605c4d4dc728ee4f69<>res://.godot/imported/animado.glb-0d66cb3b228d60307f5f31b0e22dcb47.scn::uid://bfmapt0uncmmt::::res://assets/models/human/animado_Material_1_basecolor.png
+animado_Material_1_basecolor.png::CompressedTexture2D::2762165259330490619::1774811689::1774811707::1::::<><><>0<>0<>3f6b6e41b2248add95ad497f88640296<>res://.godot/imported/animado_Material_1_basecolor.png-6f2e66b910115b21ffcf74cca3b86aaf.s3tc.ctex::
 eyeball.tres::StandardMaterial3D::7347686092576946122::1774267386::0::1::::<><><>0<>0<><>::
 fem.tres::StandardMaterial3D::5008240009230109274::1773597985::0::1::::<><><>0<>0<><>::uid://cl5r4wbci37ig::::res://assets/models/human/textures/fem_c.png<>uid://drg2wngiy86jb::::res://assets/models/human/textures/fem_n.png
 female1.blend::PackedScene::1460133461987556543::1773593500::1774267398::1::::<><><>0<>0<>fc23dd6bba333c5c6f30c7a0d5829802<>res://.godot/imported/female1.blend-81c1675ed08e620c4b2743f936630676.scn::
@@ -242,12 +243,13 @@ a80b3e912a67afb6.json::JSON::-1::1773571965::0::1::::<><><>0<>0<><>::
 ::res://codigo/core/::1773306852
 ::res://codigo/data/::1773306852
 ::res://codigo/utils/::1773248480
-::res://contexto/::1773675953
+::res://contexto/::1774804779
 biomas.md::TextFile::-1::1773177793::0::1::::<><><>0<>0<><>::
 calidad.md::TextFile::-1::1773736490::0::1::::<><><>0<>0<><>::
 diseño.md::TextFile::-1::1773573885::0::1::::<><><>0<>0<><>::
 fdd-estructura.md::TextFile::-1::1773179589::0::1::::<><><>0<>0<><>::
 inventario.md::TextFile::-1::1773677530::0::1::::<><><>0<>0<><>::
+investigacion.md::TextFile::-1::1774807825::0::1::::<><><>0<>0<><>::
 logger.md::TextFile::-1::1773177378::0::1::::<><><>0<>0<><>::
 memoria-optima.md::TextFile::-1::1773568522::0::1::::<><><>0<>0<><>::
 memorias.md::TextFile::-1::1773568226::0::1::::<><><>0<>0<><>::
@@ -258,10 +260,11 @@ nuevo-flujo.md::TextFile::-1::1773572899::0::1::::<><><>0<>0<><>::
 personajes.md::TextFile::-1::1773573878::0::1::::<><><>0<>0<><>::
 render.md::TextFile::-1::1773177102::0::1::::<><><>0<>0<><>::
 resumen.md::TextFile::-1::1773736748::0::1::::<><><>0<>0<><>::
+sistemas.md::TextFile::-1::1774443532::0::1::::<><><>0<>0<><>::
 ::res://fdd/::1774345605
 ::res://fdd/active/::1774205202
 current-feature.md::TextFile::-1::1774345143::0::1::::<><><>0<>0<><>::
-::res://fdd/active/daily-notes/::1774430981
+::res://fdd/active/daily-notes/::1774805493
 2026-03-11.md::TextFile::-1::1773256995::0::1::::<><><>0<>0<><>::
 2026-03-12-10-06.md::TextFile::-1::1773306420::0::1::::<><><>0<>0<><>::
 2026-03-14_Feature3_Completado.md::TextFile::-1::1773498174::0::1::::<><><>0<>0<><>::
@@ -278,7 +281,9 @@ current-feature.md::TextFile::-1::1774345143::0::1::::<><><>0<>0<><>::
 2026-03-22.md::TextFile::-1::1774220718::0::1::::<><><>0<>0<><>::
 2026-03-23.md::TextFile::-1::1774292095::0::1::::<><><>0<>0<><>::
 2026-03-24.md::TextFile::-1::1774387386::0::1::::<><><>0<>0<><>::
-2026-03-25-10-30.md::TextFile::-1::1774435391::0::1::::<><><>0<>0<><>::
+2026-03-25-10-30.md::TextFile::-1::1774443672::0::1::::<><><>0<>0<><>::
+2026-03-26-08-30.md::TextFile::-1::1774531325::0::1::::<><><>0<>0<><>::
+2026-03-29-19-15.md::TextFile::-1::1774812081::0::1::::<><><>0<>0<><>::
 ::res://fdd/completed/::1774292177
 current-feature.md::TextFile::-1::1773428058::0::1::::<><><>0<>0<><>::
 F1-interfaces-basicas.md::TextFile::-1::1773321724::0::1::::<><><>0<>0<><>::
@@ -317,9 +322,9 @@ completion-report.md::TextFile::-1::1773179613::0::1::::<><><>0<>0<><>::
 daily-note-template.md::TextFile::-1::1773179605::0::1::::<><><>0<>0<><>::
 feature-template.md::TextFile::-1::1773179451::0::1::::<><><>0<>0<><>::
 ::res://scenes/::1773586592
-::res://scenes/player/::1774357635
-animada_con_tree.tscn::PackedScene::9080012587309743334::1774357635::0::1::::<><><>0<>0<><>::uid://6qw44rxugwqe::::res://assets/models/human/animada.glb
-animado_con_tree.tscn::PackedScene::4258612702484893008::1774357635::0::1::::<><><>0<>0<><>::uid://bbanr6c7qbtlo::::res://assets/models/human/animado.glb<>uid://qdhqvw6q7x0y::::res://assets/models/Unnamed project_modddif_image_0.png
+::res://scenes/player/::1774518051
+animada_con_tree.tscn::PackedScene::9080012587309743334::1774528026::0::1::::<><><>0<>0<><>::uid://6qw44rxugwqe::::res://assets/models/human/animada.glb
+animado_con_tree.tscn::PackedScene::4258612702484893008::1774812684::0::1::::<><><>0<>0<><>::uid://bbanr6c7qbtlo::::res://assets/models/human/animado.glb<>uid://qdhqvw6q7x0y::::res://assets/models/Unnamed project_modddif_image_0.png
 ficha_jugador.tscn::PackedScene::-1::1773586592::0::1::::<><><>0<>0<><>::res://scripts/Core/Player/JugadorController.cs<>res://scripts/Core/Player/StatsJugador.cs<>res://scripts/Core/Player/InteraccionJugador.cs
 ::res://scenes/ui/::1774210140
 character_create_menu.tscn::PackedScene::-1::1773754389::0::1::::<><><>0<>0<><>::res://scripts/ui/CharacterCreateMenu.cs
@@ -335,12 +340,17 @@ pause_menu.tscn::PackedScene::-1::1773574946::0::1::::<><><>0<>0<><>::res://scri
 quality_settings_ui.tscn::PackedScene::-1::1774266662::0::1::::<><><>0<>0<><>::res://scripts/ui/QualitySettingsUI.cs
 splash_screen.tscn::PackedScene::-1::1773310575::0::1::::<><><>0<>0<><>::res://scripts/ui/SplashScreen.cs
 world_select_menu.tscn::PackedScene::-1::1773314080::0::1::::<><><>0<>0<><>::res://scripts/ui/WorldSelectMenu.cs
-::res://scripts/::1773587524
+::res://scripts/::1774811687
+check_scale.gd::GDScript::3941769943722050304::1774527513::0::1::::<>SceneTree<><>0<>1<><>::
+check_visibility.gd::GDScript::7274520282183740827::1774530995::0::1::::<>SceneTree<><>0<>1<><>::
+debug_skin.gd::GDScript::2600607685682778978::1774804938::0::1::::<>SceneTree<><>0<>1<><>::
+inspect_model.gd::GDScript::7558768984952181479::1774527427::0::1::::<>SceneTree<><>0<>0<><>::
 ::res://scripts/Core/::1774362803
 ::res://scripts/Core/Biomes/::1774432545
 ::res://scripts/Core/Biomes/Vegetation/::1774432528
 ::res://scripts/Core/Deployables/::1774259573
-::res://scripts/Core/Player/::1774214425
+::res://scripts/Core/Player/::1774512692
+::res://scripts/Core/Player/Modelos/::1774512694
 ::res://scripts/Core/Quality/::1773757424
 ::res://scripts/Core/Terrain/::1774214425
 ::res://scripts/data/::1774256675
