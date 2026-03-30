@@ -97,13 +97,13 @@ namespace Wild.Core.Player
                         Node current = collider;
                         Logger.LogDebug($"PLAYER: Investigando posible deployable en {collider.Name}...");
                         
-                        while (current != null && !(current is Wild.Core.Deployables.DeployableBase))
+                        while (current != null && !(current is Wild.Core.Deployables.Base.DeployableBase))
                         {
                             Logger.LogDebug($"   -> Subiendo desde {current.Name} (Tipo: {current.GetType().Name})");
                             current = current.GetParent();
                         }
 
-                        if (current is Wild.Core.Deployables.DeployableBase deployable)
+                        if (current is Wild.Core.Deployables.Base.DeployableBase deployable)
                         {
                             Logger.LogInfo($"PLAYER: Click en DEPLOYABLE '{deployable.TypeId}'");
                             deployable.Interact();

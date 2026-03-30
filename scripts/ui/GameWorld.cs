@@ -20,6 +20,8 @@ using Wild.Data;
 using Wild.Utils;
 using Wild.Core.Quality;
 using Wild.Core;
+using Wild.Core.Deployables.Base;
+using Wild.Core.Deployables.Containers;
 
 namespace Wild.UI
 {
@@ -39,6 +41,7 @@ namespace Wild.UI
         private JugadorController _jugador;
         private Label          _labelCoords;
         private FreeCam        _freeCam;
+        private PlacementManager _placementManager;
 
         public override void _Ready()
         {
@@ -62,6 +65,7 @@ namespace Wild.UI
                 SetupPauseMenu();
                 SetupInventoryUI();
                 SetupDeployMenu();
+                SetupPlacementManager();
                 SetupDebugConsole();
                 SetupHUD();
                 SetupEnvironment();
@@ -244,12 +248,27 @@ namespace Wild.UI
 
                     _deployMenu.Connect("Opened", Callable.From(UpdateCharacterState));
                     _deployMenu.Connect("Closed", Callable.From(UpdateCharacterState));
+                    _deployMenu.Connect("ItemSelected", Callable.From((DeployableResource res) => OnDeployableSelected(res)));
                 }
             }
             catch (System.Exception e)
             {
                 Logger.LogError($"GameWorld.SetupDeployMenu(): {e.Message}");
             }
+        }
+
+        private void SetupPlacementManager()
+        {
+            _placementManager = new PlacementManager();
+            AddChild(_placementManager);
+            Logger.LogInfo("GameWorld: PlacementManager inicializado.");
+        }
+
+        private void OnDeployableSelected(DeployableResource recipe)
+        {
+            Logger.LogInfo($"GameWorld: Receta seleccionada -> {recipe.Name}. Iniciando colocación.");
+            _placementManager?.StartPlacement(recipe);
+            UpdateCharacterState();
         }
 
         private void SetupDebugConsole()
@@ -387,6 +406,16 @@ namespace Wild.UI
         {
             try
             {
+                // Prioridad 0: Modo Colocación (ESC cancela)
+                if (@event.IsActionPressed("ui_cancel") && _placementManager != null && _placementManager.IsPlacing)
+                {
+                    Logger.LogInfo("GameWorld._Input: ESC → cancelando colocación de desplegable");
+                    _placementManager.CancelPlacement();
+                    UpdateCharacterState();
+                    GetViewport().SetInputAsHandled();
+                    return;
+                }
+
                 // Prioridad 1: ESC (ui_cancel)
                 if (@event.IsActionPressed("ui_cancel"))
                 {
@@ -441,6 +470,7 @@ namespace Wild.UI
                 if (@event.IsActionPressed("inventory_toggle"))
                 {
                     if (_isPaused || (_debugConsole != null && _debugConsole.IsOpen())) return;
+                    if (_placementManager != null && _placementManager.IsPlacing) return; // Bloquear inventario durante colocación
 
                     Logger.LogInfo("GameWorld._Input: TAB → alternando inventario");
                     ToggleInventory();
@@ -579,10 +609,19 @@ namespace Wild.UI
                                      (_deployMenu != null && _deployMenu.IsOpen()) ||
                                      (_debugConsole != null && _debugConsole.IsOpen());
             
+            bool isPlacing = _placementManager != null && _placementManager.IsPlacing;
+            
             if (anyBlockingUIOpen)
             {
                 Input.MouseMode = Input.MouseModeEnum.Visible;
                 _jugador?.SetFrozen(true);
+            }
+            else if (isPlacing)
+            {
+                Input.MouseMode = Input.MouseModeEnum.Captured; // Ratón capturado para rotar cámara y colocar
+                _jugador?.SetFrozen(false); // Permitir movimiento? El usuario dijo "el jugador se quedará congelado mientras el menú esté abierto", pero en placement no lo especificó.
+                // Usualmente en placement permites moverte. Pero el prompt original decía "congelado" para el menú.
+                // En placement mode, el cursor suele ser el centro de la pantalla.
             }
             else
             {

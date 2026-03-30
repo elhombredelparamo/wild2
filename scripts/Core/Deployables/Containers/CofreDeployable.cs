@@ -4,7 +4,9 @@ using Wild.Data.Inventory;
 using Wild.UI;
 using Wild.Core.Terrain;
 
-namespace Wild.Core.Deployables
+using Wild.Core.Deployables.Base;
+
+namespace Wild.Core.Deployables.Containers
 {
     /// <summary>
     /// Implementación de un cofre desplegable.

@@ -1,8 +1,9 @@
 using Godot;
 using Wild.Data;
 
-namespace Wild.Core.Deployables
+namespace Wild.Core.Deployables.Base
 {
+
     /// <summary>
     /// Clase base para todos los objetos desplegables en el mundo (cofres, hornos, etc).
     /// </summary>

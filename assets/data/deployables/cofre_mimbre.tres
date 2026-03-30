@@ -1,0 +1,15 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/Deployables/Base/DeployableResource.cs" id="1_dep"]
+
+[resource]
+script = ExtResource("1_dep")
+Id = "cofre_mimbre"
+Name = "Cofre de mimbre"
+Category = "Contenedores"
+Description = "Un cofre ligero hecho de fibras de junco/mimbre. Útil para organizar recursos básicos."
+IconPath = "res://assets/textures/items/cofre/ultra.png"
+TechnicalId = "cofre1"
+Requirements = {
+"mimbre": 10
+}
