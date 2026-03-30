@@ -11,5 +11,8 @@ Description = "Un cofre ligero hecho de fibras de junco/mimbre. Útil para organ
 IconPath = "res://assets/textures/items/cofre/ultra.png"
 TechnicalId = "cofre1"
 Requirements = {
-"mimbre": 10
+"mimbre": 100
+}
+AssemblySteps = {
+"hand": 10
 }

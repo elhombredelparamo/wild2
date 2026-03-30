@@ -764,7 +764,7 @@ namespace Wild.Core.Terrain
                             chunkState.AddedDeployables.Add(new DeployableData
                             {
                                 TypeId = deployable.TypeId,
-                                Position = new SerializableVector3(deployable.Position), // Usar posicion LOCAL al chunk
+                                Position = new SerializableVector3(deployable.Position),
                                 Rotation = new SerializableVector3(deployable.Rotation),
                                 CustomData = deployable.SaveData()
                             });
@@ -796,67 +796,99 @@ namespace Wild.Core.Terrain
         {
             try
             {
-                DeployableBase node = null;
-                string modelPath = "";
-
-                if (dData.TypeId == "cofre1")
-                {
-                    node = new CofreDeployable();
-                    var quality = QualityManager.Instance.Settings.DeployableQuality.ToString().ToLower();
-                    modelPath = $"res://assets/models/deploy/cofre/1/{quality}/cofreCesta1.glb";
-                }
-
-                if (node == null) return;
-
-                node.TypeId = dData.TypeId;
-                node.ChunkCoord = coord;
-                node.Position = dData.Position.ToVector3();
-                node.Rotation = dData.Rotation.ToVector3();
+                var pos = dData.Position.ToVector3();
+                var rot = dData.Rotation.ToVector3();
+                var transform = new Transform3D(Basis.FromEuler(rot), pos);
                 
-                if (!string.IsNullOrEmpty(modelPath) && ResourceLoader.Exists(modelPath))
-                {
-                    var scene = ResourceLoader.Load<PackedScene>(modelPath);
-                    var mesh = scene.Instantiate();
-                    node.AddChild(mesh);
-
-                    Logger.LogDebug($"TERRAIN: Estructura del modelo '{dData.TypeId}':");
-                    LogNodeTree(mesh, "  ");
-
-                    // Configurar Capa de Colisión para interacción (Capa 4) y física (Capa 1)
-                    int bodiesFound = SetCollisionLayerRecursive(mesh, (1 << 0) | (1 << 3));
-
-                    if (bodiesFound == 0)
-                    {
-                        Aabb aabb = CalculateAABBRecursive(mesh);
-                        Logger.LogWarning($"TERRAIN: El modelo '{dData.TypeId}' no tiene colisionadores internos. Creando colisionador de caja basado en AABB ({aabb.Size}).");
-                        
-                        var staticBody = new StaticBody3D();
-                        staticBody.CollisionLayer = (1 << 0) | (1 << 3);
-                        
-                        var colShape = new CollisionShape3D();
-                        var box = new BoxShape3D { Size = aabb.Size };
-                        colShape.Shape = box;
-                        colShape.Position = aabb.Position + (aabb.Size * 0.5f); // Centro del AABB
-                        
-                        staticBody.AddChild(colShape);
-                        node.AddChild(staticBody);
-                    }
-                }
-
+                var node = InstantiateDeployable(dData.TypeId, transform, coord);
+                
+                if (node == null) return;
+                
                 // Cargar datos específicos
-                node.LoadData(dData.CustomData);
+                if (!string.IsNullOrEmpty(dData.CustomData))
+                {
+                    node.LoadData(dData.CustomData);
+                }
 
                 // Añadir al chunk
                 renderer.AddChild(node);
-                
-                // Asegurar que tenga colisión para interactuar
-                // NOTA: Si el .glb no trae colisión, habría que añadirla aquí.
-                // Usualmente los .glb de importación traen StaticBody si se configuró en Godot.
             }
             catch (Exception ex)
             {
                 Logger.LogError($"TERRAIN: Error instanciando deployable {dData.TypeId} en {coord}: {ex.Message}");
             }
+        }
+
+        private DeployableBase InstantiateDeployable(string typeId, Transform3D transform, Vector2I coord)
+        {
+            DeployableBase node = null;
+            string modelPath = "";
+
+            if (typeId == "cofre1")
+            {
+                node = new CofreDeployable();
+                var quality = QualityManager.Instance.Settings.DeployableQuality.ToString().ToLower();
+                modelPath = $"res://assets/models/deploy/cofre/1/{quality}/cofreCesta1.glb";
+            }
+            else if (typeId.StartsWith("construction_"))
+            {
+                var constructionSite = new ConstructionDeployable();
+                constructionSite.TypeId = typeId;
+                constructionSite.ChunkCoord = coord;
+                constructionSite.GlobalTransform = transform;
+
+                var recipeId = typeId.Replace("construction_", "");
+                string recipePath = $"res://assets/data/deployables/{recipeId}.tres";
+                if (ResourceLoader.Exists(recipePath))
+                {
+                    var recipe = ResourceLoader.Load<DeployableResource>(recipePath);
+                    if (recipe != null && !string.IsNullOrEmpty(recipe.TechnicalId))
+                    {
+                        var quality = QualityManager.Instance.Settings.DeployableQuality.ToString().ToLower();
+                        if (recipe.TechnicalId == "cofre1")
+                            modelPath = $"res://assets/models/deploy/cofre/1/{quality}/cofreCesta1.glb";
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(modelPath) && ResourceLoader.Exists(modelPath))
+                {
+                    var scene = ResourceLoader.Load<PackedScene>(modelPath);
+                    var mesh = scene.Instantiate();
+                    constructionSite.AddChild(mesh);
+                    ApplyTransparencyRecursive(mesh, 0.5f);
+                }
+
+                return constructionSite;
+            }
+
+            if (node == null) return null;
+
+            node.TypeId = typeId;
+            node.ChunkCoord = coord;
+            node.GlobalTransform = transform;
+
+            if (!string.IsNullOrEmpty(modelPath) && ResourceLoader.Exists(modelPath))
+            {
+                var scene = ResourceLoader.Load<PackedScene>(modelPath);
+                var mesh = scene.Instantiate();
+                node.AddChild(mesh);
+
+                int bodiesFound = SetCollisionLayerRecursive(mesh, (1 << 0) | (1 << 3));
+                if (bodiesFound == 0)
+                {
+                    Aabb aabb = CalculateAABBRecursive(mesh);
+                    var staticBody = new StaticBody3D();
+                    staticBody.CollisionLayer = (1 << 0) | (1 << 3);
+                    var colShape = new CollisionShape3D();
+                    var box = new BoxShape3D { Size = aabb.Size };
+                    colShape.Shape = box;
+                    colShape.Position = aabb.Position + (aabb.Size * 0.5f);
+                    staticBody.AddChild(colShape);
+                    node.AddChild(staticBody);
+                }
+            }
+
+            return node;
         }
 
         private int SetCollisionLayerRecursive(Node node, uint layer)
@@ -916,6 +948,95 @@ namespace Wild.Core.Terrain
             if (first) return new Aabb(new Vector3(-0.5f, 0, -0.5f), new Vector3(1, 1, 1));
             
             return totalAABB;
+        }
+
+        private void ApplyTransparencyRecursive(Node node, float transparency)
+        {
+            if (node is GeometryInstance3D geom)
+                geom.Transparency = transparency;
+            foreach (Node child in node.GetChildren())
+                ApplyTransparencyRecursive(child, transparency);
+        }
+
+        /// <summary>
+        /// Registers a ConstructionDeployable with the chunk system so it is saved to disk.
+        /// Call this right after placing the construction site.
+        /// </summary>
+        public void AddConstructionSite(ConstructionDeployable site, Vector3 globalPos)
+        {
+            var coord = WorldToChunk(globalPos);
+            if (_chunks.TryGetValue(coord, out var renderer))
+            {
+                // Re-parent from GameWorld root to the chunk renderer
+                if (site.GetParent() != null && site.GetParent() != renderer)
+                {
+                    site.GetParent().RemoveChild(site);
+                    site.Position = globalPos - new Vector3(coord.X * ChunkSize, 0, coord.Y * ChunkSize);
+                    renderer.AddChild(site);
+                }
+                site.ChunkCoord = coord;
+                SaveChunkState(coord);
+                Logger.LogInfo($"TERRAIN: Sitio de construcción registrado en chunk {coord}");
+            }
+            else
+            {
+                Logger.LogWarning($"TERRAIN: Chunk {coord} no cargado — sitio de construcción no guardado.");
+            }
+        }
+
+        public void RemoveDeployable(DeployableBase deployable)
+        {
+            if (deployable == null) return;
+            
+            var coord = deployable.ChunkCoord;
+            Logger.LogInfo($"TERRAIN: Eliminando deployable '{deployable.TypeId}' en {deployable.GlobalPosition} (Chunk: {coord})");
+            
+            deployable.Owner = null; // Unset owner just in case
+            deployable.QueueFree();
+            
+            // Wait for next frame for the node to be officially gone, then save
+            CallDeferred(MethodName.SaveChunkState, coord);
+        }
+
+        public void FinalizeConstruction(ConstructionDeployable ghost)
+        {
+            if (ghost == null) return;
+            
+            var recipe = ghost.Recipe;
+            var coord = ghost.ChunkCoord;
+            var transform = ghost.GlobalTransform;
+            
+            Logger.LogInfo($"TERRAIN: Finalizando obra '{recipe.Name}'. Sustituyendo ghost por '{recipe.TechnicalId}'.");
+            
+            if (!_chunks.TryGetValue(coord, out var renderer))
+            {
+                Logger.LogError($"TERRAIN: No se encontró el renderer del chunk {coord} para finalizar la obra.");
+                return;
+            }
+
+            // Instantiate final deployable
+            var finalDeployable = InstantiateDeployable(recipe.TechnicalId, transform, coord);
+            
+            if (finalDeployable != null)
+            {
+                renderer.AddChild(finalDeployable);
+                finalDeployable.GlobalTransform = transform; // Re-apply to ensure it's correct in chunk space
+                
+                // Remove ghost explicitly from current tree first to ensure SaveChunkState doesn't see it
+                if (ghost.GetParent() != null)
+                {
+                    ghost.GetParent().RemoveChild(ghost);
+                }
+                ghost.QueueFree();
+                
+                // Force save chunk so it's permanent
+                SaveChunkState(coord);
+                Logger.LogInfo($"TERRAIN: Obra finalizada y guardada exitosamente.");
+            }
+            else
+            {
+                Logger.LogError($"TERRAIN: Error crítico al instanciar '{recipe.TechnicalId}' para finalizar {recipe.Name}. La obra NO se ha eliminado.");
+            }
         }
     }
 }

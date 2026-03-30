@@ -130,18 +130,24 @@ El ecosistema de ítems de Wild v2.0 es altamente modular y basado en datos, per
 - **Regla Arquitectónica**: Las "Manos" se tratan como contenedores de un solo slot con priorización de entrada, simplificando la lógica de recolección inmediata.
 
 ### **Deployables** (Objetos Construibles e Interactivos)
-- **Filosofía**: Proporciona un marco de trabajo para objetos que el jugador coloca en el mundo y que mantienen un estado propio (ej. el contenido de un cofre). Utiliza una clase base abstracta (`DeployableBase`) para estandarizar la persistencia.
+- **Filosofía**: Proporciona un marco de trabajo para objetos que el jugador coloca en el mundo y que mantienen un estado propio. Utiliza una clase base abstracta (`DeployableBase`) para estandarizar la persistencia.
+- **Construcción en Fases**: Los objetos complejos (ej. `construction_cofre_mimbre`) atraviesan un ciclo de vida de tres fases:
+    1. **Fase de Fantasma (Ghost)**: El objeto es translúcido y no tiene colisión física real. Permite al usuario inyectar materiales desde el `BuildUI`.
+    2. **Fase de Ensamblado**: Una vez aportados los materiales, el objeto requiere interacciones físicas (golpes con herramientas o manos) para progresar.
+    3. **Fase Final**: Al alcanzar el 100% de progreso, el objeto de construcción se sustituye automáticamente por el deployable definitivo.
 - **Interconexiones**: 
-    - **TerrainManager**: Es el encargado de instanciar estos objetos cuando el chunk correspondiente entra en el radio de carga y de persistir sus datos específicos en el JSON del chunk.
-    - **InteraccionJugador**: Activa la lógica específica de cada objeto (abrir UI, procesar materiales) mediante Raycasting.
+    - **TerrainManager**: Instancia los objetos desde el JSON del chunk y asegura que se llame a `LoadData` para restaurar contenedores y progreso.
+    - **InteraccionJugador**: Detecta colisiones en la Capa 4 para abrir el `BuildUI` o aplicar progreso de ensamblado.
+- **Validación de Inventario**: El sistema utiliza delegados `Validator` en `InventoryContainer` para restringir qué ítems y en qué cantidad pueden entrar en un ghost de construcción basándose en su receta (`DeployableResource`).
 
 ### **Componentes de Código Clave (Inventario)**
 | Clase | Método Principal | Descripción |
 | :--- | :--- | :--- |
 | `InventoryManager`| `GiveItem(id, qty)` | Intenta añadir un ítem a los contenedores activos (prioridad manos). |
 | `InventoryContainer`| `AddItem(item, qty)`| Gestiona la lógica de slots, apilamiento y límites de peso. |
-| `DeployableBase` | `Interact()` | Método virtual para definir el comportamiento al pulsar 'E' sobre el objeto. |
-| `WorldObjectRegistrar`| `RegistrarObjeto(id, json)`| Puente para persistir estados de objetos dinámicos en el disco. |
+| `DeployableBase` | `Interact()` | Método virtual para definir el comportamiento al pulsar 'E'. |
+| `ConstructionDeployable`| `SaveData / LoadData`| Serializa el estado de materiales y progreso de ensamblado en JSON. |
+| `WorldObjectRegistrar`| `RegistrarObjeto(id, json)`| Puente para persistir estados de objetos dinámicos. |
 
 ## 💾 6. Sistema de Persistencia y Datos
 
@@ -161,7 +167,7 @@ El sistema de persistencia asegura que cada acción del jugador y cada cambio en
 | `PersistenceService`| `SaveJson<T> / LoadJson<T>`| Centraliza la E/S con gestión de rutas globales. |
 | `MundoManager` | `ObtenerRutaChunksActual()`| Resuelve carpetas de chunks y objetos por ID de mundo. |
 | `ChunkData`      | `ToBinary() / FromBinary()`| Gestiona archivos `.dat` (binarios) de altitud/malla. |
-| `ChunkStateData` | `JsonSerializer.Serialize` | Gestiona archivos `.json` (estado dinámico del chunk). |
+| `ChunkStateData` | `JsonSerializer.Serialize` | Gestiona archivos `.json` (estado dinámico del chunk). Incluye `CustomData` para deployables. |
 
 ## 🎨 7. Sistema de Calidad y Rendimiento
 

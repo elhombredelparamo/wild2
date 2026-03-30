@@ -8,11 +8,11 @@ namespace Wild.UI
     {
         private InventoryContainer _container;
         private int _slotIndex;
-        private InventoryUI _inventoryUI;
+        private IInventoryView _inventoryUI;
         private TextureRect _icon;
         private Label _countLabel;
 
-        public void Setup(InventoryContainer container, int index, InventoryUI ui)
+        public void Setup(InventoryContainer container, int index, IInventoryView ui)
         {
             _container = container;
             _slotIndex = index;

@@ -26,7 +26,7 @@ namespace Wild.UI.Components
             }
         }
 
-        public void UpdateGrid(InventoryContainer container, InventoryUI parentUI)
+        public void UpdateGrid(InventoryContainer container, IInventoryView parentUI)
         {
             Clear();
 

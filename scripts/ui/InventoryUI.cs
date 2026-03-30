@@ -8,7 +8,7 @@ using Wild.UI.Components;
 
 namespace Wild.UI
 {
-    public partial class InventoryUI : CanvasLayer
+    public partial class InventoryUI : CanvasLayer, IInventoryView
     {
         [Signal] public delegate void OpenedEventHandler();
         [Signal] public delegate void ClosedEventHandler();

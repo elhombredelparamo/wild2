@@ -9,6 +9,8 @@ namespace Wild.Data.Inventory
 {
     public partial class InventoryContainer : GodotObject
     {
+        public delegate int ItemValidationDelegate(InventoryItem item, int requestedQuantity);
+        
         public event System.Action OnChanged;
         public string Id { get; set; }
         public string Name { get; set; }
@@ -17,6 +19,7 @@ namespace Wild.Data.Inventory
         public List<InventorySlot> Slots { get; set; } = new List<InventorySlot>();
         public int MaxSlots { get; set; }
         public float MaxWeight { get; set; }
+        public ItemValidationDelegate Validator { get; set; }
 
         public InventoryContainer(string id, string name, int maxSlots, float maxWeight)
         {
@@ -63,39 +66,64 @@ namespace Wild.Data.Inventory
 
             if (sourceSlot.IsEmpty()) return false;
 
-            // Caso 1: Intentar combinar stacks (mismo ID de ítem)
+            // 1. Validate if target can accept this item (fully or partially)
+            int requestedQty = sourceSlot.Quantity;
+            int allowedQty = target.Validator != null ? target.Validator(sourceSlot.Item, requestedQty) : requestedQty;
+
+            if (allowedQty <= 0) return false;
+
+            // 2. CASE: STACK (Same Item)
             if (!targetSlot.IsEmpty() && targetSlot.Item != null && targetSlot.Item.Id == sourceSlot.Item.Id)
             {
                 int spaceInTarget = targetSlot.Item.StackSize - targetSlot.Quantity;
-                if (spaceInTarget > 0)
+                int toMove = Mathf.Min(allowedQty, spaceInTarget);
+                
+                if (toMove > 0)
                 {
-                    int toMove = Mathf.Min(sourceSlot.Quantity, spaceInTarget);
                     targetSlot.Quantity += toMove;
                     sourceSlot.Quantity -= toMove;
                     if (sourceSlot.Quantity <= 0) sourceSlot.Item = null;
+                    
+                    OnChanged?.Invoke();
+                    target.OnChanged?.Invoke();
                     return true;
                 }
+                return false;
             }
 
-            // Caso 2: Intercambiar o mover a vacío
-            // Validar límites de peso en ambos sentidos
-            float sourceWeightWithoutItem = GetCurrentWeight() - sourceSlot.TotalWeight;
-            float targetWeightWithoutItem = target.GetCurrentWeight() - targetSlot.TotalWeight;
+            // 3. CASE: Different Item (SWAP or MOVE TO EMPTY)
+            // If target or source have validators, we MUST check if the resulting items are valid.
+            // Note: Partial moves are NOT possible during a SWAP (different items).
+            if (!targetSlot.IsEmpty())
+            {
+                // Can target accept the incoming item (FULL check)?
+                if (target.Validator != null && target.Validator(sourceSlot.Item, sourceSlot.Quantity) < sourceSlot.Quantity)
+                    return false;
+                
+                // Can WE accept the outgoing item from target (FULL check)?
+                if (Validator != null && Validator(targetSlot.Item, targetSlot.Quantity) < targetSlot.Quantity)
+                    return false;
 
-            // ¿Cabe lo que viene del source al target?
-            if (targetWeightWithoutItem + sourceSlot.TotalWeight > target.MaxWeight) return false;
-            // ¿Cabe lo que viene del target (si es que hay algo) al source?
-            if (sourceWeightWithoutItem + targetSlot.TotalWeight > MaxWeight) return false;
+                // VALID SWAP
+                var tempItem = targetSlot.Item;
+                int tempQty = targetSlot.Quantity;
 
-            // Ejecutar el intercambio (Swap)
-            var tempItem = targetSlot.Item;
-            int tempQty = targetSlot.Quantity;
+                targetSlot.Item = sourceSlot.Item;
+                targetSlot.Quantity = sourceSlot.Quantity;
 
-            targetSlot.Item = sourceSlot.Item;
-            targetSlot.Quantity = sourceSlot.Quantity;
-
-            sourceSlot.Item = tempItem;
-            sourceSlot.Quantity = tempQty;
+                sourceSlot.Item = tempItem;
+                sourceSlot.Quantity = tempQty;
+            }
+            else
+            {
+                // MOVE TO EMPTY (Supports partial move if allowedQty < sourceSlot.Quantity)
+                int toMove = allowedQty;
+                targetSlot.Item = sourceSlot.Item;
+                targetSlot.Quantity = toMove;
+                
+                sourceSlot.Quantity -= toMove;
+                if (sourceSlot.Quantity <= 0) sourceSlot.Item = null;
+            }
 
             OnChanged?.Invoke();
             target.OnChanged?.Invoke();
@@ -151,13 +179,30 @@ namespace Wild.Data.Inventory
             return true;
         }
 
+        public int GetTotalQuantity(string itemId)
+        {
+            int total = 0;
+            foreach (var slot in Slots)
+            {
+                if (!slot.IsEmpty() && slot.Item != null && slot.Item.Id == itemId)
+                {
+                    total += slot.Quantity;
+                }
+            }
+            return total;
+        }
+
         public bool AddItem(InventoryItem item, int quantity)
         {
             if (item == null || quantity <= 0) return false;
 
-            int remaining = quantity;
+            // 1. Validate if we can accept this item
+            int allowedQty = Validator != null ? Validator(item, quantity) : quantity;
+            if (allowedQty <= 0) return false;
 
-            // 1. Intentar apilar en slots existentes
+            int remaining = allowedQty;
+
+            // 2. Intentar apilar en slots existentes
             foreach (var slot in Slots)
             {
                 if (!slot.IsEmpty() && slot.Item != null && slot.Item.Id == item.Id)

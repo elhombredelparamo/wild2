@@ -117,7 +117,7 @@ namespace Wild.Core.Deployables.Base
             void Walk(Node n, Transform3D accumulatedTransform)
             {
                 Transform3D currentTransform = accumulatedTransform;
-                if (n is Node3D n3d)
+                if (n != node && n is Node3D n3d)
                 {
                     currentTransform = accumulatedTransform * n3d.Transform;
                 }
@@ -178,6 +178,9 @@ namespace Wild.Core.Deployables.Base
             }
         }
 
+        public event Action<DeployableResource, Transform3D, ConstructionDeployable> OnPlacementConfirmed;
+        private bool _isValidPosition = false;
+
         public override void _Process(double delta)
         {
             if (!_isPlacing || _ghost == null) return;
@@ -185,6 +188,68 @@ namespace Wild.Core.Deployables.Base
             HandleRotationInput((float)delta);
             UpdateGhostPosition();
             UpdateGhostValidity();
+            HandlePlacementConfirmation();
+        }
+
+        private void HandlePlacementConfirmation()
+        {
+            if (Input.IsMouseButtonPressed(MouseButton.Left) && _isValidPosition)
+            {
+                Logger.LogInfo("PLACEMENT: Posición válida confirmada. Cambiando a estado de construcción.");
+                _isPlacing = false; // Detener seguimiento
+                
+                RemoveGhostMaterialRecursive(_ghost);
+                
+                // Create the interactable construction site
+                var constructionSite = new ConstructionDeployable();
+                constructionSite.GlobalTransform = _ghost.GlobalTransform;
+                GetParent()?.AddChild(constructionSite); // Add to GameWorld
+                
+                // Move visual components from ghost to the new site
+                foreach (Node child in _ghost.GetChildren())
+                {
+                    if (child == _ghostArea) continue; // Skip ghost Area3D
+                    child.GetParent()?.RemoveChild(child);
+                    constructionSite.AddChild(child);
+                }
+                
+                // Aplicar transparencia al construir
+                ApplyConstructionVisualsRecursive(constructionSite);
+                
+                var transform = _ghost.GlobalTransform;
+                _ghost.QueueFree(); // Terminate old ghost
+                _ghost = null;
+                
+                OnPlacementConfirmed?.Invoke(_activeRecipe, transform, constructionSite);
+            }
+        }
+
+        private void RemoveGhostMaterialRecursive(Node node)
+        {
+            if (node is MeshInstance3D mesh)
+            {
+                mesh.MaterialOverride = null;
+                for (int i = 0; i < mesh.GetSurfaceOverrideMaterialCount(); i++)
+                {
+                    mesh.SetSurfaceOverrideMaterial(i, null);
+                }
+            }
+            foreach (Node child in node.GetChildren())
+            {
+                RemoveGhostMaterialRecursive(child);
+            }
+        }
+
+        private void ApplyConstructionVisualsRecursive(Node node)
+        {
+            if (node is GeometryInstance3D geom)
+            {
+                geom.Transparency = 0.5f; // Hace que el objeto original sea 50% transparente
+            }
+            foreach (Node child in node.GetChildren())
+            {
+                ApplyConstructionVisualsRecursive(child);
+            }
         }
 
         private void HandleRotationInput(float delta)
@@ -267,9 +332,9 @@ namespace Wild.Core.Deployables.Base
             bool isObstructed = _ghostArea.GetOverlappingBodies().Count > 0;
 
             // 3. Resultado final
-            bool isValid = hasGround && !isObstructed;
+            _isValidPosition = hasGround && !isObstructed;
             
-            _ghostMaterial.AlbedoColor = isValid ? _validColor : _invalidColor;
+            _ghostMaterial.AlbedoColor = _isValidPosition ? _validColor : _invalidColor;
         }
     }
 }

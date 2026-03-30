@@ -1,60 +1,48 @@
-# Feature Activa: 10 - Sistema de Deployables
+# Feature Activa: 11 - Sistema de Crafteos
 
 ## 🎯 **Objetivo Principal**
-Completar y expandir el sistema de deployables que se inició en la Feature 9, terminando la implementación de funcionalidades existentes y añadiendo nuevos deployables.
+Implementar sistema completo de crafteos que permita a los jugadores crear nuevos objetos a partir de recursos recolectados.
 
 ## 📝 **Descripción**
-- Completar sistema base de deployables iniciado en Feature 9
-- Implementar deployables adicionales más allá del "cofre1"
-- Sistema de colocación y validación de posiciones
-- Interfaz de usuario para selección y colocación
-- Integración completa con sistema de inventario
-- Sistema de destrucción y recolección de deployables
+- Sistema de recetas y crafteos
+- Interfaz de crafteo intuitiva
+- Integración con sistema de inventario
+- Sistema de estaciones de trabajo
+- Recetas progresivas y desbloqueables
+- Optimización de rendimiento
 
 ## 📋 **Checklist de Tareas**
-- [ ] Revisar y limpiar código existente de deployables
-- [ ] Implementar sistema de validación de posición
-- [ ] Crear sistema de preview visual para colocación
-- [ ] Implementar deployables adicionales (fuego, tienda, etc.)
-- [ ] Crear interfaz de selección de deployables
-- [ ] Sistema de destrucción y loot de deployables
-- [ ] Integrar con calidad dinámica (LOD para deployables)
-- [ ] Optimizar rendimiento de múltiples deployables
+- [ ] Diseñar sistema de recetas
+- [ ] Implementar interfaz de crafteo
+- [ ] Crear sistema de estaciones de trabajo
+- [ ] Integrar con inventario existente
+- [ ] Implementar recetas básicas
+- [ ] Sistema de desbloqueo de recetas
+- [ ] Optimizar rendimiento
 - [ ] Testing completo del sistema
 
 ## 📊 **Progreso Actual**
 - **Estado:** Por iniciar ⏳
-- **Fecha de inicio:** 2026-03-24
+- **Fecha de inicio:** 2026-03-30
 - **Tiempo estimado:** 2 días
-- **Prioridad:** Alta (continuación de Feature 9)
-- **Componentes existentes:**
-  - ✅ Base de deployables (clase Deployable)
-  - ✅ "cofre1" como deployable funcional
-  - ✅ Comando spawnDeployable para debugging
-  - ✅ Integración básica con inventario
-- **Componentes por implementar:**
-  - ⏳ Sistema de colocación visual
-  - ⏳ Validación de posición
-  - ⏳ Más tipos de deployables
-  - ⏳ UI de selección
-  - ⏳ Sistema de destrucción
-- **Siguiente paso:** Revisar código existente y planificar expansión
+- **Prioridad:** Alta
+- **Feature anterior:** Sistema de Deployables ✅ (completada 2026-03-30)
+- **Siguiente paso:** Diseñar sistema de recetas
 
 ## 🔗 **Referencias**
-- `fdd/features/feature-10-sistema-deployables.md` - Documentación completa (por crear)
-- `contexto/modelado3d.md` - Modelado 3D y LOD
-- `codigo/systems/deployables.pseudo` - Diseño del sistema
-- `fdd/completed/feature-9-completion-report.md` - Sistema de Inventario
+- `fdd/features/feature-11-sistema-crafteos.md` - Documentación completa (por crear)
+- `contexto/crafteos.md` - Diseño del sistema
+- `codigo/systems/crafteos.pseudo` - Diseño técnico
+- `fdd/completed/feature-10-completion-report.md` - Sistema de Deployables
 - `fdd/metrics/velocity-tracking.md` - Métricas del proyecto
 
 ## 📊 **Contexto**
-- **Feature 8:** Sistema de Calidad ✅ (completada)
-- **Feature 9:** Sistema de Inventario ✅ (completada) - incluye base de deployables
+- **Feature 9:** Sistema de Inventario ✅ (completada)
+- **Feature 10:** Sistema de Deployables ✅ (completada 2026-03-30)
 - **Sistema de Terreno:** Completado ✅ (5 biomas + blending)
 - **Sistema de Jugador:** Completado ✅ (física y controles)
-- **Feature 7:** Objetos 3D ✅ (completada)
-- **Feature actual:** Sistema de Deployables (expansión de Feature 9)
-- **Siguiente:** Feature 11 - Sistema de Crafteos
+- **Feature actual:** Sistema de Crafteos
+- **Siguiente:** Feature 12 - Sistema de Salud
 
 ---
-**Feature 10 Activa - Sistema de Deployables para Wild v2.0 con expansión completa del sistema iniciado en Feature 9**
+**Feature 11 Activa - Sistema de Crafteos para Wild v2.0**

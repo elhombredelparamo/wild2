@@ -16,5 +16,9 @@ namespace Wild.Core.Deployables.Base
         
         // Material required: ItemID -> Amount
         [Export] public Godot.Collections.Dictionary<string, int> Requirements { get; set; } = new();
+
+        // Assembly Phase: ToolID -> Number of interactions
+        // Default tool is "hand" (E with empty hands)
+        [Export] public Godot.Collections.Dictionary<string, int> AssemblySteps { get; set; } = new();
     }
 }

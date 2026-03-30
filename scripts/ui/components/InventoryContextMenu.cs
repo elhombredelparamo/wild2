@@ -11,9 +11,9 @@ namespace Wild.UI.Components
     {
         private InventoryContainer _targetContainer;
         private int _targetSlotIndex;
-        private InventoryUI _parentUI;
+        private IInventoryView _parentUI;
 
-        public void Initialize(InventoryUI parentUI)
+        public void Initialize(IInventoryView parentUI)
         {
             _parentUI = parentUI;
             IdPressed += OnIdPressed;

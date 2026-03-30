@@ -102,7 +102,7 @@ Usar archivos en `contexto/` y `codigo/` según necesidad específica.
 7. **Feature 7:** Sistema de Objetos 3D ✅ (completada)
 8. **Feature 8:** Sistema de Calidad ✅ (completada)
 9. **Feature 9:** Sistema de Inventario ✅ (completada)
-10. **Feature 10:** Sistema de Deployables ⏳ (actual)
+10. **Feature 10:** Sistema de Deployables ✅ (completada)
 11. **Feature 11:** Sistema de Crafteos (2 días)
 12. **Feature 12:** Sistema de Salud (2 días)
 13. **Feature 13:** Red y Multijugador (3 días)

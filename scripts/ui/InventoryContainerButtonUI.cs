@@ -7,11 +7,11 @@ namespace Wild.UI
     public partial class InventoryContainerButtonUI : Button
     {
         private InventoryContainer _container;
-        private InventoryUI _inventoryUI;
+        private IInventoryView _inventoryUI;
         private TextureRect _icon;
         private Label _label;
 
-        public void Setup(InventoryContainer container, InventoryUI ui, bool isSelected)
+        public void Setup(InventoryContainer container, IInventoryView ui, bool isSelected)
         {
             _container = container;
             _inventoryUI = ui;

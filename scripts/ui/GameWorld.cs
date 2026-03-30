@@ -14,6 +14,7 @@
 // 
 // -----------------------------------------------------------------------------
 using Godot;
+using System;
 using Wild.Core.Terrain;
 using Wild.Core.Player;
 using Wild.Data;
@@ -30,6 +31,7 @@ namespace Wild.UI
         private PauseMenu   _pauseMenu;
         private InventoryUI _inventoryUI;
         private DeployMenu  _deployMenu;
+        private BuildUI     _buildUI;
         private DebugConsole _debugConsole;
         private bool        _isPaused = false;
         private ColorRect   _loadingOverlay;
@@ -42,6 +44,7 @@ namespace Wild.UI
         private Label          _labelCoords;
         private FreeCam        _freeCam;
         private PlacementManager _placementManager;
+        private ConstructionDeployable _currentConstructionSite;
 
         public override void _Ready()
         {
@@ -65,12 +68,15 @@ namespace Wild.UI
                 SetupPauseMenu();
                 SetupInventoryUI();
                 SetupDeployMenu();
+                SetupBuildUI();
                 SetupPlacementManager();
                 SetupDebugConsole();
                 SetupHUD();
                 SetupEnvironment();
                 SetupPlayer();
                 SetupTerrainManager(); // Setup terrain last to ensure all signals are connected before Update()
+                
+                ConstructionDeployable.OnConstructionInteracted += OnConstructionInteracted;
 
                 Logger.LogInfo("GameWorld._Ready() - Mundo de juego inicializado exitosamente");
             }
@@ -120,6 +126,13 @@ namespace Wild.UI
                 OnChunkInicialListo();
                 OnTerrainReady();
             }
+        }
+
+        public override void _ExitTree()
+        {
+            // IMPORTANT: Clear static event listener to avoid leaks/bugs on re-entry
+            ConstructionDeployable.OnConstructionInteracted -= OnConstructionInteracted;
+            Logger.LogInfo("GameWorld: _ExitTree - Limpiando suscripciones estáticas de construcción.");
         }
 
         private void SetupEnvironment()
@@ -257,11 +270,93 @@ namespace Wild.UI
             }
         }
 
+        private void SetupBuildUI()
+        {
+            try
+            {
+                string path = "res://scenes/ui/build_ui.tscn";
+                var cached = GameLoader.Instance?.GetResource<PackedScene>(path);
+                _buildUI = (cached ?? GD.Load<PackedScene>(path)).Instantiate<BuildUI>();
+
+                if (_buildUI != null)
+                {
+                    var uiLayer = GetNode<CanvasLayer>("UI");
+                    if (uiLayer != null)
+                        uiLayer.AddChild(_buildUI);
+                    else
+                        AddChild(_buildUI);
+
+                    _buildUI.Hide();
+                    Logger.LogInfo("GameWorld: BuildUI cargado y oculto.");
+
+                    _buildUI.Confirmed += OnConstructionConfirmed;
+                    _buildUI.Cancelled += OnConstructionCancelled;
+                }
+            }
+            catch (System.Exception e)
+            {
+                Logger.LogError($"GameWorld.SetupBuildUI(): {e.Message}");
+            }
+        }
+
         private void SetupPlacementManager()
         {
             _placementManager = new PlacementManager();
             AddChild(_placementManager);
+            _placementManager.OnPlacementConfirmed += OnPlacementGhostConfirmed;
             Logger.LogInfo("GameWorld: PlacementManager inicializado.");
+        }
+
+        private void OnConstructionInteracted(ConstructionDeployable constructionSite)
+        {
+            Logger.LogInfo($"GameWorld: Interacción con sitio de construcción de {constructionSite.Recipe.Name}");
+            _currentConstructionSite = constructionSite;
+            _buildUI?.SetupForDeployable(constructionSite.Recipe, constructionSite.SiteContainer);
+            _buildUI?.Open();
+            UpdateCharacterState();
+        }
+
+        private void OnConstructionConfirmed()
+        {
+            if (_currentConstructionSite != null)
+            {
+                _currentConstructionSite.TransitionToAssembly();
+                _terrainManager?.SaveChunkState(_currentConstructionSite.ChunkCoord);
+                UpdateCharacterState();
+            }
+        }
+
+        private void OnConstructionCancelled()
+        {
+            if (_buildUI != null && _buildUI.IsOpen())
+            {
+                _buildUI.Close();
+                UpdateCharacterState();
+            }
+
+            if (_currentConstructionSite != null)
+            {
+                _terrainManager?.RemoveDeployable(_currentConstructionSite);
+                _currentConstructionSite = null;
+            }
+        }
+
+        private void OnPlacementGhostConfirmed(DeployableResource recipe, Transform3D transform, ConstructionDeployable constructionSite)
+        {
+            Logger.LogInfo($"GameWorld: Posición de {recipe.Name} confirmada. Abriendo Build UI.");
+            
+            // Creamos un contenedor vacío de 6 huecos para que el jugador deposite materiales.
+            var siteContainer = new Wild.Data.Inventory.InventoryContainer("site_" + Guid.NewGuid(), "Obras: " + recipe.Name, 6, 9999f);
+            
+            // Initialize the construction site object
+            constructionSite.Initialize(recipe, siteContainer);
+            
+            // Register with TerrainManager so it persists to disk via chunk JSON
+            _terrainManager?.AddConstructionSite(constructionSite, transform.Origin);
+            
+            _buildUI?.SetupForDeployable(recipe, siteContainer);
+            _buildUI?.Open();
+            UpdateCharacterState();
         }
 
         private void OnDeployableSelected(DeployableResource recipe)
@@ -445,6 +540,13 @@ namespace Wild.UI
                         GetViewport().SetInputAsHandled();
                         return;
                     }
+                    if (_buildUI != null && _buildUI.IsOpen())
+                    {
+                        Logger.LogInfo("GameWorld._Input: ESC → cerrando menú de construcción");
+                        ToggleBuildUI();
+                        GetViewport().SetInputAsHandled();
+                        return;
+                    }
                     
                     // 1.3 Menú de Pausa
                     if (_pauseMenu != null)
@@ -470,7 +572,15 @@ namespace Wild.UI
                 if (@event.IsActionPressed("inventory_toggle"))
                 {
                     if (_isPaused || (_debugConsole != null && _debugConsole.IsOpen())) return;
-                    if (_placementManager != null && _placementManager.IsPlacing) return; // Bloquear inventario durante colocación
+                    if (_placementManager != null && _placementManager.IsPlacing) return;
+
+                    if (_buildUI != null && _buildUI.IsOpen())
+                    {
+                        Logger.LogInfo("GameWorld._Input: TAB → cerrando menú de construcción");
+                        ToggleBuildUI();
+                        GetViewport().SetInputAsHandled();
+                        return;
+                    }
 
                     Logger.LogInfo("GameWorld._Input: TAB → alternando inventario");
                     ToggleInventory();
@@ -602,11 +712,31 @@ namespace Wild.UI
             }
         }
 
+        public void ToggleBuildUI()
+        {
+            if (_buildUI == null) return;
+            
+            bool newState = !_buildUI.IsOpen();
+            
+            if (newState)
+            {
+                _buildUI.Open();
+                Input.MouseMode = Input.MouseModeEnum.Visible;
+                _jugador?.SetFrozen(true);
+            }
+            else
+            {
+                _buildUI.Close();
+                UpdateCharacterState();
+            }
+        }
+
         private void UpdateCharacterState()
         {
             bool anyBlockingUIOpen = _isPaused || 
                                      (_inventoryUI != null && _inventoryUI.IsOpen()) || 
                                      (_deployMenu != null && _deployMenu.IsOpen()) ||
+                                     (_buildUI != null && _buildUI.IsOpen()) ||
                                      (_debugConsole != null && _debugConsole.IsOpen());
             
             bool isPlacing = _placementManager != null && _placementManager.IsPlacing;
