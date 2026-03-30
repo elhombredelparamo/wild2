@@ -29,11 +29,11 @@ El núcleo de Wild v2.0 está diseñado para proporcionar una base estable y coh
 ### **Componentes de Código Clave (Core)**
 | Clase | Método Principal | Descripción |
 | :--- | :--- | :--- |
-| `SessionData` | `SaveConfig() / LoadConfig()` | Persistencia de ajustes globales en `config.json`. |
-| `Logger` | `LogInfo / LogWarning / LogError` | Métodos estáticos para trazabilidad unificada. |
-| `MundoManager` | `CrearMundo(nombre, semilla)` | Inicializa la estructura física de un nuevo mundo. |
-| `MundoManager` | `GuardarDatosJugador(data)` | Serializa la posición y stats del jugador en el mundo activo. |
-| `PersistenceService` | `SaveJson<T> / LoadJson<T>` | Utilidad genérica para E/S de archivos JSON con gestión de errores. |
+| `SessionData` | `SaveConfig() / LoadConfig()` | Persistencia de ajustes globales (Autoload). |
+| `Logger` | `LogInfo / LogWarning / LogError` | Métodos estáticos en `scripts/Utils/Logger.cs`. |
+| `MundoManager` | `CrearMundo(nombre, semilla)` | Inicializa la estructura física en `user://worlds/`. |
+| `MundoManager` | `GuardarDatosJugador(data)` | Serializa `PlayerData` en el JSON del mundo activo. |
+| `PersistenceService`| `SaveJson<T> / LoadJson<T>` | Mapper JSON seguro con `ProjectSettings.GlobalizePath`. |
 
 ## 🌍 2. Sistema de Terreno Procedural
 
@@ -45,12 +45,13 @@ Wild v2.0 emplea un sistema de terreno dinámico capaz de generar mundos infinit
     - **MundoManager**: Proporciona la semilla (`seed`) única para la generación determinista.
     - **SessionData**: Sincroniza el radio de carga visual con las preferencias del usuario.
     - **QualityManager**: Inyecta parámetros de resolución de malla para equilibrar detalle vs. rendimiento.
-- **Regla Arquitectónica (Muros de Seguridad)**: Genera colisionadores temporales de gran escala en chunks en proceso de carga para prevenir el "falling through world" durante el spawn o movimiento rápido.
+- **Regla Arquitectónica (Muros de Seguridad)**: Genera cilindros de colisión estática temporales en chunks en proceso de carga para prevenir el vacío durante el spawn o movimiento rápido.
 
 ### **TerrainGenerator** (Lógica de Malla y Datos)
 - **Filosofía**: Transforma datos matemáticos de ruido en geometría 3D. Utiliza una técnica de teseleado dinámico donde la densidad de la malla varía según la calidad seleccionada.
 - **Flujo de Datos (Splat Map)**: Inyecta pesos de bioma directamente en el color de los vértices de la malla. Esto permite que el shader de terreno realice mezclas suaves (blending) de hasta 4 texturas diferentes sin necesidad de múltiples pasadas de renderizado.
 - **Interconexiones**: Consulta al `BiomaManager` en cada vértice para determinar la "personalidad" geológica del terreno (frecuencia de ruido, altura base).
+- **VegetationRegistry (Bake)**: Antes de la generación, realiza un proceso de "Bake" que mapea especies por bioma en arrays planos. Esto permite consultas O(1) sin alocaciones de memoria durante la creación de chunks.
 
 ### **BiomaManager** (Distribución de Ecosistemas)
 - **Filosofía**: Un motor de reglas que decide qué ecosistema corresponde a cada coordenada basándose en dos ejes: Altitud (Elevación) y Humedad (Variación horizontal).
@@ -59,11 +60,12 @@ Wild v2.0 emplea un sistema de terreno dinámico capaz de generar mundos infinit
 ### **Componentes de Código Clave (Terreno)**
 | Clase | Método Principal | Descripción |
 | :--- | :--- | :--- |
-| `TerrainManager` | `Update(refPos)` | Dispara la carga/descarga de chunks según la posición del jugador. |
-| `TerrainManager` | `RemoveVegetationAt(pos, id)` | Elimina una instancia de vegetación y registra su borrado persistente. |
-| `TerrainGenerator` | `GenerateChunkData(coord)` | Calcula el mapa de altitudes y biomas para una coordenada dada. |
-| `BiomaManager` | `GetBiomeAt(x, z)` | Retorna el tipo de ecosistema basado en ruido de temperatura y humedad. |
-| `VegetationSpawner`| `SpawnForChunk(renderer, data)`| Distribuye modelos 3D sobre la malla según las reglas del bioma. |
+| `TerrainManager` | `Update(refPos)` | Orquesta carga/descarga y dispara `UpdateDynamicCollisionsAsync`. |
+| `TerrainManager` | `RemoveVegetationAt(pos, id)` | Registra el borrado persistente en el JSON del chunk y recrea visuales. |
+| `TerrainGenerator` | `GenerateChunkData(coord)` | Calcula altitudes (Noise) y biomas para crear el binario `.dat`. |
+| `BiomaManager` | `GetBiomeAt(x, z)` | Retorna el ecosistema basado en altitud y humedad. |
+| `VegetationRegistry`| `Bake()` | Pre-calcula la tabla de especies para acceso ultra-rápido. |
+| `VegetationSpawner`| `SpawnForChunk(renderer, data)`| Distribuye instancias (MultiMesh) basándose en el Bake de biomas. |
 
 ## 🎮 3. Sistema de Jugador y Controladores
 
@@ -72,20 +74,23 @@ El sistema de jugador en Wild v2.0 prioriza la inmersión y la fiabilidad del mo
 ### **JugadorController** (Física e Inmersión)
 - **Filosofía**: Utiliza un modelo "True First Person" donde la cámara reside dentro del modelo 3D del personaje. Esto permite que las sombras, animaciones y extremidades sean visibles de forma natural.
 - **Interconexiones**: 
-    - **TerrainManager**: Consume datos de elevación en tiempo real para validar la posición del jugador y evitar que atraviese el terreno (Tunneling).
-    - **AnimationTree**: Gestiona un `StateMachine` complejo para transiciones fluidas entre reposo, caminata, carrera y salto.
-- **Regla Arquitectónica (Rescate / Unstuck)**: Implementa un sistema de auditoría de posición. Si detecta que el jugador está por debajo del nivel del suelo o bloqueado lateralmente a pesar de tener intención de movimiento, aplica un impulso de eyección hacia una coordenada segura calculada mediante el ruido base del terreno.
+    - **TerrainManager**: Consume datos de altura para el sistema anti-tunneling.
+    - **AnimationTree**: Gestiona un `StateMachine` (Travel) para transiciones fluidas.
+- **Regla Arquitectónica (Rescate / Unstuck v4)**: Auditoría triple:
+    1. **Anti-Vacío**: Teletransporte inmediato si Y < -50 o muy bajo el suelo.
+    2. **Detección de Bloqueo**: Monitoriza normales de colisión reales (ignora suelo).
+    3. **Eyección**: Si hay bloqueo persistente con intención de movimiento, aplica un impulso físico de eyección desactivando colisiones brevemente.
 
 ### **StatsJugador** (Atributos Vitales)
 - **Filosofía**: Gestiona el metabolismo del jugador (Salud, Hambre, Sed, Energía). Es un sistema pasivo que degrada valores con el tiempo y aplica efectos negativos (daño) cuando los niveles críticos llegan a cero.
 - **Flujo de Datos**: Tiempo transcurrido -> Cálculo de tasas de desgaste -> Actualización de variables persistentes -> Invocación de `OnMuerte` si la salud es nula.
 
-### **InteraccionJugador** (Raycasting y Acción)
-- **Filosofía**: Actúa como la "mano" del jugador en el mundo. Utiliza Raycasts desde el centro de la cámara para identificar objetos interactuables en la capa de colisión 4.
+### **InteraccionJugador** (Raycasting y Loot)
+- **Filosofía**: Lanza Raycasts a la Capa 4 (Interacciones). Detecta `Area3D` dinámicas (recolectables) o `DeployableBase`.
+- **Lógica de Loot**: Al interactuar con flora, consulta `VegetationRegistry.GetLootTable()`, genera cantidades aleatorias e intenta añadirlas al `InventoryManager` de forma atómica.
 - **Interconexiones**: 
-    - **InventoryManager**: Para depositar ítems recolectados del suelo.
-    - **TerrainManager**: Para solicitar la eliminación física de objetos del escenario (como setas o piedras) una vez recolectados.
-    - **Deployables**: Para activar menús o lógica específica de objetos construidos por el jugador (ej. abrir un cofre).
+    - **InventoryManager**: Valida capacidad (`CanFitItems`) antes de otorgar botín.
+    - **TerrainManager**: Solicita `RemoveVegetationAt` tras una recolección exitosa.
 
 ### **Componentes de Código Clave (Jugador)**
 | Clase | Método Principal | Descripción |
@@ -153,9 +158,10 @@ El sistema de persistencia asegura que cada acción del jugador y cada cambio en
 ### **Componentes de Código Clave (Persistencia)**
 | Clase | Método Principal | Descripción |
 | :--- | :--- | :--- |
-| `PersistenceService`| `SaveJson<T> / LoadJson<T>`| Centraliza la E/S de archivos con validación y manejo de errores. |
-| `MundoManager` | `ObtenerRutaChunksActual()`| Resuelve la ruta absoluta de almacenamiento según el mundo activo. |
-| `ChunkStateData` | `ToBinary() / FromBinary()`| Optimiza el almacenamiento de mallas y altitudes en archivos `.dat`. |
+| `PersistenceService`| `SaveJson<T> / LoadJson<T>`| Centraliza la E/S con gestión de rutas globales. |
+| `MundoManager` | `ObtenerRutaChunksActual()`| Resuelve carpetas de chunks y objetos por ID de mundo. |
+| `ChunkData`      | `ToBinary() / FromBinary()`| Gestiona archivos `.dat` (binarios) de altitud/malla. |
+| `ChunkStateData` | `JsonSerializer.Serialize` | Gestiona archivos `.json` (estado dinámico del chunk). |
 
 ## 🎨 7. Sistema de Calidad y Rendimiento
 

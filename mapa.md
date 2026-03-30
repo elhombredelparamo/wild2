@@ -11,11 +11,13 @@
 ## 📂 Estructura Clave
 
 ### 🎮 Proyecto de Programación
-- `programa/` - **Proyecto Godot C# principal**
-- `programa/project.godot` - Configuración del proyecto Godot
-- `programa/Wild.csproj` - Proyecto C# (.NET 8.0)
-- `programa/Wild.sln` - Solución Visual Studio
-- `programa/Main.cs` - Clase principal del juego
+- `project.godot` - Configuración del proyecto Godot (Raíz)
+- `Wild.csproj` - Proyecto C# (.NET 8.0)
+- `Wild.sln` - Solución Visual Studio
+- `scripts/` - **Directorio principal de scripts C#**
+- `scripts/data/MundoManager.cs` - Gestor de mundos y persistencia
+- `scripts/Core/GameLoader.cs` - Cargador de escenas asíncrono
+- `scenes/ui/splash_screen.tscn` - Escena de inicio (Main Scene)
 
 ### Sistema FDD (Gestión del Proyecto)
 - `fdd/active/` - Feature actual en desarrollo
@@ -45,10 +47,17 @@
 - `codigo/utils/` - Utilidades (logger, coordenadas)
 - `codigo/systems/` - Sistemas de juego (jugador, UI)
 
+### Estructura de Aplicación
+- `scripts/Core/` - Sistemas centrales (Terrain, Quality, Player)
+- `scripts/data/` - Persistencia y gestión de datos (Mundos, Personajes)
+- `scripts/Utils/` - Utilidades generales y Logger
+- `scenes/` - Escenas de Godot (.tscn)
+- `assets/` - Recursos visuales y sonoros
+
 ## 🔄 Flujo de Trabajo Actual
 
 ### 1. Trabajar en el Proyecto Principal
-Abrir y desarrollar en `programa/` con Godot Editor y Visual Studio.
+Desarrollar en la raíz del repositorio con Godot Editor (4.6.1) y Visual Studio.
 
 ### 2. Verificar Feature Activa
 Revisar `fdd/active/current-feature.md` para saber qué se está desarrollando.
@@ -83,12 +92,12 @@ Usar archivos en `contexto/` y `codigo/` según necesidad específica.
 2. **Feature 2:** Sistema de Logger ✅
 3. **Feature 3:** Sistema de Personajes ✅
 4. **Feature 4:** Sistema de Mundos ✅
-5. **Feature 5:** Sistema de Terreno y Biomas ✅ (3 días)
+5. **Feature 5:** Sistema de Terreno y Biomas ✅
    - 5.1 **Feature 5.1:** Bioma Océano (<-20m)
-   - 5.2 **Feature 5.2:** Bioma Costa (-20 a 5m)
-   - 5.3 **Feature 5.3:** Bioma Pradera (5-50m)
-   - 5.4 **Feature 5.4:** Bioma Bosque (50-200m)
-   - 5.5 **Feature 5.5:** Bioma Montaña (>200m)
+   - 5.2 **Feature 5.2:** Bioma Costa (<10m, requiere proximidad al mar)
+   - 5.3 **Feature 5.3:** Bioma Pradera (Tierra firme, baja humedad)
+   - 5.4 **Feature 5.4:** Bioma Bosque (Tierra firme, alta humedad)
+   - 5.5 **Feature 5.5:** Bioma Montaña (>=50m)
 6. **Feature 6:** Sistema de Jugador ✅ (física y controles)
 7. **Feature 7:** Sistema de Objetos 3D ✅ (completada)
 8. **Feature 8:** Sistema de Calidad ✅ (completada)
@@ -146,14 +155,15 @@ Usar archivos en `contexto/` y `codigo/` según necesidad específica.
 ## ⚡ Inicio Rápido
 
 Al iniciar una nueva conversación:
-1. **Abrir proyecto Godot:** `programa/` con Godot Editor
+1. **Abrir proyecto Godot:** Abrir la raíz del repositorio en Godot Editor.
 2. Revisar feature activa en `fdd/active/`
 3. Consultar notas diarias recientes
 4. Verificar métricas de progreso
 5. Usar documentación técnica según necesidad
 
 ### 🎯 Para Desarrollo
-- **Proyecto principal:** `programa/` (Godot + C#)
+- **Proyecto principal:** Raíz del repositorio (Godot + C#)
+- **Scripts:** `scripts/`
 - **Referencia técnica:** `codigo/` (pseudocódigo y diseño)
 - **Documentación:** `contexto/` (especificaciones)
 - **Gestión:** `fdd/` (features y progreso)
