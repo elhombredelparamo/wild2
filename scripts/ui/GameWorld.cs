@@ -27,6 +27,7 @@ namespace Wild.UI
     {
         private PauseMenu   _pauseMenu;
         private InventoryUI _inventoryUI;
+        private DeployMenu  _deployMenu;
         private DebugConsole _debugConsole;
         private bool        _isPaused = false;
         private ColorRect   _loadingOverlay;
@@ -60,6 +61,7 @@ namespace Wild.UI
 
                 SetupPauseMenu();
                 SetupInventoryUI();
+                SetupDeployMenu();
                 SetupDebugConsole();
                 SetupHUD();
                 SetupEnvironment();
@@ -221,6 +223,35 @@ namespace Wild.UI
             }
         }
 
+        private void SetupDeployMenu()
+        {
+            try
+            {
+                string path = "res://scenes/ui/deploy_menu.tscn";
+                var cached = GameLoader.Instance?.GetResource<PackedScene>(path);
+                _deployMenu = (cached ?? GD.Load<PackedScene>(path)).Instantiate<DeployMenu>();
+
+                if (_deployMenu != null)
+                {
+                    var uiLayer = GetNode<CanvasLayer>("UI");
+                    if (uiLayer != null)
+                        uiLayer.AddChild(_deployMenu);
+                    else
+                        AddChild(_deployMenu);
+
+                    _deployMenu.Hide();
+                    Logger.LogInfo("GameWorld: DeployMenu cargado y oculto.");
+
+                    _deployMenu.Connect("Opened", Callable.From(UpdateCharacterState));
+                    _deployMenu.Connect("Closed", Callable.From(UpdateCharacterState));
+                }
+            }
+            catch (System.Exception e)
+            {
+                Logger.LogError($"GameWorld.SetupDeployMenu(): {e.Message}");
+            }
+        }
+
         private void SetupDebugConsole()
         {
             try
@@ -368,7 +399,16 @@ namespace Wild.UI
                         return;
                     }
 
-                    // 1.2 Inventario
+                    // 1.2 Deploy Menu
+                    if (_deployMenu != null && _deployMenu.IsOpen())
+                    {
+                        Logger.LogInfo("GameWorld._Input: ESC → cerrando menú de deployables");
+                        ToggleDeployMenu();
+                        GetViewport().SetInputAsHandled();
+                        return;
+                    }
+
+                    // 1.3 Inventario
                     if (_inventoryUI != null && _inventoryUI.IsOpen())
                     {
                         Logger.LogInfo("GameWorld._Input: ESC → cerrando inventario");
@@ -404,6 +444,17 @@ namespace Wild.UI
 
                     Logger.LogInfo("GameWorld._Input: TAB → alternando inventario");
                     ToggleInventory();
+                    GetViewport().SetInputAsHandled();
+                }
+
+                // Prioridad 4: B (deploy_menu_toggle)
+                if (@event.IsActionPressed("deploy_menu_toggle"))
+                {
+                    if (_isPaused || (_debugConsole != null && _debugConsole.IsOpen())) return;
+                    if (_inventoryUI != null && _inventoryUI.IsOpen()) return;
+
+                    Logger.LogInfo("GameWorld._Input: B → alternando menú de deployables");
+                    ToggleDeployMenu();
                     GetViewport().SetInputAsHandled();
                 }
 
@@ -502,10 +553,30 @@ namespace Wild.UI
             }
         }
 
+        private void ToggleDeployMenu()
+        {
+            if (_deployMenu == null) return;
+
+            bool newState = !_deployMenu.IsOpen();
+            
+            if (newState)
+            {
+                _deployMenu.Open();
+                Input.MouseMode = Input.MouseModeEnum.Visible;
+                _jugador?.SetFrozen(true);
+            }
+            else
+            {
+                _deployMenu.Close();
+                UpdateCharacterState();
+            }
+        }
+
         private void UpdateCharacterState()
         {
             bool anyBlockingUIOpen = _isPaused || 
                                      (_inventoryUI != null && _inventoryUI.IsOpen()) || 
+                                     (_deployMenu != null && _deployMenu.IsOpen()) ||
                                      (_debugConsole != null && _debugConsole.IsOpen());
             
             if (anyBlockingUIOpen)
