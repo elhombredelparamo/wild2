@@ -1,0 +1,108 @@
+---
+
+## ⏺️ PASO 0: Sincronización de Contexto (OBLIGATORIO) 
+Antes de realizar cualquier acción, ejecuta el comando `view_file` sobre este mismo archivo (`procedimientos/anadir-item.ia`).
+> [!IMPORTANT]
+> Esto asegura que Cascade tenga la versión más reciente del procedimiento y evita errores por saturación de contexto. NO procedas sin haber leído el archivo completo en esta sesión.
+
+---
+
+## 🗣️ PASO I: Localización de Iconos (INTERACTIVO)
+Pregunta al usuario: "¿Dónde está el archivo de imagen (`.png`) para el icono del ítem?"
+
+---
+
+## 📊 PASO II: Datos del Ítem (INTERACTIVO)
+Debes preguntar al usuario para configurar el ítem:
+1. **ID**: Identificador técnico único (ej: `madera`, `hierro`).
+2. **Nombre**: Nombre que verá el jugador (ej: `Madera de Pino`).
+3. **Tipo**: ¿Qué tipo de ítem es? (`Consumible`, `Material`, `Herramienta`, `Mochila`).
+4. **Stack**: ¿Cuál es el tamaño máximo del montón? (ej: `20`, `50`).
+5. **Peso**: ¿Cuánto pesa cada unidad? (ej: `0.1`, `1.5`).
+
+---
+
+## 🏗️ FASE III: Estructura de Texturas (Icons)
+Crea la siguiente jerarquía de carpetas y archivos en `res://assets/textures/items/{ID}/`.
+Reemplaza `{ID}` por el identificador técnico del ítem.
+
+### 📂 Carpeta Requerida
+Debes crear la carpeta principal del ítem en `res://assets/textures/items/{ID}/`.
+
+### 📄 Archivos Requeridos
+Dentro de esa carpeta, debes colocar exactamente estos 5 archivos con el nombre de la calidad:
+1. `ultra.png` (512px)
+2. `high.png` (256px)
+3. `medium.png` (128px)
+4. `low.png` (64px)
+5. `toaster.png` (32px)
+
+---
+
+## 💻 FASE IV: Definición de Clase (C#)
+> [!CAUTION]
+> **UBICACIÓN CRÍTICA**: El script de la clase del ítem **DEBE** crearse en la carpeta de inventario. 
+> Ruta exacta: `scripts/data/inventory/items/{U_ID}.cs` (donde {U_ID} es el ID con la primera letra en mayúscula).
+
+### 📋 Plantilla de Código (IA: Copia y pega esto)
+```csharp
+using Godot;
+
+namespace Wild.Data.Inventory
+{
+    [GlobalClass]
+    public partial class {U_ID} : {TIPO_ITEM} // Reemplazar por ConsumibleItem, MaterialItem, etc.
+    {
+        [Export] public override string Id { get; set; } = "{ID}";
+        [Export] public override string Name { get; set; } = "{NOMBRE}";
+        [Export] public override string Description { get; set; }
+        [Export] public override string IconPath { get; set; } = "res://assets/textures/items/{ID}/ultra.png";
+        [Export] public override int StackSize { get; set; } = {STACK};
+        [Export] public override float Weight { get; set; } = {PESO}f;
+    }
+}
+```
+
+---
+
+## 💾 FASE V: Creación del Recurso (.tres)
+Crea el archivo de recurso en la carpeta de datos para que Godot lo reconozca.
+Ruta: `assets/data/items/{ID}.tres`
+
+### 📋 Contenido del Archivo
+```ini
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/inventory/items/{U_ID}.cs" id="1_{ID}"]
+
+[resource]
+script = ExtResource("1_{ID}")
+Id = "{ID}"
+Name = "{NOMBRE}"
+Description = "{DESCRIPCIÓN}"
+IconPath = "res://assets/textures/items/{ID}/ultra.png"
+StackSize = {STACK}
+Weight = {PESO}f
+```
+
+---
+
+## 🔍 FASE VI: Protocolo de Verificación
+1. **Check de Texturas**: ¿Están los 5 niveles de calidad en `assets/textures/items/{ID}/`?
+2. **Check de Código**: ¿Está el script en `scripts/data/inventory/items/` y hereda del tipo correcto?
+3. **Check de Recurso**: ¿Se ha creado el `.tres` en `assets/data/items/` vinculando correctamente el script?
+4. **Verificación en Godot**: El ítem debería aparecer ahora en el Inspector al buscar recursos de tipo `{U_ID}`.
+
+---
+
+## 📝 FASE VII: Registro de Tareas Pendientes
+Para finalizar, debes registrar en el archivo de seguimiento que los iconos necesitan ser procesados.
+
+1. Abre (o crea si no existe) el archivo `tareas pendientes.md` en la raíz del proyecto.
+2. Añade al final de este archivo las siguientes líneas de recordatorio (una por cada imagen):
+
+- [ ] Ajustar formato de icono: `res://assets/textures/items/{ID}/ultra.png`
+- [ ] Ajustar formato de icono: `res://assets/textures/items/{ID}/high.png`
+- [ ] Ajustar formato de icono: `res://assets/textures/items/{ID}/medium.png`
+- [ ] Ajustar formato de icono: `res://assets/textures/items/{ID}/low.png`
+- [ ] Ajustar formato de icono: `res://assets/textures/items/{ID}/toaster.png`

@@ -82,3 +82,17 @@ public static class {U_ID}Data
 1. **Check de Archivos**: ¿Están los 5 niveles de calidad en `assets/models/plants/`?
 2. **Check de Ubicación**: ¿Está el archivo `.cs` en `scripts/Core/Biomes/Vegetation/`?
 3. **Check de Bake**: ¿Se ha añadido la línea en `VegetationRegistry.cs`?
+
+---
+
+## 📝 FASE VII: Registro de Tareas Pendientes
+Para finalizar, debes registrar en el archivo de seguimiento que los modelos necesitan ser ajustados.
+
+1. Abre (o crea si no existe) el archivo `tareas pendientes.md` en la raíz del proyecto.
+2. Añade al final de este archivo las siguientes líneas de recordatorio:
+
+- [ ] Ajustar modelo glb: `res://assets/models/plants/{ID}/{VAR}/ultra/{ID}{VAR}.glb`
+- [ ] Ajustar modelo glb: `res://assets/models/plants/{ID}/{VAR}/high/{ID}{VAR}.glb`
+- [ ] Ajustar modelo glb: `res://assets/models/plants/{ID}/{VAR}/medium/{ID}{VAR}.glb`
+- [ ] Ajustar modelo glb: `res://assets/models/plants/{ID}/{VAR}/low/{ID}{VAR}.glb`
+- [ ] Ajustar modelo glb: `res://assets/models/plants/{ID}/{VAR}/toaster/{ID}{VAR}.glb`
