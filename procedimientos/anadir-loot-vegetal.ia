@@ -1,0 +1,66 @@
+---
+
+## ⏺️ PASO 0: Sincronización de Contexto (OBLIGATORIO) 
+Antes de realizar cualquier acción, ejecuta el comando `view_file` sobre este mismo archivo (`procedimientos/anadir-loot-vegetal.ia`).
+> [!IMPORTANT]
+> Esto asegura que Cascade tenga la versión más reciente del procedimiento y evita errores por saturación de contexto. NO procedas sin haber leído el archivo completo en esta sesión.
+
+---
+
+## 🗣️ PASOS INTERACTIVOS (Uno a uno)
+Para cada uno de estos pasos, **debes preguntar al usuario y esperar su respuesta** antes de pasar al siguiente.
+
+### 🌿 PASO I: Identificación del Vegetal
+Pregunta al usuario: "¿A qué vegetal quieres añadirle botín? (ej: Seta, Junco, Arbusto)"
+
+### 📦 PASO II: Identificación del Ítem
+Pregunta al usuario: "¿Cuál es el ID del ítem que debe soltar? (ej: `seta1`, `madera_pino`)"
+
+### 🔢 PASO III: Cantidad Mínima
+Pregunta al usuario: "¿Cuál es la cantidad mínima que puede soltar? (Por defecto 1)"
+
+### 🔢 PASO IV: Cantidad Máxima
+Pregunta al usuario: "¿Cuál es la cantidad máxima que puede soltar?"
+
+---
+
+## 🏗️ FASE V: Localización y Preparación del Código
+> [!CAUTION]
+> **UBICACIÓN CRÍTICA**: El archivo de datos del vegetal se encuentra en:
+> `scripts/Core/Biomes/Vegetation/{U_ID}Data.cs`
+
+1. Busca el archivo que corresponde al nombre del vegetal (ej: `JuncoData.cs`).
+2. Lee el archivo completo.
+3. **Check de Loot ID**: Si `lootTableId` es `null`, asíngale uno (ej: `lootTableId: "{ID_VEGETAL}"`).
+4. Localiza la propiedad `LootTable`.
+
+---
+
+## 💻 FASE VI: Modificación del Código
+Añade el nuevo `LootEntry` a la lista `LootTable`.
+
+### 📋 Ejemplo de Implementación
+Si el vegetal ya tiene un ítem, añade una coma y el nuevo:
+```csharp
+LootTable = new List<LootEntry> 
+{ 
+    new LootEntry("item_existente", 1, 1),
+    new LootEntry("{ID_ITEM}", {MIN}, {MAX}) // <--- Nueva entrada
+},
+```
+
+Si no tiene la propiedad `LootTable` definida, añádela dentro del inicializador de `VegetationData`:
+```csharp
+public static readonly VegetationData Data = new VegetationData(...)
+{
+    LootTable = new List<LootEntry> { new LootEntry("{ID_ITEM}", {MIN}, {MAX}) },
+    // ... otras propiedades
+};
+```
+
+---
+
+## 🔍 FASE VII: Protocolo de Verificación
+1. **Compilación**: Ejecuta `dotnet build` para asegurar que no hay errores de sintaxis.
+2. **Validación de ID**: Verifica que el `{ID_ITEM}` existe en `assets/data/items/`.
+3. **Consistencia**: Verifica que el vegetal está registrado en `VegetationRegistry.cs`.

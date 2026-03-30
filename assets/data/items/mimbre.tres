@@ -1,0 +1,12 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/inventory/items/MimbreItem.cs" id="1_mimbre"]
+
+[resource]
+script = ExtResource("1_mimbre")
+Id = "mimbre"
+Name = "Mimbre"
+Description = "Material fibroso utilizado para cestería y artesanías."
+IconPath = "res://assets/textures/items/mimbre/ultra.png"
+StackSize = 100
+Weight = 0.01
