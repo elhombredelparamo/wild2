@@ -693,9 +693,28 @@ namespace Wild.Core.Terrain
                             // CORRECCIÓN COORDINADAS: mundo -> local del chunk
                             float localX = inst.Position.X - (coord.X * ChunkSize);
                             float localZ = inst.Position.Z - (coord.Y * ChunkSize);
-                            
+                            Basis baseRotation = Basis.Identity;
+
+                            if (inst.AlignToNormal)
+                            {
+                                // Rotación aleatoria en su nuevo eje Y (ahora Z o X) para darle variedad girando sobre sí misma
+                                baseRotation = baseRotation.Rotated(Vector3.Up, inst.RotationY);
+
+                                // Alinear al terreno
+                                if (inst.Normal.LengthSquared() > 0.1f && Mathf.Abs(inst.Normal.Y) < 0.999f)
+                                {
+                                    Vector3 axis = Vector3.Up.Cross(inst.Normal).Normalized();
+                                    float angle = Mathf.Acos(Mathf.Clamp(Vector3.Up.Dot(inst.Normal), -1f, 1f));
+                                    baseRotation = new Basis(axis, angle) * baseRotation;
+                                }
+                            }
+                            else
+                            {
+                                baseRotation = baseRotation.Rotated(Vector3.Up, inst.RotationY);
+                            }
+
                             var localTransform = new Transform3D(
-                                Basis.Identity.Rotated(Vector3.Up, inst.RotationY).Scaled(Vector3.One * inst.Scale),
+                                baseRotation.Scaled(Vector3.One * inst.Scale),
                                 new Vector3(localX, inst.Position.Y, localZ)
                             );
                             transforms[i] = localTransform * meshMat.localTransform;

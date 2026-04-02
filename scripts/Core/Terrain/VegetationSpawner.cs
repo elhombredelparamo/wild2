@@ -84,6 +84,13 @@ namespace Wild.Core.Terrain
                             
                             if (rng.Randf() < entry.SpawnChance * densityMultiplier)
                             {
+                                float hL = (x > 0) ? data.Altitudes[z * vertexCount + (x - 1)] : height;
+                                float hR = (x < vertexCount - 1) ? data.Altitudes[z * vertexCount + (x + 1)] : height;
+                                float hU = (z > 0) ? data.Altitudes[(z - 1) * vertexCount + x] : height;
+                                float hD = (z < vertexCount - 1) ? data.Altitudes[(z + 1) * vertexCount + x] : height;
+
+                                Vector3 terrainNormal = new Vector3(hL - hR, 2.0f, hU - hD).Normalized();
+
                                 list.Add(new VegetationInstance {
                                     Index = indexCounter,
                                     LootTableId = entry.LootTableId,
@@ -91,7 +98,9 @@ namespace Wild.Core.Terrain
                                     Position = new Vector3(worldX, height, worldZ),
                                     RotationY = rng.Randf() * Mathf.Pi * 2.0f,
                                     Scale = rng.RandfRange(entry.MinScale, entry.MaxScale),
-                                    HasCollision = entry.HasCollision
+                                    HasCollision = entry.HasCollision,
+                                    AlignToNormal = entry.AlignToNormal,
+                                    Normal = terrainNormal
                                 });
                             }
                             indexCounter++;

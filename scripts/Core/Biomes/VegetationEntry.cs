@@ -16,8 +16,9 @@ public struct VegetationEntry
     public float MinScale;
     public float MaxScale;
     public bool HasCollision;
+    public bool AlignToNormal;
 
-    public VegetationEntry(string modelPath, float spawnChance, float minScale = 0.8f, float maxScale = 1.2f, string lootTableId = null, bool hasCollision = true)
+    public VegetationEntry(string modelPath, float spawnChance, float minScale = 0.8f, float maxScale = 1.2f, string lootTableId = null, bool hasCollision = true, bool alignToNormal = false)
     {
         ModelPath   = modelPath;
         LootTableId = lootTableId;
@@ -25,5 +26,6 @@ public struct VegetationEntry
         MinScale    = minScale;
         MaxScale    = maxScale;
         HasCollision = hasCollision;
+        AlignToNormal = alignToNormal;
     }
 }

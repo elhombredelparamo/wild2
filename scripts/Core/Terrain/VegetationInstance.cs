@@ -11,5 +11,7 @@ namespace Wild.Core.Terrain
         public float RotationY;
         public float Scale;
         public bool  HasCollision;
+        public Vector3 Normal;
+        public bool AlignToNormal;
     }
 }

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/inventory/items/Branch1Item.cs" id="1_branch"]
+
+[resource]
+script = ExtResource("1_branch")
+Id = "branch1"
+Name = "Rama"
+Description = "Una rama seca que cayó de un árbol. Útil como leña o para crear herramientas."
+IconPath = "res://assets/textures/items/branch1/ultra.png"
+StackSize = 20
+Weight = 0.3

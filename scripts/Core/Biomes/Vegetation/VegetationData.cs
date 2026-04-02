@@ -15,8 +15,9 @@ public struct VegetationData
     
     public Dictionary<BiomeId, float> SpawnChances;
     public bool HasCollision;
+    public bool AlignToNormal;
 
-    public VegetationData(string modelPath, string lootTableId = null, float minScale = 0.8f, float maxScale = 1.2f, bool hasCollision = true)
+    public VegetationData(string modelPath, string lootTableId = null, float minScale = 0.8f, float maxScale = 1.2f, bool hasCollision = true, bool alignToNormal = false)
     {
         ModelPath = modelPath;
         LootTableId = lootTableId;
@@ -24,6 +25,7 @@ public struct VegetationData
         MinScale = minScale;
         MaxScale = maxScale;
         HasCollision = hasCollision;
+        AlignToNormal = alignToNormal;
         SpawnChances = new Dictionary<BiomeId, float>();
     }
 }

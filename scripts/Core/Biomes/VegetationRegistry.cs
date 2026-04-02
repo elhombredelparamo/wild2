@@ -37,7 +37,8 @@ public static class VegetationRegistry
             PinoData.Data,
             SetaData.Data,
             HierbaData.Data,
-            JuncoData.Data
+            JuncoData.Data,
+            RamaData.Data
         };
 
         // Registrar tablas de botín para consulta rápida
@@ -66,7 +67,8 @@ public static class VegetationRegistry
                     minScale: veg.MinScale,
                     maxScale: veg.MaxScale,
                     lootTableId: veg.LootTableId,
-                    hasCollision: veg.HasCollision
+                    hasCollision: veg.HasCollision,
+                    alignToNormal: veg.AlignToNormal
                 );
             }
 
