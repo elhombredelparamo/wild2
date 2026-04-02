@@ -65,7 +65,7 @@ Wild v2.0 emplea un sistema de terreno dinámico capaz de generar mundos infinit
 | `TerrainGenerator` | `GenerateChunkData(coord)` | Calcula altitudes (Noise) y biomas para crear el binario `.dat`. |
 | `BiomaManager` | `GetBiomeAt(x, z)` | Retorna el ecosistema basado en altitud y humedad. |
 | `VegetationRegistry`| `Bake()` | Pre-calcula la tabla de especies para acceso ultra-rápido. |
-| `VegetationSpawner`| `SpawnForChunk(renderer, data)`| Distribuye instancias (MultiMesh) basándose en el Bake de biomas. |
+| `VegetationSpawner`| `SpawnForChunk(renderer, data)`| Distribuye instancias (MultiMesh) y calcula el `TerrainNormal` matemáticamente desde el `ChunkData` para objetos interactivos. |
 
 ## 🎮 3. Sistema de Jugador y Controladores
 
@@ -143,7 +143,7 @@ El ecosistema de ítems de Wild v2.0 es altamente modular y basado en datos, per
 ### **Componentes de Código Clave (Inventario)**
 | Clase | Método Principal | Descripción |
 | :--- | :--- | :--- |
-| `InventoryManager`| `GiveItem(id, qty)` | Intenta añadir un ítem a los contenedores activos (prioridad manos). |
+| `InventoryManager`| `GiveItem(id, qty)` | Intenta añadir un ítem a los contenedores activos (prioridad manos). Soporta recursos nativos como Piedras, Ramas y Fibra Vegetal extraíbles de `VegetationRegistry`. |
 | `InventoryContainer`| `AddItem(item, qty)`| Gestiona la lógica de slots, apilamiento y límites de peso. |
 | `DeployableBase` | `Interact()` | Método virtual para definir el comportamiento al pulsar 'E'. |
 | `ConstructionDeployable`| `SaveData / LoadData`| Serializa el estado de materiales y progreso de ensamblado en JSON. |
