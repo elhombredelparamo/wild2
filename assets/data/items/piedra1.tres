@@ -1,0 +1,12 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/inventory/items/Piedra1Item.cs" id="1_piedra"]
+
+[resource]
+script = ExtResource("1_piedra")
+Id = "piedra1"
+Name = "Piedra"
+Description = "Una piedra común recogida del suelo. Útil para herramientas básicas o construcción."
+IconPath = "res://assets/textures/items/piedra1/ultra.png"
+StackSize = 20
+Weight = 0.5

@@ -53,11 +53,17 @@ namespace Wild.Core.Player
                     if (collider is Area3D area && area.HasMeta("loot_id"))
                     {
                         string lootId = area.GetMeta("loot_id").ToString();
-                        var lootTable = VegetationRegistry.GetLootTable(lootId);
+                        List<LootEntry> lootTable = null;
+                        bool isGeo = area.HasMeta("geo_pos_x");
+
+                        if (isGeo)
+                            lootTable = GeologyRegistry.GetLootTable(lootId);
+                        else
+                            lootTable = VegetationRegistry.GetLootTable(lootId);
                         
                         if (lootTable == null || lootTable.Count == 0)
                         {
-                            Logger.LogWarning($"PLAYER: El vegetal '{lootId}' no tiene tabla de botín configurada.");
+                            Logger.LogWarning($"PLAYER: El objeto '{lootId}' no tiene tabla de botín configurada.");
                             return;
                         }
 
@@ -73,8 +79,9 @@ namespace Wild.Core.Player
                         }
 
                         if (finalLoot.Count == 0) {
-                            Logger.LogInfo("PLAYER: La planta no ha dado ningún botín esta vez.");
-                            ProcederARemoverVegetacion(area, lootId);
+                            Logger.LogInfo("PLAYER: El objeto no ha dado ningún botín esta vez.");
+                            if (isGeo) ProcederARemoverGeologia(area, lootId);
+                            else ProcederARemoverVegetacion(area, lootId);
                             return;
                         }
 
@@ -84,7 +91,9 @@ namespace Wild.Core.Player
                         {
                             inv.GiveItems(finalLoot);
                             foreach (var kvp in finalLoot) Logger.LogInfo($"PLAYER: Recogido {kvp.Value}x '{kvp.Key}'.");
-                            ProcederARemoverVegetacion(area, lootId);
+                            
+                            if (isGeo) ProcederARemoverGeologia(area, lootId);
+                            else ProcederARemoverVegetacion(area, lootId);
                         }
                         else
                         {
@@ -151,6 +160,20 @@ namespace Wild.Core.Player
                 );
             }
             Wild.Core.Terrain.TerrainManager.Instance?.RemoveVegetationAt(vegPos, lootId);
+        }
+
+        private void ProcederARemoverGeologia(Area3D area, string lootId)
+        {
+            Vector3 geoPos = area.GlobalPosition;
+            if (area.HasMeta("geo_pos_x"))
+            {
+                geoPos = new Vector3(
+                    (float)area.GetMeta("geo_pos_x"),
+                    (float)area.GetMeta("geo_pos_y"),
+                    (float)area.GetMeta("geo_pos_z")
+                );
+            }
+            Wild.Core.Terrain.TerrainManager.Instance?.RemoveGeologyAt(geoPos, lootId);
         }
     }
 }

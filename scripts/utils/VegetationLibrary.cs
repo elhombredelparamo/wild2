@@ -41,27 +41,54 @@ namespace Wild.Utils
         private static string ResolvePlantQualityPath(string path)
         {
             string qualitySuffix = GetQualitySuffix(QualityManager.Instance.Settings.VegetationQuality);
-            if (qualitySuffix == "ultra") return path;
-            string newPath = path.Replace("/ultra/", $"/{qualitySuffix}/");
-            return FileAccess.FileExists(newPath) ? newPath : path;
+            
+            // Si el path contiene /ultra/, reemplazamos la carpeta
+            if (path.Contains("/ultra/"))
+            {
+                if (qualitySuffix == "ultra") return path;
+                string newPath = path.Replace("/ultra/", $"/{qualitySuffix}/");
+                return FileAccess.FileExists(newPath) ? newPath : path;
+            }
+
+            // Si es un archivo directo (ej: high.glb), intentamos reemplazar el nombre del archivo
+            // Buscamos cualquier nivel de calidad y lo cambiamos por el actual
+            string[] qualities = { "ultra", "high", "medium", "low", "toaster" };
+            foreach (var q in qualities)
+            {
+                if (path.EndsWith($"/{q}.glb"))
+                {
+                    if (qualitySuffix == q) return path;
+                    string newPath = path.Substring(0, path.LastIndexOf('/') + 1) + qualitySuffix + ".glb";
+                    return FileAccess.FileExists(newPath) ? newPath : path;
+                }
+            }
+
+            return path;
         }
 
         private static string ResolveQualityPath(string path)
         {
-            // El path viene habitualmente como .../ultra/modelo.glb
-            // Intentamos cambiar 'ultra' por el nivel de calidad actual
             string qualitySuffix = GetQualitySuffix(QualityManager.Instance.Settings.TreeQuality);
             
-            if (qualitySuffix == "ultra") return path; // Ya es el por defecto
-            
-            string newPath = path.Replace("/ultra/", $"/{qualitySuffix}/");
-            
-            if (FileAccess.FileExists(newPath))
+            if (path.Contains("/ultra/"))
             {
-                return newPath;
+                if (qualitySuffix == "ultra") return path;
+                string newPath = path.Replace("/ultra/", $"/{qualitySuffix}/");
+                return FileAccess.FileExists(newPath) ? newPath : path;
+            }
+
+            string[] qualities = { "ultra", "high", "medium", "low", "toaster" };
+            foreach (var q in qualities)
+            {
+                if (path.EndsWith($"/{q}.glb"))
+                {
+                    if (qualitySuffix == q) return path;
+                    string newPath = path.Substring(0, path.LastIndexOf('/') + 1) + qualitySuffix + ".glb";
+                    return FileAccess.FileExists(newPath) ? newPath : path;
+                }
             }
             
-            return path; // Fallback al original (ultra)
+            return path;
         }
 
         private static string GetQualitySuffix(QualityLevel level)
@@ -165,6 +192,8 @@ namespace Wild.Utils
 
                     // IMPORTANTE: Guardamos el transform relativo para MultiMesh
                     visualMeshes.Add((mi.Mesh, mat, nextTransform));
+                    
+                    Logger.LogInfo($"MESH DEBUG: Mesh '{mi.Name}' AABB Size: {mi.Mesh.GetAabb().Size}");
                 }
             }
 

@@ -42,9 +42,11 @@ namespace Wild.Core.Terrain
         
         private readonly LRUCache<Vector2I, (Mesh mesh, Vector3[] faces)> _meshCache = new(200);
         private readonly LRUCache<Vector2I, List<VegetationInstance>> _vegCache = new(200);
+        private readonly LRUCache<Vector2I, List<GeologyInstance>>    _geoCache = new(200);
 
         private readonly Dictionary<Vector3, Node3D> _activeColliders = new();
         private readonly Dictionary<Vector2I, HashSet<int>> _removedVegetation = new();
+        private readonly Dictionary<Vector2I, HashSet<int>> _removedGeology    = new();
         private const float CollisionRadius = 20.0f;
         private const float CollisionCleanupRadius = 25.0f;
 
@@ -57,9 +59,10 @@ namespace Wild.Core.Terrain
 
         private TerrainGenerator _generator;
         private MaterialCache    _materialCache;
-        private BiomaManager     _biomaManager;
+        private BiomaManager       _biomaManager;
         private ModelSpawner       _modelSpawner;
         private VegetationSpawner  _vegetationSpawner;
+        private GeologySpawner     _geologySpawner;
         private System.Threading.CancellationTokenSource _cts = new();
 
         private int _seed;
@@ -94,6 +97,7 @@ namespace Wild.Core.Terrain
             _materialCache      = new MaterialCache();
             _modelSpawner       = new ModelSpawner(this);
             _vegetationSpawner  = new VegetationSpawner(_seed, _biomaManager);
+            _geologySpawner     = new GeologySpawner(_seed, _biomaManager);
             
             SessionData.Instance.OnSettingsApplied += ApplyRenderSettings;
             ApplyRenderSettings(); 
@@ -159,6 +163,7 @@ namespace Wild.Core.Terrain
             // CAPTURAR una foto de las coordenadas actuales de forma segura
             var activeCoords = _chunks.Keys.ToArray();
 
+            // 1. Vegetación
             var vegToActivate = await Task.Run(() => {
                 var list = new List<VegetationInstance>();
                 foreach (var coord in activeCoords)
@@ -209,6 +214,37 @@ namespace Wild.Core.Terrain
                 }
             }
 
+            // 2. Geología (Rocas recolectables)
+            var geoToActivate = await Task.Run(() => {
+                var list = new List<GeologyInstance>();
+                foreach (var coord in activeCoords)
+                {
+                    if ((coord - _chunkCentral).Length() > 2.5f) continue;
+
+                    if (_geoCache.Contains(coord))
+                    {
+                        var geoList = _geoCache.Get(coord);
+                        foreach (var geo in geoList)
+                        {
+                            float dist = geo.Position.DistanceTo(playerPos);
+                            if (dist < InteractionRadius)
+                            {
+                                list.Add(geo);
+                            }
+                        }
+                    }
+                }
+                return list;
+            });
+
+            foreach (var geo in geoToActivate)
+            {
+                if (!_activeColliders.ContainsKey(geo.Position))
+                {
+                    SpawnGeologyCollectibleTrigger(geo);
+                }
+            }
+
             var toRemove = new List<Vector3>();
             foreach (var kvp in _activeColliders)
             {
@@ -225,7 +261,7 @@ namespace Wild.Core.Terrain
             int removedCount = toRemove.Count;
             foreach (var key in toRemove) _activeColliders.Remove(key);
 
-            if (vegToActivate.Count > 0 || removedCount > 0)
+            if (vegToActivate.Count > 0 || geoToActivate.Count > 0 || removedCount > 0)
             {
                 Logger.LogDebug($"TERRAIN: UpdateDynamicCollisions finalizado. Triggers activos: {_activeColliders.Count}");
             }
@@ -265,9 +301,42 @@ namespace Wild.Core.Terrain
             area.Monitoring = false;
             area.Monitorable = true;
 
-            AddChild(area);
+             AddChild(area);
             _activeColliders[veg.Position] = area;
-            Logger.LogInfo($"TERRAIN: Trigger de loot '{veg.LootTableId}' ACTIVADO en {veg.Position}");
+            Logger.LogInfo($"TERRAIN: Trigger de loot (V) '{veg.LootTableId}' ACTIVADO en {veg.Position}");
+        }
+
+        private void SpawnGeologyCollectibleTrigger(GeologyInstance geo)
+        {
+            if (_activeColliders.ContainsKey(geo.Position)) return;
+
+            var chunkCoord = WorldToChunk(geo.Position);
+            if (_removedGeology.TryGetValue(chunkCoord, out var removedInChunk))
+            {
+                if (removedInChunk.Contains(geo.Index)) return; 
+            }
+
+            var area = new Area3D();
+            area.Position = geo.Position + Vector3.Up * 0.5f;
+
+            var shape = new CollisionShape3D();
+            var sphere = new SphereShape3D { Radius = 1.0f };
+            shape.Shape = sphere;
+            area.AddChild(shape);
+
+            area.SetMeta("loot_id", geo.LootTableId);
+            area.SetMeta("geo_pos_x", geo.Position.X);
+            area.SetMeta("geo_pos_y", geo.Position.Y);
+            area.SetMeta("geo_pos_z", geo.Position.Z);
+
+            area.CollisionLayer = 1 << 3; 
+            area.CollisionMask = 0;
+            area.Monitoring = false;
+            area.Monitorable = true;
+
+            AddChild(area);
+            _activeColliders[geo.Position] = area;
+            Logger.LogInfo($"TERRAIN: Trigger de loot (G) '{geo.LootTableId}' ACTIVADO en {geo.Position}");
         }
 
         private void SpawnTreeCollision(VegetationInstance tree)
@@ -440,6 +509,7 @@ namespace Wild.Core.Terrain
         {
             _meshCache.Clear();
             _vegCache.Clear();
+            _geoCache.Clear();
             Cleanup();
             foreach (var renderer in _chunks.Values) renderer.QueueFree();
             _chunks.Clear();
@@ -449,6 +519,7 @@ namespace Wild.Core.Terrain
             foreach (var collider in _activeColliders.Values) collider.QueueFree();
             _activeColliders.Clear();
             _removedVegetation.Clear();
+            _removedGeology.Clear();
             _lastUpdatePos = new Vector3(float.MinValue, 0, float.MinValue);
         }
 
@@ -516,6 +587,18 @@ namespace Wild.Core.Terrain
                                 }
                             }
 
+                            // 1.1 Cargar Geología Eliminada
+                            if (chunkState.RemovedGeologyIndices != null)
+                            {
+                                if (!_removedGeology.ContainsKey(coord)) 
+                                    _removedGeology[coord] = new HashSet<int>();
+
+                                foreach (var index in chunkState.RemovedGeologyIndices)
+                                {
+                                    _removedGeology[coord].Add(index);
+                                }
+                            }
+
                             // 2. Cargar Deployables (Cofres, etc.)
                             if (chunkState.AddedDeployables != null && chunkState.AddedDeployables.Count > 0)
                             {
@@ -556,6 +639,28 @@ namespace Wild.Core.Terrain
 
                 _vegCache.Add(coord, objectsToSpawn);
                 await RenderVegetationFromList(renderer, objectsToSpawn, coord);
+            }
+
+            // --- POBLAR GEOLOGÍA ---
+            List<GeologyInstance> geoToSpawn;
+            if (_geoCache.Contains(coord))
+            {
+                geoToSpawn = _geoCache.Get(coord);
+                await RenderGeologyFromList(renderer, geoToSpawn, coord);
+            }
+            else
+            {
+                var rawGeo = await _geologySpawner.SpawnForChunk(renderer, data, coord);
+                if (_removedGeology.TryGetValue(coord, out var removedGeo))
+                {
+                    geoToSpawn = rawGeo.FindAll(inst => !removedGeo.Contains(inst.Index));
+                }
+                else
+                {
+                    geoToSpawn = rawGeo;
+                }
+                _geoCache.Add(coord, geoToSpawn);
+                await RenderGeologyFromList(renderer, geoToSpawn, coord);
             }
         }
 
@@ -610,6 +715,65 @@ namespace Wild.Core.Terrain
                             mmInst.Multimesh = mm;
                             if (mat != null) mmInst.MaterialOverride = mat;
                             renderer.AddChild(mmInst);
+                        }).CallDeferred();
+                    }
+                }
+            });
+        }
+
+        private async Task RenderGeologyFromList(ChunkRenderer renderer, List<GeologyInstance> instances, Vector2I coord)
+        {
+            if (instances.Count == 0 || !GodotObject.IsInstanceValid(renderer)) return;
+
+            await Task.Run(() => {
+                var grouped = new Dictionary<string, List<GeologyInstance>>();
+                foreach (var inst in instances)
+                {
+                    if (!grouped.ContainsKey(inst.ModelPath)) grouped[inst.ModelPath] = new();
+                    grouped[inst.ModelPath].Add(inst);
+                }
+
+                foreach (var entry in grouped)
+                {
+                    var visualData = VegetationLibrary.GetVisualMeshes(entry.Key);
+                    if (visualData == null) {
+                        Logger.LogWarning($"GEOLOGY: No se han encontrado mallas visuales para {entry.Key}");
+                        continue;
+                    }
+
+                    foreach (var meshMat in visualData)
+                    {
+                        var transforms = new Transform3D[entry.Value.Count];
+                        for (int i = 0; i < entry.Value.Count; i++)
+                        {
+                            var inst = entry.Value[i];
+                            float localX = inst.Position.X - (coord.X * ChunkSize);
+                            float localZ = inst.Position.Z - (coord.Y * ChunkSize);
+                            
+                            var localTransform = new Transform3D(
+                                Basis.Identity.Rotated(Vector3.Up, inst.RotationY).Scaled(Vector3.One * inst.Scale),
+                                new Vector3(localX, inst.Position.Y, localZ)
+                            );
+                            transforms[i] = localTransform * meshMat.localTransform;
+                        }
+                        
+                        var m = meshMat.mesh;
+                        var mat = meshMat.material;
+                        Callable.From(() => {
+                            if (!GodotObject.IsInstanceValid(renderer)) return;
+                            var mmInst = new MultiMeshInstance3D();
+                            mmInst.Name = $"Geo_{coord.X}_{coord.Y}";
+                            var mm = new MultiMesh { 
+                                TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, 
+                                Mesh = m, 
+                                InstanceCount = transforms.Length 
+                            };
+                            for (int i = 0; i < transforms.Length; i++) mm.SetInstanceTransform(i, transforms[i]);
+                            mmInst.Multimesh = mm;
+                            if (mat != null) mmInst.MaterialOverride = mat;
+                            renderer.AddChild(mmInst);
+                            
+                            Logger.LogInfo($"TERRAIN: Renderizado de {transforms.Length} rocas en chunk {coord} usando {entry.Key}");
                         }).CallDeferred();
                     }
                 }
@@ -724,6 +888,74 @@ namespace Wild.Core.Terrain
             }
         }
 
+        public void RemoveGeologyAt(Vector3 globalPos, string keyword)
+        {
+            var chunkCoord = WorldToChunk(globalPos);
+
+            if (!_geoCache.Contains(chunkCoord)) return;
+
+            var list = _geoCache.Get(chunkCoord);
+            int bestIndex = -1;
+            float bestDist = float.MaxValue;
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                bool isMatch = string.Equals(list[i].LootTableId, keyword, StringComparison.OrdinalIgnoreCase) ||
+                               (list[i].ModelPath != null && list[i].ModelPath.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+                               
+                if (isMatch)
+                {
+                    float d = list[i].Position.DistanceTo(globalPos);
+                    if (d < bestDist && d < 2.0f)
+                    {
+                        bestDist = d;
+                        bestIndex = i;
+                    }
+                }
+            }
+
+            if (bestIndex != -1)
+            {
+                var geo = list[bestIndex];
+                list.RemoveAt(bestIndex);
+                
+                if (!_removedGeology.ContainsKey(chunkCoord))
+                    _removedGeology[chunkCoord] = new HashSet<int>();
+                
+                _removedGeology[chunkCoord].Add(geo.Index);
+                SaveChunkState(chunkCoord);
+
+                // Limpiar collider
+                Vector3 bestColliderKey = Vector3.Zero;
+                float bestColDist = float.MaxValue;
+                foreach (var key in _activeColliders.Keys)
+                {
+                    float d = key.DistanceTo(geo.Position);
+                    if (d < bestColDist) { bestColDist = d; bestColliderKey = key; }
+                }
+
+                if (bestColDist < 0.5f)
+                {
+                    var collider = _activeColliders[bestColliderKey];
+                    if (GodotObject.IsInstanceValid(collider)) collider.QueueFree();
+                    _activeColliders.Remove(bestColliderKey);
+                }
+
+                // Reconstruir visuales del chunk
+                if (_chunks.TryGetValue(chunkCoord, out var renderer))
+                {
+                    foreach (Node child in renderer.GetChildren())
+                    {
+                        if (child is MultiMeshInstance3D) child.QueueFree();
+                    }
+                    
+                    _ = RenderVegetationFromList(renderer, _vegCache.Get(chunkCoord), chunkCoord);
+                    _ = RenderGeologyFromList(renderer, list, chunkCoord);
+                    Logger.LogInfo($"TERRAIN: Geología ({keyword}) removida en {geo.Position}");
+                }
+            }
+        }
+
         public void AddDeployable(string typeId, Vector3 globalPos, Vector3 rotation)
         {
             var coord = WorldToChunk(globalPos);
@@ -750,9 +982,11 @@ namespace Wild.Core.Terrain
             try
             {
                 bool hasRemovedVeg = _removedVegetation.TryGetValue(coord, out var removedInChunk);
+                bool hasRemovedGeo = _removedGeology.TryGetValue(coord, out var removedGeoInChunk);
                 
                 var chunkState = new ChunkStateData();
                 if (hasRemovedVeg) chunkState.RemovedVegetationIndices = removedInChunk.ToList();
+                if (hasRemovedGeo) chunkState.RemovedGeologyIndices = removedGeoInChunk.ToList();
 
                 // Recopilar deployables activos en el chunk
                 if (_chunks.TryGetValue(coord, out var renderer))
@@ -774,17 +1008,18 @@ namespace Wild.Core.Terrain
 
                 // Si no hay nada que guardar, NO borramos el archivo si existía (podría haber otros datos)
                 // Pero en nuestro sistema, este JSON es el ÚNICO lugar para veg eliminada y deployables.
-                if (chunkState.RemovedVegetationIndices.Count == 0 && chunkState.AddedDeployables.Count == 0)
+                // Si no hay nada que guardar, NO borramos el archivo si existía
+                if (chunkState.RemovedVegetationIndices.Count == 0 && 
+                    chunkState.RemovedGeologyIndices.Count == 0 && 
+                    chunkState.AddedDeployables.Count == 0)
                 {
-                    // Si el archivo existía, quizás deberíamos borrarlo para no cargar basura después?
-                    // Por ahora simplemente no hacemos nada para evitar IO innecesario.
                     return;
                 }
 
                 var json = JsonSerializer.Serialize(chunkState, new JsonSerializerOptions { WriteIndented = true });
                 string fileName = $"chunk_{coord.X}_{coord.Y}.json";
                 
-                Logger.LogInfo($"TERRAIN: Guardando estado del chunk {coord} (Veg: {chunkState.RemovedVegetationIndices.Count}, Dep: {chunkState.AddedDeployables.Count})");
+                Logger.LogInfo($"TERRAIN: Guardando estado del chunk {coord} (Veg: {chunkState.RemovedVegetationIndices.Count}, Geo: {chunkState.RemovedGeologyIndices.Count}, Dep: {chunkState.AddedDeployables.Count})");
                 WorldObjectRegistrar.RegistrarObjeto(fileName, json);
             }
             catch (Exception ex)

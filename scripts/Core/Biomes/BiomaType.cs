@@ -13,4 +13,5 @@ public abstract partial class BiomaType : RefCounted
     /// Acceso O(1) y Zero-Alloc tras el Bake inicial.
     /// </summary>
     public virtual VegetationEntry[] VegetationEntries => VegetationRegistry.GetEntriesForBiome(this.Id);
+    public virtual GeologyEntry[] GeologyEntries => GeologyRegistry.GetEntriesForBiome(this.Id);
 }
