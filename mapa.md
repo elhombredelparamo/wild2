@@ -86,6 +86,12 @@ Usar archivos en `contexto/` y `codigo/` según necesidad específica.
 - Sincronización de terreno
 - Gestión de jugadores
 
+### Sistema de Crafteo Dinámico
+- Creación de objetos en el mundo real (no solo inventario)
+- Requisitos de materiales y herramientas
+- Persistencia en chunks JSON
+- Independiente del sistema de construcción de edificios (Deployables)
+
 ## 📋 Features Planificadas
 
 1. **Feature 1:** Sistema de Interfaces Básico ✅
@@ -103,7 +109,7 @@ Usar archivos en `contexto/` y `codigo/` según necesidad específica.
 8. **Feature 8:** Sistema de Calidad ✅ (completada)
 9. **Feature 9:** Sistema de Inventario ✅ (completada)
 10. **Feature 10:** Sistema de Deployables ✅ (completada)
-11. **Feature 11:** Sistema de Crafteos (En progreso - Materiales base integrados: Piedra, Rama, Fibra)
+11. **Feature 11:** Sistema de Crafteos ✅ (completada 2026-04-02)
 12. **Feature 12:** Sistema de Salud (2 días)
 13. **Feature 13:** Red y Multijugador (3 días)
 14. **Feature 14:** Pulido Previo Beta (2 días)

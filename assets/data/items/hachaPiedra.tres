@@ -1,0 +1,15 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/inventory/items/HachaPiedraItem.cs" id="1_hacha"]
+
+[resource]
+script = ExtResource("1_hacha")
+Id = "hachaPiedra"
+Name = "Hacha de Piedra"
+Description = "Un hacha rudimentaria hecha con una piedra tallada atada a un palo resistente con un cordel. Eficaz para talar árboles pequeños y arbustos gruesos."
+IconPath = "res://assets/textures/items/hachapiedra/ultra.png"
+StackSize = 1
+Weight = 1.2
+MaxDurability = 100
+CurrentDurability = 100
+Efficiency = 1.5

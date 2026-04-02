@@ -1,0 +1,23 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/Crafting/CraftableResource.cs" id="1_craft"]
+
+[resource]
+script = ExtResource("1_craft")
+Id = "hachaPiedra"
+Name = "Hacha de Piedra"
+Category = "Herramientas"
+Description = "Un hacha rudimentaria hecha con una piedra tallada atada a un palo resistente con un cordel. Eficaz para talar árboles pequeños y arbustos gruesos."
+IconPath = "res://assets/textures/items/hachapiedra/ultra.png"
+ModelPath = "res://assets/models/objects/stoneAxe/medium.glb"
+ModelScale = Vector3(0.3, 0.3, 0.3)
+ModelRotation = Vector3(0, 90, 90)
+ResultItemId = "hachaPiedra"
+Requirements = {
+"branch1": 1,
+"cordel": 1,
+"piedra1": 1
+}
+AssemblySteps = {
+"hand": 10
+}

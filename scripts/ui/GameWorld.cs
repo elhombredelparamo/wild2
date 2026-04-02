@@ -23,6 +23,7 @@ using Wild.Core.Quality;
 using Wild.Core;
 using Wild.Core.Deployables.Base;
 using Wild.Core.Deployables.Containers;
+using Wild.Core.Crafting;
 
 namespace Wild.UI
 {
@@ -32,6 +33,7 @@ namespace Wild.UI
         private InventoryUI _inventoryUI;
         private DeployMenu  _deployMenu;
         private BuildUI     _buildUI;
+        private CraftMenu   _craftMenu;
         private DebugConsole _debugConsole;
         private bool        _isPaused = false;
         private ColorRect   _loadingOverlay;
@@ -45,6 +47,11 @@ namespace Wild.UI
         private FreeCam        _freeCam;
         private PlacementManager _placementManager;
         private ConstructionDeployable _currentConstructionSite;
+
+        // ── Crafteo ──────────────────────────────────────────────────────────
+        private CraftingPlacementManager _craftingPlacementManager;
+        private CraftBuildUI             _craftBuildUI;
+        private CraftingConstruction     _currentCraftingSite;
 
         public override void _Ready()
         {
@@ -69,6 +76,7 @@ namespace Wild.UI
                 SetupInventoryUI();
                 SetupDeployMenu();
                 SetupBuildUI();
+                SetupCraftMenu();
                 SetupPlacementManager();
                 SetupDebugConsole();
                 SetupHUD();
@@ -77,6 +85,10 @@ namespace Wild.UI
                 SetupTerrainManager(); // Setup terrain last to ensure all signals are connected before Update()
                 
                 ConstructionDeployable.OnConstructionInteracted += OnConstructionInteracted;
+                CraftingConstruction.OnCraftingInteracted += OnCraftingInteracted;
+
+                SetupCraftBuildUI();
+                SetupCraftingPlacementManager();
 
                 Logger.LogInfo("GameWorld._Ready() - Mundo de juego inicializado exitosamente");
             }
@@ -132,7 +144,8 @@ namespace Wild.UI
         {
             // IMPORTANT: Clear static event listener to avoid leaks/bugs on re-entry
             ConstructionDeployable.OnConstructionInteracted -= OnConstructionInteracted;
-            Logger.LogInfo("GameWorld: _ExitTree - Limpiando suscripciones estáticas de construcción.");
+            CraftingConstruction.OnCraftingInteracted -= OnCraftingInteracted;
+            Logger.LogInfo("GameWorld: _ExitTree - Limpiando suscripciones estáticas.");
         }
 
         private void SetupEnvironment()
@@ -299,12 +312,77 @@ namespace Wild.UI
             }
         }
 
+        private void SetupCraftMenu()
+        {
+            try
+            {
+                string path = "res://scenes/ui/craft_menu.tscn";
+                _craftMenu = GD.Load<PackedScene>(path).Instantiate<CraftMenu>();
+
+                if (_craftMenu != null)
+                {
+                    var uiLayer = GetNode<CanvasLayer>("UI");
+                    if (uiLayer != null)
+                        uiLayer.AddChild(_craftMenu);
+                    else
+                        AddChild(_craftMenu);
+
+                    _craftMenu.Hide();
+                    Logger.LogInfo("GameWorld: CraftMenu cargado y oculto.");
+
+                    _craftMenu.Connect("Opened", Callable.From(UpdateCharacterState));
+                    _craftMenu.Connect("Closed", Callable.From(UpdateCharacterState));
+                    _craftMenu.Connect("ItemSelected", Callable.From((CraftableResource recipe) => OnCraftableSelected(recipe)));
+                }
+            }
+            catch (System.Exception e)
+            {
+                Logger.LogError($"GameWorld.SetupCraftMenu(): {e.Message}");
+            }
+        }
+
         private void SetupPlacementManager()
         {
             _placementManager = new PlacementManager();
             AddChild(_placementManager);
             _placementManager.OnPlacementConfirmed += OnPlacementGhostConfirmed;
             Logger.LogInfo("GameWorld: PlacementManager inicializado.");
+        }
+
+        private void SetupCraftBuildUI()
+        {
+            try
+            {
+                string path = "res://scenes/ui/craft_build_ui.tscn";
+                _craftBuildUI = GD.Load<PackedScene>(path).Instantiate<CraftBuildUI>();
+
+                if (_craftBuildUI != null)
+                {
+                    var uiLayer = GetNode<CanvasLayer>("UI");
+                    if (uiLayer != null)
+                        uiLayer.AddChild(_craftBuildUI);
+                    else
+                        AddChild(_craftBuildUI);
+
+                    _craftBuildUI.Hide();
+                    Logger.LogInfo("GameWorld: CraftBuildUI cargado y oculto.");
+
+                    _craftBuildUI.Confirmed += OnCraftBuildConfirmed;
+                    _craftBuildUI.Cancelled += OnCraftBuildCancelled;
+                }
+            }
+            catch (System.Exception e)
+            {
+                Logger.LogError($"GameWorld.SetupCraftBuildUI(): {e.Message}");
+            }
+        }
+
+        private void SetupCraftingPlacementManager()
+        {
+            _craftingPlacementManager = new CraftingPlacementManager();
+            AddChild(_craftingPlacementManager);
+            _craftingPlacementManager.OnPlacementConfirmed += OnCraftingPlacementConfirmed;
+            Logger.LogInfo("GameWorld: CraftingPlacementManager inicializado.");
         }
 
         private void OnConstructionInteracted(ConstructionDeployable constructionSite)
@@ -363,6 +441,66 @@ namespace Wild.UI
         {
             Logger.LogInfo($"GameWorld: Receta seleccionada -> {recipe.Name}. Iniciando colocación.");
             _placementManager?.StartPlacement(recipe);
+            UpdateCharacterState();
+        }
+
+        private void OnCraftableSelected(CraftableResource recipe)
+        {
+            Logger.LogInfo($"GameWorld: Receta de crafteo seleccionada → {recipe.Name}. Iniciando colocación.");
+            _craftingPlacementManager?.StartPlacement(recipe);
+            UpdateCharacterState();
+        }
+
+        private void OnCraftingPlacementConfirmed(CraftableResource recipe, Transform3D transform, CraftingConstruction craftSite)
+        {
+            Logger.LogInfo($"GameWorld: Posición de crafteo '{recipe.Name}' confirmada. Abriendo CraftBuildUI.");
+
+            var siteContainer = new Wild.Data.Inventory.InventoryContainer(
+                "craft_" + Guid.NewGuid(), "Crafteo: " + recipe.Name, 20, 9999f);
+
+            craftSite.Initialize(recipe, siteContainer);
+
+            _terrainManager?.AddCraftingSite(craftSite, transform.Origin);
+
+            _craftBuildUI?.SetupForCrafting(recipe, siteContainer);
+            _craftBuildUI?.Open();
+            _currentCraftingSite = craftSite;
+            UpdateCharacterState();
+        }
+
+        private void OnCraftingInteracted(CraftingConstruction craftSite)
+        {
+            Logger.LogInfo($"GameWorld: Interacción con obra '{craftSite.Recipe?.Name}'. Abriendo CraftBuildUI.");
+            _currentCraftingSite = craftSite;
+            _craftBuildUI?.SetupForCrafting(craftSite.Recipe, craftSite.SiteContainer);
+            _craftBuildUI?.Open();
+            UpdateCharacterState();
+        }
+
+        private void OnCraftBuildConfirmed()
+        {
+            if (_currentCraftingSite != null)
+            {
+                _currentCraftingSite.TransitionToAssembly();
+                _currentCraftingSite = null;
+            }
+            UpdateCharacterState();
+        }
+
+        private void OnCraftBuildCancelled()
+        {
+            if (_craftBuildUI != null && _craftBuildUI.IsOpen())
+                _craftBuildUI.Close();
+
+            if (_currentCraftingSite != null)
+            {
+                var coord = _currentCraftingSite.ChunkCoord;
+                if (_currentCraftingSite.GetParent() != null)
+                    _currentCraftingSite.GetParent().RemoveChild(_currentCraftingSite);
+                _currentCraftingSite.QueueFree();
+                _terrainManager?.SaveCraftingSiteState(coord);
+                _currentCraftingSite = null;
+            }
             UpdateCharacterState();
         }
 
@@ -501,11 +639,21 @@ namespace Wild.UI
         {
             try
             {
-                // Prioridad 0: Modo Colocación (ESC cancela)
+                // Prioridad 0: Modo Colocación Deployable (ESC cancela)
                 if (@event.IsActionPressed("ui_cancel") && _placementManager != null && _placementManager.IsPlacing)
                 {
                     Logger.LogInfo("GameWorld._Input: ESC → cancelando colocación de desplegable");
                     _placementManager.CancelPlacement();
+                    UpdateCharacterState();
+                    GetViewport().SetInputAsHandled();
+                    return;
+                }
+
+                // Prioridad 0b: Modo Colocación Crafteo (ESC cancela)
+                if (@event.IsActionPressed("ui_cancel") && _craftingPlacementManager != null && _craftingPlacementManager.IsPlacing)
+                {
+                    Logger.LogInfo("GameWorld._Input: ESC → cancelando colocación de crafteo");
+                    _craftingPlacementManager.CancelPlacement();
                     UpdateCharacterState();
                     GetViewport().SetInputAsHandled();
                     return;
@@ -544,6 +692,15 @@ namespace Wild.UI
                     {
                         Logger.LogInfo("GameWorld._Input: ESC → cerrando menú de construcción");
                         ToggleBuildUI();
+                        GetViewport().SetInputAsHandled();
+                        return;
+                    }
+
+                    if (_craftBuildUI != null && _craftBuildUI.IsOpen())
+                    {
+                        Logger.LogInfo("GameWorld._Input: ESC → cerrando UI de crafteo");
+                        _craftBuildUI.Close();
+                        UpdateCharacterState();
                         GetViewport().SetInputAsHandled();
                         return;
                     }
@@ -595,6 +752,18 @@ namespace Wild.UI
 
                     Logger.LogInfo("GameWorld._Input: B → alternando menú de deployables");
                     ToggleDeployMenu();
+                    GetViewport().SetInputAsHandled();
+                }
+
+                // Prioridad 5: C (craft_menu_toggle)
+                if (@event.IsActionPressed("craft_menu_toggle"))
+                {
+                    if (_isPaused || (_debugConsole != null && _debugConsole.IsOpen())) return;
+                    if (_inventoryUI != null && _inventoryUI.IsOpen()) return;
+                    if (_deployMenu != null && _deployMenu.IsOpen()) return;
+
+                    Logger.LogInfo("GameWorld._Input: C → alternando menú de crafteo");
+                    ToggleCraftMenu();
                     GetViewport().SetInputAsHandled();
                 }
 
@@ -712,6 +881,25 @@ namespace Wild.UI
             }
         }
 
+        private void ToggleCraftMenu()
+        {
+            if (_craftMenu == null) return;
+
+            bool newState = !_craftMenu.IsOpen();
+
+            if (newState)
+            {
+                _craftMenu.Open();
+                Input.MouseMode = Input.MouseModeEnum.Visible;
+                _jugador?.SetFrozen(true);
+            }
+            else
+            {
+                _craftMenu.Close();
+                UpdateCharacterState();
+            }
+        }
+
         public void ToggleBuildUI()
         {
             if (_buildUI == null) return;
@@ -736,10 +924,13 @@ namespace Wild.UI
             bool anyBlockingUIOpen = _isPaused || 
                                      (_inventoryUI != null && _inventoryUI.IsOpen()) || 
                                      (_deployMenu != null && _deployMenu.IsOpen()) ||
+                                     (_craftMenu != null && _craftMenu.IsOpen()) ||
                                      (_buildUI != null && _buildUI.IsOpen()) ||
+                                     (_craftBuildUI != null && _craftBuildUI.IsOpen()) ||
                                      (_debugConsole != null && _debugConsole.IsOpen());
             
-            bool isPlacing = _placementManager != null && _placementManager.IsPlacing;
+            bool isPlacing = (_placementManager != null && _placementManager.IsPlacing) ||
+                             (_craftingPlacementManager != null && _craftingPlacementManager.IsPlacing);
             
             if (anyBlockingUIOpen)
             {

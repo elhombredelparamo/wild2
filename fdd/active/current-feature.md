@@ -1,48 +1,48 @@
-# Feature Activa: 11 - Sistema de Crafteos
+# Feature Activa: 12 - Sistema de Salud
 
 ## 🎯 **Objetivo Principal**
-Implementar sistema completo de crafteos que permita a los jugadores crear nuevos objetos a partir de recursos recolectados.
+Implementar sistema completo de salud que gestione el estado vital del jugador, incluyendo daño, curación y efectos de estado.
 
 ## 📝 **Descripción**
-- Sistema de recetas y crafteos
-- Interfaz de crafteo intuitiva
-- Integración con sistema de inventario
-- Sistema de estaciones de trabajo
-- Recetas progresivas y desbloqueables
+- Sistema de salud y regeneración
+- Efectos de estado (veneno, curación, etc.)
+- Interfaz de salud visual
+- Integración con sistema de combate
+- Sistema de muerte y respawn
 - Optimización de rendimiento
 
 ## 📋 **Checklist de Tareas**
-- [ ] Diseñar sistema de recetas
-- [ ] Implementar interfaz de crafteo
-- [ ] Crear sistema de estaciones de trabajo
-- [ ] Integrar con inventario existente
-- [ ] Implementar recetas básicas
-- [ ] Sistema de desbloqueo de recetas
+- [ ] Diseñar sistema de salud
+- [ ] Implementar interfaz de salud
+- [ ] Crear sistema de efectos de estado
+- [ ] Integrar con sistema de jugador
+- [ ] Implementar daño y curación
+- [ ] Sistema de muerte y respawn
 - [ ] Optimizar rendimiento
 - [ ] Testing completo del sistema
 
 ## 📊 **Progreso Actual**
 - **Estado:** Por iniciar ⏳
-- **Fecha de inicio:** 2026-03-30
+- **Fecha de inicio:** 2026-04-03
 - **Tiempo estimado:** 2 días
 - **Prioridad:** Alta
-- **Feature anterior:** Sistema de Deployables ✅ (completada 2026-03-30)
-- **Siguiente paso:** Diseñar sistema de recetas
+- **Feature anterior:** Sistema de Crafteos ✅ (completada 2026-04-02)
+- **Siguiente paso:** Diseñar sistema de salud
 
 ## 🔗 **Referencias**
-- `fdd/features/feature-11-sistema-crafteos.md` - Documentación completa (por crear)
-- `contexto/crafteos.md` - Diseño del sistema
-- `codigo/systems/crafteos.pseudo` - Diseño técnico
-- `fdd/completed/feature-10-completion-report.md` - Sistema de Deployables
+- `fdd/features/feature-12-sistema-salud.md` - Documentación completa (por crear)
+- `contexto/salud.md` - Diseño del sistema
+- `codigo/systems/salud.pseudo` - Diseño técnico
+- `fdd/completed/feature-11-completion-report.md` - Sistema de Crafteos
 - `fdd/metrics/velocity-tracking.md` - Métricas del proyecto
 
 ## 📊 **Contexto**
-- **Feature 9:** Sistema de Inventario ✅ (completada)
-- **Feature 10:** Sistema de Deployables ✅ (completada 2026-03-30)
+- **Feature 10:** Sistema de Deployables ✅ (completada)
+- **Feature 11:** Sistema de Crafteos ✅ (completada 2026-04-02)
 - **Sistema de Terreno:** Completado ✅ (5 biomas + blending)
 - **Sistema de Jugador:** Completado ✅ (física y controles)
-- **Feature actual:** Sistema de Crafteos
-- **Siguiente:** Feature 12 - Sistema de Salud
+- **Feature actual:** Sistema de Salud
+- **Siguiente:** Feature 13 - Red y Multijugador
 
 ---
-**Feature 11 Activa - Sistema de Crafteos para Wild v2.0**
+**Feature 12 Activa - Sistema de Salud para Wild v2.0**

@@ -17,6 +17,7 @@ using Wild.Utils;
 using System.Linq;
 using Wild.Core.Quality;
 using System.Text.Json;
+using Wild.Core.Crafting;
 
 namespace Wild.Core.Terrain
 {
@@ -1022,19 +1023,21 @@ namespace Wild.Core.Terrain
                                 CustomData = deployable.SaveData()
                             });
                         }
+                        else if (child is CraftingConstruction craftSite)
+                        {
+                            // Serializar obras de crafteo en progreso con su propio TypeId
+                            chunkState.AddedDeployables.Add(new DeployableData
+                            {
+                                TypeId = craftSite.TypeId,
+                                Position = new SerializableVector3(craftSite.Position),
+                                Rotation = new SerializableVector3(craftSite.Rotation),
+                                CustomData = craftSite.SaveData()
+                            });
+                        }
                     }
                 }
 
-                // Si no hay nada que guardar, NO borramos el archivo si existía (podría haber otros datos)
-                // Pero en nuestro sistema, este JSON es el ÚNICO lugar para veg eliminada y deployables.
-                // Si no hay nada que guardar, NO borramos el archivo si existía
-                if (chunkState.RemovedVegetationIndices.Count == 0 && 
-                    chunkState.RemovedGeologyIndices.Count == 0 && 
-                    chunkState.AddedDeployables.Count == 0)
-                {
-                    return;
-                }
-
+                // Guardar el estado (incluso si está vacío, para sobreescribir posibles datos antiguos)
                 var json = JsonSerializer.Serialize(chunkState, new JsonSerializerOptions { WriteIndented = true });
                 string fileName = $"chunk_{coord.X}_{coord.Y}.json";
                 
@@ -1053,16 +1056,48 @@ namespace Wild.Core.Terrain
                 var pos = dData.Position.ToVector3();
                 var rot = dData.Rotation.ToVector3();
                 var transform = new Transform3D(Basis.FromEuler(rot), pos);
-                
+
+                if (dData.TypeId.StartsWith("crafting_"))
+                {
+                    var craftSite = new CraftingConstruction();
+                    craftSite.TypeId = dData.TypeId;
+                    craftSite.ChunkCoord = coord;
+                    craftSite.Position = pos;
+                    craftSite.Rotation = rot;
+
+                    var recipeId = dData.TypeId.Replace("crafting_", "");
+                    string recipePath = $"res://assets/data/craftables/{recipeId}.tres";
+                    if (ResourceLoader.Exists(recipePath))
+                    {
+                        var recipe = ResourceLoader.Load<CraftableResource>(recipePath);
+                        if (recipe != null && !string.IsNullOrEmpty(recipe.ModelPath))
+                        {
+                            if (ResourceLoader.Exists(recipe.ModelPath))
+                            {
+                                var scene = ResourceLoader.Load<PackedScene>(recipe.ModelPath);
+                                var mesh = scene.Instantiate() as Node3D;
+                                ApplyModelTransform(mesh, recipe);
+                                craftSite.AddChild(mesh);
+                                ApplyTransparencyRecursive(mesh, 0.5f);
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(dData.CustomData))
+                        craftSite.LoadData(dData.CustomData); // Reconstruye receta + contenedor
+
+                    renderer.AddChild(craftSite);
+                    Logger.LogInfo($"TERRAIN: Sitio de crafteo '{dData.TypeId}' restaurado en chunk {coord}");
+                    return;
+                }
+
                 var node = InstantiateDeployable(dData.TypeId, transform, coord);
-                
+
                 if (node == null) return;
-                
+
                 // Cargar datos específicos
                 if (!string.IsNullOrEmpty(dData.CustomData))
-                {
                     node.LoadData(dData.CustomData);
-                }
 
                 // Añadir al chunk
                 renderer.AddChild(node);
@@ -1113,6 +1148,43 @@ namespace Wild.Core.Terrain
                 }
 
                 return constructionSite;
+            }
+            else if (typeId.StartsWith("world_item_"))
+            {
+                // Ítem crafteable persistente en el mundo.
+                // El ItemId real se restaura en LoadData() desde el JSON del chunk.
+                var worldItem = new WorldItemDeployable();
+                worldItem.TypeId = typeId;
+                worldItem.ChunkCoord = coord;
+                worldItem.GlobalTransform = transform;
+
+                var itemId = typeId.Replace("world_item_", "");
+                var quality = QualityManager.Instance.Settings.DeployableQuality.ToString().ToLower();
+
+                // Intentar cargar modelo de objeto con calidad dinámica
+                string qualityModelPath = $"res://assets/models/objects/{itemId}/{quality}.glb";
+                string itemModelPath = $"res://assets/models/items/{itemId}.glb";
+                
+                if (ResourceLoader.Exists(qualityModelPath))
+                {
+                    var scene = ResourceLoader.Load<PackedScene>(qualityModelPath);
+                    var mesh = scene.Instantiate() as Node3D;
+                    if (mesh != null) ApplyWorldItemScale(mesh, itemId);
+                    worldItem.AddChild(mesh);
+                }
+                else if (ResourceLoader.Exists(itemModelPath))
+                {
+                    var scene = ResourceLoader.Load<PackedScene>(itemModelPath);
+                    var mesh = scene.Instantiate() as Node3D;
+                    if (mesh != null) ApplyWorldItemScale(mesh, itemId);
+                    worldItem.AddChild(mesh);
+                }
+                else
+                {
+                    Logger.LogInfo($"TERRAIN: WorldItem '{itemId}' sin modelo en {qualityModelPath} ni {itemModelPath}. Aparecerá sin malla.");
+                }
+
+                return worldItem;
             }
 
             if (node == null) return null;
@@ -1250,6 +1322,138 @@ namespace Wild.Core.Terrain
             
             // Wait for next frame for the node to be officially gone, then save
             CallDeferred(MethodName.SaveChunkState, coord);
+        }
+
+        // ── Sistema de Crafteos ───────────────────────────────────────────────
+
+        /// <summary>
+        /// Registra una CraftingConstruction en el chunk para que persista en disco.
+        /// Llamar justo después de que el jugador confirme la posición del ghost de crafteo.
+        /// </summary>
+        public void AddCraftingSite(CraftingConstruction site, Vector3 globalPos)
+        {
+            var coord = WorldToChunk(globalPos);
+            if (_chunks.TryGetValue(coord, out var renderer))
+            {
+                if (site.GetParent() != null && site.GetParent() != renderer)
+                {
+                    site.GetParent().RemoveChild(site);
+                    site.Position = globalPos - new Vector3(coord.X * ChunkSize, 0, coord.Y * ChunkSize);
+                    renderer.AddChild(site);
+                }
+                site.ChunkCoord = coord;
+                SaveCraftingSiteState(coord);
+                Logger.LogInfo($"TERRAIN: Sitio de crafteo '{site.TypeId}' registrado en chunk {coord}");
+            }
+            else
+            {
+                Logger.LogWarning($"TERRAIN: Chunk {coord} no cargado — sitio de crafteo no guardado.");
+            }
+        }
+
+        /// <summary>
+        /// Guarda el JSON del chunk incluyendo tanto deployables como obras de crafteo en progreso.
+        /// </summary>
+        public void SaveCraftingSiteState(Vector2I coord)
+        {
+            // Delegamos en SaveChunkState; las CraftingConstruction se serializan
+            // en la rama crafting_ de InstantiateDeployable.
+            SaveChunkState(coord);
+        }
+
+        /// <summary>
+        /// Finaliza un crafteo completado: elimina el CraftingConstruction y spawnea
+        /// un WorldItemDeployable persistente con el ítem resultante.
+        /// Llamado desde CraftingConstruction vía CallDeferred.
+        /// </summary>
+        public void FinalizeCraft(CraftingConstruction site)
+        {
+            if (site == null) return;
+
+            var recipe    = site.Recipe;
+            var coord     = site.ChunkCoord;
+            var transform = site.GlobalTransform;
+
+            Logger.LogInfo($"TERRAIN: Finalizando crafteo '{recipe?.Name}'. Spawneando WorldItem '{recipe?.ResultItemId}'.");
+
+            if (!_chunks.TryGetValue(coord, out var renderer))
+            {
+                Logger.LogError($"TERRAIN: Chunk {coord} no cargado — no se puede finalizar crafteo.");
+                return;
+            }
+
+            // Eliminar el sitio de construcción del árbol ANTES de guardar
+            if (site.GetParent() != null)
+                site.GetParent().RemoveChild(site);
+            site.QueueFree();
+
+            // Crear WorldItemDeployable persistente
+            if (!string.IsNullOrEmpty(recipe?.ResultItemId))
+            {
+                var worldItem = new WorldItemDeployable();
+                worldItem.TypeId = "world_item_" + recipe.ResultItemId;
+                worldItem.ChunkCoord = coord;
+                worldItem.SetItemId(recipe.ResultItemId);
+
+                // Posición local dentro del chunk
+                worldItem.Position = transform.Origin - new Vector3(coord.X * ChunkSize, 0, coord.Y * ChunkSize);
+
+                var quality = QualityManager.Instance.Settings.DeployableQuality.ToString().ToLower();
+
+                // Intentar cargar modelo de objetos con calidad dinámica primero
+                string qualityModelPath = $"res://assets/models/objects/{recipe.ResultItemId}/{quality}.glb";
+                string itemModelPath = $"res://assets/models/items/{recipe.ResultItemId}.glb";
+                
+                if (ResourceLoader.Exists(qualityModelPath))
+                {
+                    var scene = ResourceLoader.Load<PackedScene>(qualityModelPath);
+                    var mesh = scene.Instantiate() as Node3D;
+                    ApplyModelTransform(mesh, recipe);
+                    worldItem.AddChild(mesh);
+                }
+                else if (ResourceLoader.Exists(itemModelPath))
+                {
+                    var scene = ResourceLoader.Load<PackedScene>(itemModelPath);
+                    var mesh = scene.Instantiate() as Node3D;
+                    ApplyModelTransform(mesh, recipe);
+                    worldItem.AddChild(mesh);
+                }
+                else if (!string.IsNullOrEmpty(recipe.ModelPath) && ResourceLoader.Exists(recipe.ModelPath))
+                {
+                    // Fallback: usar el modelo estático de la receta
+                    var scene = ResourceLoader.Load<PackedScene>(recipe.ModelPath);
+                    var mesh = scene.Instantiate() as Node3D;
+                    ApplyModelTransform(mesh, recipe);
+                    worldItem.AddChild(mesh);
+                }
+
+                renderer.AddChild(worldItem);
+                SaveChunkState(coord);
+                Logger.LogInfo($"TERRAIN: WorldItem '{recipe.ResultItemId}' depositado en chunk {coord}.");
+            }
+            else
+            {
+                // Sin ítem resultado: solo guardamos el chunk sin el sitio
+                SaveChunkState(coord);
+                Logger.LogWarning($"TERRAIN: Crafteo completado sin ResultItemId definido en la receta '{recipe?.Name}'.");
+            }
+        }
+
+        private void ApplyModelTransform(Node3D mesh, CraftableResource recipe)
+        {
+            if (mesh == null || recipe == null) return;
+            mesh.Scale = recipe.ModelScale;
+            mesh.RotationDegrees = recipe.ModelRotation;
+        }
+
+        private void ApplyWorldItemScale(Node3D mesh, string itemId)
+        {
+            string recipePath = $"res://assets/data/craftables/{itemId}.tres";
+            if (ResourceLoader.Exists(recipePath))
+            {
+                var recipe = ResourceLoader.Load<CraftableResource>(recipePath);
+                ApplyModelTransform(mesh, recipe);
+            }
         }
 
         public void FinalizeConstruction(ConstructionDeployable ghost)

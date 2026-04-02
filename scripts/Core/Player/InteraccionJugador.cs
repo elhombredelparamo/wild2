@@ -100,26 +100,37 @@ namespace Wild.Core.Player
                             Logger.LogInfo("PLAYER: No tienes espacio suficiente para recoger todo el botín.");
                         }
                     }
-                    // Caso B: Deployable (StaticBody3D - buscamos DeployableBase en padres)
+                    // Caso B: Deployable o Crafteo (StaticBody3D)
                     else
                     {
                         Node current = collider;
-                        Logger.LogDebug($"PLAYER: Investigando posible deployable en {collider.Name}...");
+                        Logger.LogDebug($"PLAYER: Investigando posible objeto estático en {collider.Name}...");
                         
-                        while (current != null && !(current is Wild.Core.Deployables.Base.DeployableBase))
+                        Wild.Core.Deployables.Base.DeployableBase foundDeployable = null;
+                        Wild.Core.Crafting.CraftingConstruction foundCrafting = null;
+
+                        while (current != null)
                         {
+                            if (current is Wild.Core.Deployables.Base.DeployableBase db) { foundDeployable = db; break; }
+                            if (current is Wild.Core.Crafting.CraftingConstruction cc) { foundCrafting = cc; break; }
+                            
                             Logger.LogDebug($"   -> Subiendo desde {current.Name} (Tipo: {current.GetType().Name})");
                             current = current.GetParent();
                         }
 
-                        if (current is Wild.Core.Deployables.Base.DeployableBase deployable)
+                        if (foundDeployable != null)
                         {
-                            Logger.LogInfo($"PLAYER: Click en DEPLOYABLE '{deployable.TypeId}'");
-                            deployable.Interact();
+                            Logger.LogInfo($"PLAYER: Click en DEPLOYABLE '{foundDeployable.TypeId}'");
+                            foundDeployable.Interact();
+                        }
+                        else if (foundCrafting != null)
+                        {
+                            Logger.LogInfo($"PLAYER: Click en CRAFTING '{foundCrafting.Recipe?.Name}'");
+                            foundCrafting.Interact();
                         }
                         else
                         {
-                            Logger.LogDebug("PLAYER: No se encontró DeployableBase en el árbol del colisionador.");
+                            Logger.LogDebug("PLAYER: No se encontró DeployableBase ni CraftingConstruction en el árbol del colisionador.");
                         }
                     }
                 }

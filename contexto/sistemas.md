@@ -207,5 +207,32 @@ El sistema de interfaz de Wild v2.0 está diseñado para ser desacoplado y react
 | `GameWorld` | `_Input(@event)` | Captura atajos globales (Escape para Pausa, I para Inventario). |
 | `MainMenu` | `StartGame()` | Inyecta la configuración seleccionada e inicia la transición a la escena de juego. |
 
+## 🏗️ 9. Sistema de Crafteo
+
+El sistema de crafteo en Wild v2.0 permite la creación de herramientas y objetos complejos directamente en el mundo físico. Aunque comparte similitudes visuales con los Deployables, su arquitectura es completamente independiente para evitar acoplamiento.
+
+### **Filosofía de Independencia**
+- **Desacoplamiento**: El sistema de crafteo utiliza sus propios recursos (`CraftableResource`) y controladores (`CraftingPlacementManager`), permitiendo evolucionar las mecánicas de fabricación sin afectar a la construcción de bases o almacenamiento.
+- **Persistencia Directa**: Las obras en progreso se guardan en el JSON del chunk bajo el prefijo `crafting_`, almacenando los materiales ya depositados y el progreso de los pasos de ensamblado.
+
+### **Ciclo de Vida de una Obra**
+1. **Fase de Posicionamiento (Ghost)**: 
+    - Orquestado por `CraftingPlacementManager`. 
+    - Utiliza una arquitectura de **Contenedor vs Modelo**: el nodo base maneja la rotación sobre el terreno, mientras que el nodo hijo aplica los ajustes estéticos de la receta (`ModelScale` y `ModelRotation`).
+2. **Fase de Depósito de Materiales**: 
+    - El objeto aparece como un "Fantasma" físico en el mundo.
+    - Se utiliza el `CraftBuildUI` para transferir materiales desde el inventario del jugador.
+3. **Fase de Ensamblado**: 
+    - Una vez completados los requisitos, el objeto requiere interacción física mediante herramientas o manos (`AssemblySteps`).
+    - Al llegar al 100%, `TerrainManager.FinalizeCraft` destruye la obra y spawnea el `WorldItemDeployable` definitivo.
+
+### **Componentes de Código Clave (Crafteo)**
+| Clase | Método Principal | Descripción |
+| :--- | :--- | :--- |
+| `CraftingPlacementManager`| `StartPlacement(recipe)` | Inicia el modo fantasma para elegir la ubicación del objeto. |
+| `CraftingConstruction`| `Interact()` | Gestiona la apertura de la UI de depósito o el progreso de los golpes de ensamblado. |
+| `TerrainManager` | `ApplyModelTransform(mesh, recipe)`| Método centralizado para aplicar escalas y rotaciones personalizadas a los hilos 3D en todas las fases. |
+| `CraftableResource` | `Godot Resource (.tres)` | Define materiales, pasos de ensamblado, ID de resultado y transformaciones del modelo. |
+
 ---
 *Nota: Este documento es la fuente de verdad técnica para Wild v2.0 y debe actualizarse ante cualquier cambio estructural en los sistemas descritos.*
