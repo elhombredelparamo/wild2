@@ -1,0 +1,12 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/inventory/items/FibraItem.cs" id="1_fibra"]
+
+[resource]
+script = ExtResource("1_fibra")
+Id = "fibra"
+Name = "Fibra Vegetal"
+Description = "Fibras extraídas de tallos de hierba y juncos. Se utilizan para trenzar cordeles y elaborar tejidos básicos."
+IconPath = "res://assets/textures/items/fibra/ultra.png"
+StackSize = 100
+Weight = 0.02
