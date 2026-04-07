@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Linq;
 using Wild.Data.Inventory;
 using Wild.UI.Components;
+using Wild.Utils;
 
 namespace Wild.UI
 {
@@ -53,13 +54,13 @@ namespace Wild.UI
 
                 InitializeContextMenu();
                 
-                GD.Print("[UI][InventoryUI] Sistema de Inventario UI inicializado con Scroll.");
+                Logger.LogInfo("UI: Sistema de Inventario UI inicializado con Scroll.");
                 
                 Wild.Core.Quality.QualityManager.OnIconQualityChanged += RefreshAll;
             }
             catch (Exception e)
             {
-                GD.PrintErr($"[ERROR][InventoryUI] Error al inicializar: {e.Message}");
+                Logger.LogError($"UI: Error al inicializar InventarioUI: {e.Message}");
             }
         }
 
@@ -105,7 +106,7 @@ namespace Wild.UI
                 }
             }
             
-            GD.Print("[UI][InventoryUI] Inventario abierto.");
+            Logger.LogInfo("UI: Inventario abierto.");
             EmitSignal(SignalName.Opened);
         }
 
@@ -113,7 +114,7 @@ namespace Wild.UI
         {
             Visible = false;
             _externalContainer = null;
-            GD.Print("[UI][InventoryUI] Inventario cerrado.");
+            Logger.LogInfo("UI: Inventario cerrado.");
             EmitSignal(SignalName.Closed);
         }
 
@@ -151,7 +152,7 @@ namespace Wild.UI
             _selectedContainer = container;
             UpdateBottomBar(); // Refrescar para visualización de selección
             UpdateContentArea(container);
-            GD.Print($"[UI][InventoryUI] Contenedor seleccionado: {container.Name}");
+            Logger.LogDebug($"UI: Contenedor seleccionado: {container.Name}");
         }
 
         public void RefreshAll()

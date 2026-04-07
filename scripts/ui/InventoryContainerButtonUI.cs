@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using Wild.Data.Inventory;
+using Wild.Utils;
 
 namespace Wild.UI
 {
@@ -67,48 +68,64 @@ namespace Wild.UI
             }
         }
 
-        private ulong _hoverStartMs = 0;
-        private ulong _lastHoverTime = 0;
-        private const ulong HoverThresholdMs = 600; // 0.6 segundos antes de abrir
+        private float _hoverTimer = 0f;
+        private bool _isHoveringDrag = false;
+        private const float HoverThreshold = 0.6f;
+
+        public override void _Process(double delta)
+        {
+            if (!_isHoveringDrag) return;
+
+            // Si el mouse sale del icono o dejamos de estar en modo drag, cancelamos
+            // Nota: No podemos detectar fácilmente el fin del drag global, pero si el mouse se va, reseteamos.
+            if (!GetGlobalRect().HasPoint(GetGlobalMousePosition()))
+            {
+                ResetHover();
+                return;
+            }
+
+            _hoverTimer += (float)delta;
+            if (_hoverTimer >= HoverThreshold)
+            {
+                Logger.LogInfo($"INVENTORY_HOVER: Abriendo {_container.Name} por hover prologado.");
+                _inventoryUI.OnContainerSelected(_container);
+                ResetHover();
+            }
+        }
+
+        private void ResetHover()
+        {
+            _isHoveringDrag = false;
+            _hoverTimer = 0f;
+        }
 
         public override bool _CanDropData(Vector2 atPosition, Variant data)
         {
             if (data.VariantType != Variant.Type.Dictionary) return false;
             var dict = data.AsGodotDictionary();
-            bool canDrop = dict.ContainsKey("container") && dict.ContainsKey("slot_index");
+            bool isValidDrag = dict.ContainsKey("container") && dict.ContainsKey("slot_index");
 
-            if (canDrop)
+            if (isValidDrag)
             {
-                ulong currentTime = Time.GetTicksMsec();
-                
-                // Si el mouse acaba de entrar o el tiempo transcurrido desde el último hover es mucho (>100ms), reiniciamos
-                if (currentTime - _lastHoverTime > 100)
+                if (!_isHoveringDrag)
                 {
-                    _hoverStartMs = currentTime;
-                }
-                
-                _lastHoverTime = currentTime;
-
-                // Si llevamos suficiente tiempo quieto sobre el icono, abrir contenedor
-                if (currentTime - _hoverStartMs > HoverThresholdMs && _hoverStartMs != 0)
-                {
-                    _inventoryUI.OnContainerSelected(_container);
-                    _hoverStartMs = 0; // Evitar que se llame de nuevo mientras sigamos aquí
+                    _isHoveringDrag = true;
+                    _hoverTimer = 0f;
+                    Logger.LogDebug($"INVENTORY_HOVER: Iniciado tracking en {_container.Name}");
                 }
             }
 
-            return canDrop;
+            return isValidDrag;
         }
 
         public override void _DropData(Vector2 atPosition, Variant data)
         {
-            _hoverStartMs = 0; // Resetear timer al soltar
+            ResetHover();
 
             var dict = data.AsGodotDictionary();
             var sourceContainer = dict["container"].As<InventoryContainer>();
             int sourceIndex = dict["slot_index"].AsInt32();
 
-            // Evitar mover a sí mismo si ya es el origen (opcional, pero MoveItemToAnySlot lo gestionaría)
             if (sourceContainer == _container) return;
 
             if (_container.MoveItemToAnySlot(sourceIndex, sourceContainer))

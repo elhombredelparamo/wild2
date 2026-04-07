@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using Godot;
+using Wild.Utils;
+using Wild.Data;
 
 namespace Wild.Data.Inventory
 {
@@ -21,7 +23,7 @@ namespace Wild.Data.Inventory
             InitializeHands();
             InitializeEquipment();
             ScanForItems();
-            GD.Print("[SISTEMA][InventoryManager] Inicializado.");
+            Logger.LogInfo("InventoryManager: Inicializado.");
         }
 
         private void ScanForItems()
@@ -156,60 +158,99 @@ namespace Wild.Data.Inventory
         public List<InventoryContainerData> GetPersistenceData()
         {
             var data = new List<InventoryContainerData>();
+            
+            // 1. Contenedores estándar (Manos, Mochila si está activa, etc.)
             foreach (var container in Containers)
             {
-                var cData = new InventoryContainerData { container_id = container.Id };
-                foreach (var slot in container.Slots)
-                {
-                    if (!slot.IsEmpty() && slot.Item != null)
-                    {
-                        cData.slots.Add(new InventorySlotData 
-                        { 
-                            item_id = slot.Item.Id, 
-                            quantity = slot.Quantity 
-                        });
-                    }
-                    else
-                    {
-                        cData.slots.Add(new InventorySlotData { item_id = null, quantity = 0 });
-                    }
-                }
-                data.Add(cData);
+                data.Add(GetContainerData(container));
             }
+            
+            // 2. EQUIPO: Muy importante, aquí reside el Item Mochila en sí
+            if (Equipment != null)
+            {
+                data.Add(GetContainerData(Equipment));
+            }
+            
             return data;
+        }
+
+        private InventoryContainerData GetContainerData(InventoryContainer container)
+        {
+            var cData = new InventoryContainerData { container_id = container.Id };
+            foreach (var slot in container.Slots)
+            {
+                if (!slot.IsEmpty() && slot.Item != null)
+                {
+                    cData.slots.Add(new InventorySlotData 
+                    { 
+                        item_id = slot.Item.Id, 
+                        quantity = slot.Quantity 
+                    });
+                }
+                else
+                {
+                    cData.slots.Add(new InventorySlotData { item_id = null, quantity = 0 });
+                }
+            }
+            return cData;
         }
 
         public void LoadPersistenceData(List<InventoryContainerData> data)
         {
             if (data == null) return;
 
+            // FASE 1: Cargar Equipamiento primero (necesario para saber si tenemos mochila)
+            var equipData = data.Find(d => d.container_id == "equipment");
+            if (equipData != null)
+            {
+                ApplyContainerData(Equipment, equipData);
+                
+                // Si ahora hay una mochila en el equipo, disparar re-conexión de BackpackStorage
+                if (IsBackpackEquipped())
+                {
+                    var backpackItem = Equipment.Slots[0].Item as Mochila;
+                    RebuildBackpackStorage(backpackItem);
+                }
+            }
+
+            // FASE 2: Cargar el resto
             foreach (var cData in data)
             {
+                if (cData.container_id == "equipment") continue; // Ya procesado
+                
                 var container = Containers.Find(c => c.Id == cData.container_id);
                 if (container != null)
                 {
-                    container.Slots.Clear();
-                    for (int i = 0; i < container.MaxSlots; i++)
-                    {
-                        var slot = new InventorySlot();
-                        if (i < cData.slots.Count)
-                        {
-                            var sData = cData.slots[i];
-                            if (!string.IsNullOrEmpty(sData.item_id))
-                            {
-                                var item = GetItemById(sData.item_id);
-                                if (item != null)
-                                {
-                                    slot.Item = item;
-                                    slot.Quantity = sData.quantity;
-                                }
-                            }
-                        }
-                        container.Slots.Add(slot);
-                    }
+                    ApplyContainerData(container, cData);
                 }
             }
-            GD.Print("[SISTEMA][InventoryManager] Datos de inventario restaurados.");
+            
+            Logger.LogInfo("InventoryManager: Datos de inventario restaurados.");
+        }
+
+        private void ApplyContainerData(InventoryContainer container, InventoryContainerData cData)
+        {
+            if (container == null || cData == null) return;
+            
+            container.Slots.Clear();
+            for (int i = 0; i < container.MaxSlots; i++)
+            {
+                var slot = new InventorySlot();
+                if (i < cData.slots.Count)
+                {
+                    var sData = cData.slots[i];
+                    if (!string.IsNullOrEmpty(sData.item_id))
+                    {
+                        var item = GetItemById(sData.item_id);
+                        if (item != null)
+                        {
+                            slot.Item = item;
+                            slot.Quantity = sData.quantity;
+                        }
+                    }
+                }
+                container.Slots.Add(slot);
+            }
         }
 
         private void InitializeHands()
@@ -251,13 +292,25 @@ namespace Wild.Data.Inventory
 
             if (source.MoveItem(index, Equipment, 0))
             {
-                BackpackStorage.MaxSlots = mochilaItem.Capacity;
-                BackpackStorage.MaxWeight = mochilaItem.MaxWeight;
-                while (BackpackStorage.Slots.Count < BackpackStorage.MaxSlots)
-                    BackpackStorage.Slots.Add(new InventorySlot());
-                
-                AddContainer(BackpackStorage);
+                RebuildBackpackStorage(mochilaItem);
             }
+        }
+
+        /// <summary>
+        /// Re-inicializa el contenedor de mochila sin mover items física de slots (usado para carga persistente).
+        /// </summary>
+        private void RebuildBackpackStorage(Mochila mochilaItem)
+        {
+            if (mochilaItem == null) return;
+            
+            BackpackStorage.MaxSlots = mochilaItem.Capacity;
+            BackpackStorage.MaxWeight = mochilaItem.MaxWeight;
+            
+            while (BackpackStorage.Slots.Count < BackpackStorage.MaxSlots)
+                BackpackStorage.Slots.Add(new InventorySlot());
+            
+            AddContainer(BackpackStorage);
+            Logger.LogDebug($"InventoryManager: Mochila reconstruida ({BackpackStorage.MaxSlots} slots)");
         }
 
         public bool UnequipBackpack()

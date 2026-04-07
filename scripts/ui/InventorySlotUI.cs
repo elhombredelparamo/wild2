@@ -89,9 +89,11 @@ namespace Wild.UI
             preview.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
             preview.CustomMinimumSize = new Vector2(64, 64);
             preview.Modulate = new Color(1, 1, 1, 0.7f);
+            preview.MouseFilter = Control.MouseFilterEnum.Ignore; // IMPORTANTE: No bloquear el mouse
             
             // Centrar el preview en el ratón
             Control previewContainer = new Control();
+            previewContainer.MouseFilter = Control.MouseFilterEnum.Ignore; // IMPORTANTE: No bloquear el mouse
             previewContainer.AddChild(preview);
             preview.Position = -preview.CustomMinimumSize / 2;
             

@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using Wild.Data;
 using Wild.Data.Inventory;
 using Wild.Utils;
@@ -154,8 +155,11 @@ namespace Wild.Core.Player
         {
             if (Instance == this)
             {
+                // Guardar una última vez antes de que el nodo se destruya al cerrar el juego
+                GuardarEstadoJugador();
+
                 Instance = null;
-                Logger.LogInfo("PlayerManager: Instancia limpiada al salir del árbol.");
+                Logger.LogInfo("PlayerManager: Instancia limpiada y estado guardado al salir.");
             }
         }
     }
