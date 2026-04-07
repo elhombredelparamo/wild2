@@ -1,0 +1,70 @@
+---
+
+## ⏺️ PASO 0: Sincronización de Contexto (OBLIGATORIO) 
+Antes de realizar cualquier acción, ejecuta el comando `view_file` sobre este mismo archivo (`procedimientos/anadir-crafteable.ia`).
+> [!IMPORTANT]
+> Esto asegura que Cascade tenga la versión más reciente del procedimiento y evita errores por saturación de contexto. NO procedas sin haber leído el archivo completo en esta sesión.
+
+---
+
+## 🗣️ PASO I: Localización de Origen (INTERACTIVO)
+Pregunta al usuario: "¿Dónde está el archivo `.glb` del objeto a craftear?"
+
+---
+
+## 📊 PASO II: Datos de la Receta (INTERACTIVO)
+Debes preguntar al usuario para configurar la receta de crafteo:
+1. **ID**: Identificador único (ej: `hacha_piedra`, `pico_madera`).
+2. **Nombre**: Nombre que verá el jugador (ej: `Hacha de Piedra`).
+3. **Categoría**: ¿En qué pestaña del menú de crafteo (C) aparecerá? (`Herramientas`, `Armas`, `Equipo`).
+4. **Item Resultante**: ¿Qué item se añade al inventario al terminar el crafteo? (ID del item, ej: `hacha1`).
+5. **Materiales**: ¿Qué se necesita para empezar la obra? (ej: `piedra:3`, `madera:2`).
+6. **Pasos de Montaje**: ¿Cuántos golpes/interacciones para finalizar? (ej: `hand:10`).
+
+---
+
+## 🏗️ FASE III: Estructura de Assets (3D)
+Crea la carpeta para el modelo 3D del objeto. 
+Ruta: `res://assets/models/craftables/{ID}/`
+
+### 📄 Archivos
+Coloca el archivo `{ID}.glb` en la carpeta. A diferencia de los deployables, aquí solemos usar una única versión por simplicidad, pero asegúrate de que el tamaño sea el correcto.
+
+---
+
+## 💾 FASE IV: Creación del Recurso (.tres)
+Crea el archivo de datos de la receta. Al guardarlo en esta carpeta, el menú de crafteo lo detectará automáticamente.
+Ruta: `assets/data/craftables/{ID}.tres`
+
+### 📋 Contenido del Archivo
+```ini
+[gd_resource type="Resource" script_class="CraftableResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/Crafting/CraftableResource.cs" id="1_{ID}"]
+
+[resource]
+script = ExtResource("1_{ID}")
+Id = "{ID}"
+Name = "{NOMBRE}"
+Category = "{CATEGORIA}"
+Description = "{DESCRIPCION}"
+IconPath = "res://assets/textures/items/{ID_ITEM_RESULTADO}/ultra.png"
+ModelPath = "res://assets/models/craftables/{ID}/{ID}.glb"
+ModelScale = Vector3(1, 1, 1)
+ModelRotation = Vector3(0, 0, 0)
+ResultItemId = "{ITEM_RESULTADO}"
+Requirements = {
+"{MATERIAL_ID}": {CANTIDAD}
+}
+AssemblySteps = {
+"hand": {PASOS}
+}
+```
+
+---
+
+## 🔍 FASE V: Protocolo de Verificación
+1. **Menú de Crafteo**: Abre el juego, pulsa 'C'. ¿Aparece la receta en la categoría correcta?
+2. **Ghost**: Selecciona la receta e intenta colocarla. ¿Se ve el modelo 3D transparente?
+3. **Producción**: Finaliza la obra con los materiales y pasos necesarios. ¿Aparece el objeto para recoger en el suelo?
+4. **Inventario**: Recoge el objeto. ¿Se añade correctamente el item resultante a tu inventario?
