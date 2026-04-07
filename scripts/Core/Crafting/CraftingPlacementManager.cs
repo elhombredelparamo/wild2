@@ -182,49 +182,68 @@ namespace Wild.Core.Crafting
         {
             if (!_isPlacing || _ghost == null) return;
 
-            HandleRotationInput((float)delta);
+            // BLOQUEO VISUAL: No actualizar posición del ghost si el ratón está visible (UI abierta)
+            if (Input.MouseMode != Input.MouseModeEnum.Captured) return;
+
             UpdateGhostPosition();
             UpdateGhostValidity();
-            HandlePlacementConfirmation();
+        }
+
+        public override void _UnhandledInput(InputEvent @event)
+        {
+            if (!_isPlacing || _ghost == null) return;
+            if (Input.MouseMode != Input.MouseModeEnum.Captured) return;
+
+            // 1. Rotación (Discreta por evento para evitar leaking al escribir)
+            float rotDelta = 0.1f;
+            if (@event.IsActionPressed("deploy_rotate_left"))
+            {
+                _currentRotationY += RotationSpeed * rotDelta;
+                GetViewport().SetInputAsHandled();
+            }
+            if (@event.IsActionPressed("deploy_rotate_right"))
+            {
+                _currentRotationY -= RotationSpeed * rotDelta;
+                GetViewport().SetInputAsHandled();
+            }
+
+            // 2. Confirmación (Clic Izquierdo)
+            if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left && mb.Pressed && _isValidPosition)
+            {
+                HandlePlacementConfirmation();
+                GetViewport().SetInputAsHandled();
+            }
         }
 
         private void HandlePlacementConfirmation()
         {
-            if (Input.IsMouseButtonPressed(MouseButton.Left) && _isValidPosition)
+            Logger.LogInfo("CRAFT_PLACEMENT: Posición válida confirmada. Cambiando a estado de construcción.");
+            _isPlacing = false;
+
+            RemoveGhostMaterialRecursive(_ghost);
+
+            // Crear el nodo CraftingConstruction que reemplaza al ghost
+            var constructionSite = new CraftingConstruction();
+            constructionSite.GlobalTransform = _ghost.GlobalTransform;
+            GetParent()?.AddChild(constructionSite);
+
+            // Mover visuales del ghost al nodo de construcción
+            foreach (Node child in _ghost.GetChildren())
             {
-                Logger.LogInfo("CRAFT_PLACEMENT: Posición válida confirmada. Cambiando a estado de construcción.");
-                _isPlacing = false;
-
-                RemoveGhostMaterialRecursive(_ghost);
-
-                // Crear el nodo CraftingConstruction que reemplaza al ghost
-                var constructionSite = new CraftingConstruction();
-                constructionSite.GlobalTransform = _ghost.GlobalTransform;
-                GetParent()?.AddChild(constructionSite);
-
-                // Mover visuales del ghost al nodo de construcción
-                foreach (Node child in _ghost.GetChildren())
-                {
-                    if (child == _ghostArea) continue;
-                    child.GetParent()?.RemoveChild(child);
-                    constructionSite.AddChild(child);
-                }
-
-                ApplyConstructionTransparencyRecursive(constructionSite);
-
-                var confirmedTransform = _ghost.GlobalTransform;
-                _ghost.QueueFree();
-                _ghost = null;
-
-                OnPlacementConfirmed?.Invoke(_activeRecipe, confirmedTransform, constructionSite);
+                if (child == _ghostArea) continue;
+                child.GetParent()?.RemoveChild(child);
+                constructionSite.AddChild(child);
             }
+
+            ApplyConstructionTransparencyRecursive(constructionSite);
+
+            var confirmedTransform = _ghost.GlobalTransform;
+            _ghost.QueueFree();
+            _ghost = null;
+
+            OnPlacementConfirmed?.Invoke(_activeRecipe, confirmedTransform, constructionSite);
         }
 
-        private void HandleRotationInput(float delta)
-        {
-            if (Input.IsActionPressed("deploy_rotate_left"))  _currentRotationY += RotationSpeed * delta;
-            if (Input.IsActionPressed("deploy_rotate_right")) _currentRotationY -= RotationSpeed * delta;
-        }
 
         private void UpdateGhostPosition()
         {

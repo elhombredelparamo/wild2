@@ -185,43 +185,67 @@ namespace Wild.Core.Deployables.Base
         {
             if (!_isPlacing || _ghost == null) return;
 
-            HandleRotationInput((float)delta);
+            // BLOQUEO VISUAL: No actualizar posición del ghost si el ratón está visible (UI abierta)
+            if (Input.MouseMode != Input.MouseModeEnum.Captured) return;
+
             UpdateGhostPosition();
             UpdateGhostValidity();
-            HandlePlacementConfirmation();
+        }
+
+        public override void _UnhandledInput(InputEvent @event)
+        {
+            if (!_isPlacing || _ghost == null) return;
+            if (Input.MouseMode != Input.MouseModeEnum.Captured) return;
+
+            // 1. Rotación (Discreta por evento para evitar leaking al escribir)
+            float rotDelta = 0.1f; 
+            if (@event.IsActionPressed("deploy_rotate_left"))
+            {
+                _currentRotationY += RotationSpeed * rotDelta;
+                GetViewport().SetInputAsHandled();
+            }
+            if (@event.IsActionPressed("deploy_rotate_right"))
+            {
+                _currentRotationY -= RotationSpeed * rotDelta;
+                GetViewport().SetInputAsHandled();
+            }
+
+            // 2. Confirmación (Clic Izquierdo)
+            if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left && mb.Pressed && _isValidPosition)
+            {
+                HandlePlacementConfirmation();
+                GetViewport().SetInputAsHandled();
+            }
         }
 
         private void HandlePlacementConfirmation()
         {
-            if (Input.IsMouseButtonPressed(MouseButton.Left) && _isValidPosition)
+            Logger.LogInfo("PLACEMENT: Posición válida confirmada. Cambiando a estado de construcción.");
+            _isPlacing = false; // Detener seguimiento
+            
+            RemoveGhostMaterialRecursive(_ghost);
+            
+            // Create the interactable construction site
+            var constructionSite = new ConstructionDeployable();
+            constructionSite.GlobalTransform = _ghost.GlobalTransform;
+            GetParent()?.AddChild(constructionSite); // Add to GameWorld
+            
+            // Move visual components from ghost to the new site
+            foreach (Node child in _ghost.GetChildren())
             {
-                Logger.LogInfo("PLACEMENT: Posición válida confirmada. Cambiando a estado de construcción.");
-                _isPlacing = false; // Detener seguimiento
-                
-                RemoveGhostMaterialRecursive(_ghost);
-                
-                // Create the interactable construction site
-                var constructionSite = new ConstructionDeployable();
-                constructionSite.GlobalTransform = _ghost.GlobalTransform;
-                GetParent()?.AddChild(constructionSite); // Add to GameWorld
-                
-                // Move visual components from ghost to the new site
-                foreach (Node child in _ghost.GetChildren())
-                {
-                    if (child == _ghostArea) continue; // Skip ghost Area3D
-                    child.GetParent()?.RemoveChild(child);
-                    constructionSite.AddChild(child);
-                }
-                
-                // Aplicar transparencia al construir
-                ApplyConstructionVisualsRecursive(constructionSite);
-                
-                var transform = _ghost.GlobalTransform;
-                _ghost.QueueFree(); // Terminate old ghost
-                _ghost = null;
-                
-                OnPlacementConfirmed?.Invoke(_activeRecipe, transform, constructionSite);
+                if (child == _ghostArea) continue; // Skip ghost Area3D
+                child.GetParent()?.RemoveChild(child);
+                constructionSite.AddChild(child);
             }
+            
+            // Aplicar transparencia al construir
+            ApplyConstructionVisualsRecursive(constructionSite);
+            
+            var transform = _ghost.GlobalTransform;
+            _ghost.QueueFree(); // Terminate old ghost
+            _ghost = null;
+            
+            OnPlacementConfirmed?.Invoke(_activeRecipe, transform, constructionSite);
         }
 
         private void RemoveGhostMaterialRecursive(Node node)
@@ -252,17 +276,6 @@ namespace Wild.Core.Deployables.Base
             }
         }
 
-        private void HandleRotationInput(float delta)
-        {
-            if (Input.IsActionPressed("deploy_rotate_left"))
-            {
-                _currentRotationY += RotationSpeed * delta;
-            }
-            if (Input.IsActionPressed("deploy_rotate_right"))
-            {
-                _currentRotationY -= RotationSpeed * delta;
-            }
-        }
 
         private void UpdateGhostPosition()
         {

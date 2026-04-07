@@ -542,6 +542,7 @@ namespace Wild.Core.Player
                 Vector2 horizontalVelocity = new Vector2(Velocity.X, Velocity.Z);
                 _keepAnimationPlaying = horizontalVelocity.Length() > 0.1f;
                 
+                _lastInputMotion = Vector2.Zero; // Resetear input para frenar animaciones
                 Velocity = Vector3.Zero;
                 Logger.LogInfo($"JugadorController: Jugador congelado. Mantener anim: {_keepAnimationPlaying}");
             }

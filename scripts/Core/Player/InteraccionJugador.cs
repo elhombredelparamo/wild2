@@ -18,9 +18,14 @@ namespace Wild.Core.Player
             Logger.LogInfo("PLAYER: InteraccionJugador (Camera Raycast) configurado correctamente.");
         }
 
-        public override void _Process(double delta)
+        public override void _UnhandledInput(InputEvent @event)
         {
-            bool isInteractPressed = Input.IsActionJustPressed("ui_interact") || Input.IsActionJustPressed("interactuar") || Input.IsKeyPressed(Key.E);
+            // BLOQUEO: Solo permitir interacción si el ratón está capturado (sin UI abierta)
+            if (Input.MouseMode != Input.MouseModeEnum.Captured) return;
+
+            bool isInteractPressed = @event.IsActionPressed("ui_interact") || 
+                                   @event.IsActionPressed("interactuar") || 
+                                   (@event is InputEventKey k && k.Pressed && k.Keycode == Key.E);
 
             if (isInteractPressed)
             {

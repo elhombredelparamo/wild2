@@ -2,6 +2,7 @@ using Godot;
 using System;
 
 using Wild.UI.Commands;
+using Wild.Utils;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -21,17 +22,22 @@ namespace Wild.UI
                 _commandInput = GetNode<LineEdit>("Panel/VBoxContainer/CommandInput");
                 _outputLog = GetNode<RichTextLabel>("Panel/VBoxContainer/OutputLog");
                 
-                _commandInput.TextSubmitted += OnCommandSubmitted;
+                // Usamos GuiInput para tener control total sobre el Enter y evitar la pérdida de foco
+                _commandInput.GuiInput += OnInputReceived;
                 
+                // BLOQUEO DE FOCO: Asegurar que el Tabulador o Enter no saquen el foco del input
+                _commandInput.FocusNext = _commandInput.GetPath();
+                _commandInput.FocusPrevious = _commandInput.GetPath();
+
                 RegisterCommands();
                 
                 Visible = false;
                 
-                GD.Print("[UI][DebugConsole] Consola de Debug inicializada.");
+                Logger.LogInfo("UI: Consola de Debug inicializada.");
             }
             catch (Exception e)
             {
-                GD.PrintErr($"[ERROR][DebugConsole] Error al inicializar: {e.Message}");
+                Logger.LogError($"UI: Error al inicializar consola: {e.Message}");
             }
         }
 
@@ -53,14 +59,30 @@ namespace Wild.UI
             Visible = true;
             _commandInput.GrabFocus();
             _commandInput.Clear();
-            GD.Print("[UI][DebugConsole] Consola abierta.");
+            Logger.LogInfo("UI: Consola abierta.");
         }
 
         public void Close()
         {
             Visible = false;
             _commandInput.ReleaseFocus();
-            GD.Print("[UI][DebugConsole] Consola cerrada.");
+            Logger.LogInfo("UI: Consola cerrada.");
+        }
+
+        private void OnInputReceived(InputEvent @event)
+        {
+            if (@event.IsActionPressed("ui_accept"))
+            {
+                string text = _commandInput.Text;
+                _commandInput.Text = ""; // Limpiar antes de procesar para evitar eco visual
+                
+                OnCommandSubmitted(text);
+                
+                // IMPORTANTE: Consumir el evento para que Godot no intente navegar focus
+                GetViewport().SetInputAsHandled(); 
+                _commandInput.GrabFocus();
+                _commandInput.CallDeferred(Control.MethodName.GrabFocus);
+            }
         }
 
         private void OnCommandSubmitted(string text)
@@ -68,7 +90,6 @@ namespace Wild.UI
             if (string.IsNullOrWhiteSpace(text)) return;
 
             AddLog($"> {text}", Colors.Gray);
-            _commandInput.Clear();
 
             string[] parts = text.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0) return;
@@ -91,6 +112,9 @@ namespace Wild.UI
             {
                 AddLog($"Comando desconocido: '{commandName}'. Escribe 'help' para ver la lista.", Colors.Orange);
             }
+            
+            // Re-grabamos foco por si acaso
+            _commandInput.CallDeferred(Control.MethodName.GrabFocus);
         }
 
         public bool IsOpen()
