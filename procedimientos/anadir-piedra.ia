@@ -1,0 +1,102 @@
+---
+
+## ⏺️ PASO 0: Sincronización de Contexto (OBLIGATORIO) 
+Antes de realizar cualquier acción, ejecuta el comando `view_file` sobre este mismo archivo (`procedimientos/anadir-piedra.ia`).
+> [!IMPORTANT]
+> Esto asegura que Cascade tenga la versión más reciente del procedimiento y evita errores por saturación de contexto. NO procedas sin haber leído el archivo completo en esta sesión.
+
+---
+
+## 🗣️ PASO I: Localización de Origen (INTERACTIVO)
+Pregunta al usuario: "¿En qué carpeta están los archivos `.glb` y `.png` originales de la piedra?"
+
+---
+
+## 📊 PASO II: Parámetros de Spawn y Botín (INTERACTIVO)
+Debes preguntar al usuario para configurar el archivo de datos:
+1. **Biomas**: ¿En qué biomas debe aparecer? (Pradera, Bosque, Costa, Montaña, Océano).
+2. **Frecuencia**: ¿Cómo de común es? (Muy frecuente, Normal, Poco frecuente, Rara).
+3. **Item Soltado**: ¿Qué item obtiene el jugador al recogerla? (ID del item, ej: `piedra1`).
+4. **Física**: ¿Debe tener colisión sólida el jugador con ella? (Si/No). Generalmente SI para piedras grandes, NO para guijarros decorativos.
+
+### 💡 Guía de Conversión (Para la IA):
+- **Muy frecuente**: `0.20f`
+- **Normal**: `0.10f`
+- **Poco frecuente**: `0.05f`
+- **Rara**: `0.01f`
+
+---
+
+## 🏗️ FASE III: Estructura de Destino (Assets)
+Crea la siguiente jerarquía de carpetas y archivos. Reemplaza `{ID}` por el nombre de la roca (ej: `caliza`) y `{VAR}` por la variante (ej: `1`).
+
+### 📂 Carpetas Requeridas
+Debes crear exactamente estas 5 carpetas en `res://assets/models/rocks/{ID}/{VAR}/`:
+1. `ultra/`, 2. `high/`, 3. `medium/`, 4. `low/`, 5. `toaster/`
+
+### 📄 Archivos Requeridos (Por carpeta)
+En cada una de las 5 carpetas anteriores, debe haber:
+- `{ID}{VAR}.glb` y `{ID}{VAR}.png`
+
+---
+
+## 💻 FASE IV: Definición de Datos (C#)
+> [!CAUTION]
+> **UBICACIÓN CRÍTICA**: El archivo **DEBE** crearse dentro de la carpeta de geología. 
+> Ruta exacta: `scripts/Core/Biomes/Geology/{U_ID}Data.cs` (ej: `CalizaData.cs`)
+
+### 📋 Plantilla de Código (IA: Copia y pega esto)
+```csharp
+using System.Collections.Generic;
+using Wild.Core.Biomes;
+
+// El archivo DEBE estar en: scripts/Core/Biomes/Geology/{U_ID}Data.cs
+public static class {U_ID}Data
+{
+    public static GeologyData Get()
+    {
+        var data = new GeologyData(
+            modelPath: "res://assets/models/rocks/{ID}/{VAR}/ultra/{ID}{VAR}.glb", 
+            lootTableId: "{ID}_{VAR}_loot",
+            minScale: 0.8f,
+            maxScale: 1.2f,
+            hasCollision: {HAS_COLLISION} // true o false
+        );
+
+        // Probabilidades por bioma
+        data.SpawnChances[BiomeId.{BIOMA_SELECCIONADO}] = {VALOR_PROBABILIDAD};
+
+        // Botín al recoger (Loot Table)
+        data.LootTable.Add(new LootEntry("{ITEM_ID}", 1, 1));
+
+        return data;
+    }
+}
+```
+
+---
+
+## 🔄 FASE V: Registro en el Motor (Bake)
+1. Abre `scripts/Core/Biomes/GeologyRegistry.cs`.
+2. Añade `{U_ID}Data.Get()` a la lista `registry` dentro del método `Bake()`.
+
+---
+
+## 🔍 FASE VI: Protocolo de Verificación
+1. **Check de Archivos**: ¿Están los 5 niveles de calidad en `assets/models/rocks/`?
+2. **Check de Ubicación**: ¿Está el archivo `.cs` en `scripts/Core/Biomes/Geology/`?
+3. **Check de Bake**: ¿Se ha añadido la línea en `GeologyRegistry.cs`?
+
+---
+
+## 📝 FASE VII: Registro de Tareas Pendientes
+Para finalizar, debes registrar en el archivo de seguimiento que los modelos necesitan ser ajustados.
+
+1. Abre (o crea si no existe) el archivo `tareas pendientes.md` en la raíz del proyecto.
+2. Añade al final de este archivo las siguientes líneas de recordatorio:
+
+- [ ] Ajustar modelo glb: `res://assets/models/rocks/{ID}/{VAR}/ultra/{ID}{VAR}.glb`
+- [ ] Ajustar modelo glb: `res://assets/models/rocks/{ID}/{VAR}/high/{ID}{VAR}.glb`
+- [ ] Ajustar modelo glb: `res://assets/models/rocks/{ID}/{VAR}/medium/{ID}{VAR}.glb`
+- [ ] Ajustar modelo glb: `res://assets/models/rocks/{ID}/{VAR}/low/{ID}{VAR}.glb`
+- [ ] Ajustar modelo glb: `res://assets/models/rocks/{ID}/{VAR}/toaster/{ID}{VAR}.glb`
