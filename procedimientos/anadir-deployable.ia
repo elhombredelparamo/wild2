@@ -1,0 +1,120 @@
+---
+
+## ⏺️ PASO 0: Sincronización de Contexto (OBLIGATORIO) 
+Antes de realizar cualquier acción, ejecuta el comando `view_file` sobre este mismo archivo (`procedimientos/anadir-deployable.ia`).
+> [!IMPORTANT]
+> Esto asegura que Cascade tenga la versión más reciente del procedimiento y evita errores por saturación de contexto. NO procedas sin haber leído el archivo completo en esta sesión.
+
+---
+
+## 🗣️ PASO I: Localización de Origen (INTERACTIVO)
+Pregunta al usuario: "¿En qué carpeta están los archivos `.glb` y `.png` originales del objeto desplegable?"
+
+---
+
+## 📊 PASO II: Datos de la Construcción (INTERACTIVO)
+Debes preguntar al usuario para configurar la receta:
+1. **ID**: Identificador único (ej: `cofre_madera`, `hoguera`).
+2. **Nombre**: Nombre que verá el jugador (ej: `Cofre de Mimbre`).
+3. **Categoría**: ¿Dónde aparecerá en el menú? (`Supervivencia`, `Construcción`, `Muebles`).
+4. **Materiales**: ¿Qué items y cuántos se necesitan para colocarlo? (ej: `madera:10`, `piedra:2`).
+5. **Montaje**: ¿Cuántas interacciones y con qué herramienta se finaliza? (ej: `hand:5`).
+
+---
+
+## 🏗️ FASE III: Estructura de Assets (3D)
+Crea la jerarquía de carpetas para el modelo 3D. 
+Ruta: `res://assets/models/deploy/{ID}/1/`
+
+### 📂 Carpetas de Calidad
+Debes crear estas 5 carpetas en `res://assets/models/deploy/{ID}/1/`:
+1. `ultra/`, 2. `high/`, 3. `medium/`, 4. `low/`, 5. `toaster/`
+
+### 📄 Archivos
+Copia el archivo `.glb` en cada carpeta. El nombre debe ser descriptivo (ej: `{ID}.glb`).
+
+---
+
+## 💻 FASE IV: Definición de Lógica (C#)
+> [!CAUTION]
+> **UBICACIÓN**: El script de la lógica funcional **DEBE** crearse en la carpeta de deployables.
+> Ruta: `scripts/Core/Deployables/{CATEGORIA}/{U_ID}Deployable.cs`
+
+### 📋 Plantilla de Código (Para objetos simples o contenedores)
+```csharp
+using Godot;
+using Wild.Utils;
+using Wild.Data.Inventory;
+using Wild.Core.Deployables.Base;
+
+namespace Wild.Core.Deployables.{CATEGORIA}
+{
+    public partial class {U_ID}Deployable : DeployableBase
+    {
+        public override void _Ready()
+        {
+            Logger.LogInfo($"DEPLOYABLE: {Name} listo en {GlobalPosition}");
+        }
+
+        public override void Interact()
+        {
+            Logger.LogInfo($"DEPLOYABLE: Interacción con {Name}");
+            // Implementar lógica específica aquí (abrir inventario, encender fuego, etc.)
+        }
+
+        public override void LoadData(string data) 
+        {
+            // Cargar estado persistente si es necesario
+        }
+
+        public override string SaveData() 
+        {
+            // Devolver string para guardar estado
+            return "";
+        }
+    }
+}
+```
+
+---
+
+## 💾 FASE V: Creación del Recurso (.tres)
+Crea el archivo de datos que vincula todo. Esto es lo que lee el menú de construcción.
+Ruta: `assets/data/deployables/{ID}.tres`
+
+### 📋 Contenido del Archivo
+```ini
+[gd_resource type="Resource" script_class="DeployableResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/Deployables/Base/DeployableResource.cs" id="1_{ID}"]
+
+[resource]
+script = ExtResource("1_{ID}")
+Id = "{ID}"
+Name = "{NOMBRE}"
+Category = "{CATEGORIA}"
+Description = "{DESCRIPCION}"
+IconPath = "res://assets/textures/items/{ID}.png"
+TechnicalId = "{ID}"
+Requirements = {
+"{ITEM_ID}": {CANTIDAD}
+}
+AssemblySteps = {
+"hand": {PASOS}
+}
+```
+
+---
+
+## ⚙️ FASE VI: Registro en el PlacementManager (CRÍTICO)
+> [!WARNING]
+> Actualmente el `PlacementManager.cs` tiene validaciones manuales.
+> Debes abrir `scripts/Core/Deployables/Base/PlacementManager.cs` y buscar el método `CreateGhost()`.
+> Asegúrate de que el `TechnicalId` de tu nuevo objeto esté contemplado para que el ghost aparezca correctamente.
+
+---
+
+## 🔍 FASE VII: Protocolo de Verificación
+1. **Ghost**: Prueba a seleccionar el objeto en el menú. ¿Aparece la silueta verde?
+2. **Materiales**: ¿Puedes depositar los materiales necesarios?
+3. **Persistencia**: Sal del juego y vuelve a entrar. ¿Sigue el objeto (o la obra) en su sitio?
