@@ -67,15 +67,43 @@ namespace Wild.UI
             }
         }
 
+        private ulong _hoverStartMs = 0;
+        private ulong _lastHoverTime = 0;
+        private const ulong HoverThresholdMs = 600; // 0.6 segundos antes de abrir
+
         public override bool _CanDropData(Vector2 atPosition, Variant data)
         {
             if (data.VariantType != Variant.Type.Dictionary) return false;
             var dict = data.AsGodotDictionary();
-            return dict.ContainsKey("container") && dict.ContainsKey("slot_index");
+            bool canDrop = dict.ContainsKey("container") && dict.ContainsKey("slot_index");
+
+            if (canDrop)
+            {
+                ulong currentTime = Time.GetTicksMsec();
+                
+                // Si el mouse acaba de entrar o el tiempo transcurrido desde el último hover es mucho (>100ms), reiniciamos
+                if (currentTime - _lastHoverTime > 100)
+                {
+                    _hoverStartMs = currentTime;
+                }
+                
+                _lastHoverTime = currentTime;
+
+                // Si llevamos suficiente tiempo quieto sobre el icono, abrir contenedor
+                if (currentTime - _hoverStartMs > HoverThresholdMs && _hoverStartMs != 0)
+                {
+                    _inventoryUI.OnContainerSelected(_container);
+                    _hoverStartMs = 0; // Evitar que se llame de nuevo mientras sigamos aquí
+                }
+            }
+
+            return canDrop;
         }
 
         public override void _DropData(Vector2 atPosition, Variant data)
         {
+            _hoverStartMs = 0; // Resetear timer al soltar
+
             var dict = data.AsGodotDictionary();
             var sourceContainer = dict["container"].As<InventoryContainer>();
             int sourceIndex = dict["slot_index"].AsInt32();

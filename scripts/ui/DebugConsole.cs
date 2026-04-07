@@ -71,7 +71,11 @@ namespace Wild.UI
 
         private void OnInputReceived(InputEvent @event)
         {
-            if (@event.IsActionPressed("ui_accept"))
+            // Solo enviar con Enter o Enter del teclado numérico.
+            // No usamos "ui_accept" porque suele incluir la tecla Espacio, lo que impedía escribir parámetros.
+            bool isEnter = @event is InputEventKey k && k.Pressed && (k.Keycode == Key.Enter || k.Keycode == Key.KpEnter);
+            
+            if (isEnter)
             {
                 string text = _commandInput.Text;
                 _commandInput.Text = ""; // Limpiar antes de procesar para evitar eco visual
