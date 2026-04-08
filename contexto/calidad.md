@@ -81,6 +81,9 @@ El sistema ahora permite **perfiles personalizables** donde el usuario puede con
 - Guardado como perfil personalizado
 - Posibilidad de crear múltiples perfiles personalizados
 
+> [!NOTE]
+> Para detalles sobre poligonización, resoluciones de textura y LODs técnicos, consultar: [Especificaciones de Assets](file:///c:/Users/MGA-ADMIN/Desktop/wild-new/contexto/especificaciones-assets.md).
+
 ### 📋 Definición de Niveles por Componente
 
 #### **🌟 Ultra Quality (por componente)**

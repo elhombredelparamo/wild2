@@ -39,6 +39,7 @@
 - `contexto/personajes.md` - Sistema de personajes
 - `contexto/logger.md` - Sistema de logging
 - `contexto/fdd-estructura.md` - Estructura del sistema FDD
+- `contexto/especificaciones-assets.md` - Estándares de modelado y texturizado
 
 ### Código de Referencia
 - `codigo/` - **Documentación técnica y pseudocódigo**
