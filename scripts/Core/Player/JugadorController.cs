@@ -58,12 +58,21 @@ namespace Wild.Core.Player
         private TerrainManager _cachedTerrainManager;
         private TerrainGenerator _fallbackGenerator;
         private int _lastFallbackSeed = -1;
+        
+        // Daño por caída
+        private bool _wasOnFloorLastFrame = true;
+        private float _maxFallHeight = 0f;
 
         public override void _Ready()
         {
             if (Camara == null)
             {
                 Camara = GetNodeOrNull<Camera3D>("Camera3D");
+            }
+
+            if (Stats == null)
+            {
+                Stats = GetNodeOrNull<StatsJugador>("StatsJugador");
             }
 
             // Crear contenedor para el modelo visual
@@ -158,6 +167,90 @@ namespace Wild.Core.Player
 
                 Logger.LogInfo($"JugadorController: Modelo visual asignado ({TipoPersonaje}).");
                 _modeloConfig.AplicarConfiguracion(model);
+
+                // Configurar colisiones anatómicas después de cargar el modelo
+                SetupAnatomicalCollisions();
+            }
+        }
+
+        private void SetupAnatomicalCollisions()
+        {
+            if (_skeleton == null) return;
+
+            Logger.LogInfo("JugadorController: Configurando colisiones anatómicas sobre el esqueleto.");
+
+            // Mapa de nuestras partes a nombres comunes de huesos de Godot/Mixamo
+            var boneMap = new System.Collections.Generic.Dictionary<string, string>
+            {
+                { "Cabeza", "Head" },
+                { "Torso", "Spine2" },
+                { "BrazoIzquierdo", "LeftArm" },
+                { "BrazoDerecho", "RightArm" },
+                { "ManoIzquierda", "LeftHand" },
+                { "ManoDerecha", "RightHand" },
+                { "PiernaIzquierda", "LeftUpLeg" },
+                { "PiernaDerecha", "RightUpLeg" },
+                { "PieIzquierdo", "LeftFoot" },
+                { "PieDerecho", "RightFoot" }
+            };
+
+            foreach (var mapping in boneMap)
+            {
+                string partName = mapping.Key;
+                string boneName = mapping.Value;
+
+                int boneIdx = _skeleton.FindBone(boneName);
+                if (boneIdx == -1) 
+                {
+                    // Intentar fallbacks comunes (Mixamo vs Godot Humanoid)
+                    if (boneName == "Spine2") boneIdx = _skeleton.FindBone("Chest");
+                    if (boneIdx == -1) continue;
+                }
+
+                // Crear BoneAttachment
+                var attachment = new BoneAttachment3D();
+                attachment.BoneName = boneName;
+                attachment.Name = $"HitboxAttachment_{partName}";
+                _skeleton.AddChild(attachment);
+
+                // Crear Area3D para detección de impactos
+                var area = new Area3D();
+                area.Name = $"Hitbox_{partName}";
+                area.CollisionLayer = 1 << 9; // Capa 10 (Hitboxes)
+                area.CollisionMask = 0;       // No detecta nada, solo es detectada
+                attachment.AddChild(area);
+
+                // Guardar metadato en el área para saber qué parte es
+                area.SetMeta("body_part", partName);
+
+                // Crear forma de colisión (Cápsula)
+                var shape = new CollisionShape3D();
+                var capsule = new CapsuleShape3D();
+                
+                // Ajustes dimensionales básicos según la parte
+                switch (partName)
+                {
+                    case "Cabeza":
+                        capsule.Radius = 0.12f;
+                        capsule.Height = 0.25f;
+                        break;
+                    case "Torso":
+                        capsule.Radius = 0.2f;
+                        capsule.Height = 0.5f;
+                        break;
+                    case "PiernaIzquierda":
+                    case "PiernaDerecha":
+                        capsule.Radius = 0.12f;
+                        capsule.Height = 0.45f;
+                        break;
+                    default:
+                        capsule.Radius = 0.08f;
+                        capsule.Height = 0.35f;
+                        break;
+                }
+
+                shape.Shape = capsule;
+                area.AddChild(shape);
             }
         }
 
@@ -308,6 +401,37 @@ namespace Wild.Core.Player
 
                 Velocity = _velocity;
                 MoveAndSlide();
+
+                // --- LÓGICA DE DETECCIÓN DE CAÍDA ---
+                if (IsOnFloor())
+                {
+                    if (!_wasOnFloorLastFrame)
+                    {
+                        // Hemos aterrizado
+                        float fallDistance = _maxFallHeight - GlobalPosition.Y;
+                        if (fallDistance > 3.5f && Stats != null)
+                        {
+                            Stats.ProcesarCaida(fallDistance);
+                        }
+                        _maxFallHeight = GlobalPosition.Y;
+                    }
+                    _wasOnFloorLastFrame = true;
+                    _maxFallHeight = GlobalPosition.Y; 
+                }
+                else
+                {
+                    if (_wasOnFloorLastFrame)
+                    {
+                        // Empezamos a caer o saltar
+                        _maxFallHeight = GlobalPosition.Y;
+                    }
+                    else
+                    {
+                        // Rastreamos el punto más alto de la trayectoria
+                        _maxFallHeight = Mathf.Max(_maxFallHeight, GlobalPosition.Y);
+                    }
+                    _wasOnFloorLastFrame = false;
+                }
 
                 // --- CLAMP MATEMÁTICO DE SEGURIDAD (ANTI-TUNNELING) ---
                 // Si move_and_slide falla y atravesamos la malla física, el ruido matemático nos rescata

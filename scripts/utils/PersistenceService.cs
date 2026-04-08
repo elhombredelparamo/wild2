@@ -12,7 +12,8 @@ namespace Wild.Utils
     {
         private static readonly JsonSerializerOptions DefaultOptions = new JsonSerializerOptions 
         { 
-            WriteIndented = true 
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower 
         };
 
         public static bool SaveJson<T>(string path, T data)
@@ -47,7 +48,7 @@ namespace Wild.Utils
                 }
 
                 string json = File.ReadAllText(absolutePath);
-                return JsonSerializer.Deserialize<T>(json);
+                return JsonSerializer.Deserialize<T>(json, DefaultOptions);
             }
             catch (Exception ex)
             {

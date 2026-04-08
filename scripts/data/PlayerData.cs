@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using Godot;
 
 namespace Wild.Data
@@ -9,13 +10,25 @@ namespace Wild.Data
     public class PlayerData
     {
         public string id_personaje { get; set; } = "";
-        public float pos_x { get; set; }
-        public float pos_y { get; set; }
-        public float pos_z { get; set; }
-        public float rot_y { get; set; }
+
+        [JsonPropertyName("pos_x")]
+        public float pos_x { get; set; } = 0f;
+
+        [JsonPropertyName("pos_y")]
+        public float pos_y { get; set; } = 0f;
+
+        [JsonPropertyName("pos_z")]
+        public float pos_z { get; set; } = 0f;
+
+        public float rot_y { get; set; } = 0f;
+
+        // Punto de Respawn
+        public float spawn_x { get; set; } = 0f;
+        public float spawn_y { get; set; } = 0.3f;
+        public float spawn_z { get; set; } = 0f;
         
         // Stats
-        public float salud { get; set; } = 100f;
+        public HealthData salud { get; set; } = new();
         public float hambre { get; set; } = 100f;
         public float sed { get; set; } = 100f;
         public float energia { get; set; } = 100f;

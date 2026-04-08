@@ -47,6 +47,12 @@ namespace Wild.UI
             AddCommand(new ClearCommand(this));
             AddCommand(new GiveItemCommand(this));
             AddCommand(new SpawnDeployableCommand(this));
+            AddCommand(new KillCommand(this));
+            AddCommand(new HealCommand(this));
+            AddCommand(new WoundCommand(this));
+            AddCommand(new SetSpawnCommand(this));
+            AddCommand(new FeedCommand(this));
+            AddCommand(new DrinkCommand(this));
         }
 
         public void AddCommand(IConsoleCommand command)

@@ -1,16 +1,17 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1775158955
+::res://::1775676209
 inspect_mesh.gd::GDScript::7192377888411095163::1773598021::0::1::::<>SceneTree<><>0<>0<><>::
-mapa.md::TextFile::-1::1775151490::0::1::::<><><>0<>0<><>::
-tareas pendientes.md::TextFile::-1::1774862582::0::1::::<><><>0<>0<><>::
-::res://assets/::1774209234
+mapa.md::TextFile::-1::1775161738::0::1::::<><><>0<>0<><>::
+tareas pendientes.md::TextFile::-1::1775643698::0::1::::<><><>0<>0<><>::
+::res://assets/::1775560044
+inventario-assets.md::TextFile::-1::1775560352::0::1::::<><><>0<>0<><>::
 ::res://assets/data/::1775155549
 ::res://assets/data/craftables/::1775158631
 cordel.tres::Resource::-1::1775157773::0::1::::<><><>0<>0<><>::res://scripts/Core/Crafting/CraftableResource.cs
-hachaPiedra.tres::Resource::-1::1775158913::0::1::::<><><>0<>0<><>::res://scripts/Core/Crafting/CraftableResource.cs
+hachaPiedra.tres::Resource::-1::1775161249::0::1::::<><><>0<>0<><>::res://scripts/Core/Crafting/CraftableResource.cs
 ::res://assets/data/deployables/::1774864131
 cofre_mimbre.tres::Resource::-1::1774875447::0::1::::<><><>0<>0<><>::res://scripts/Core/Deployables/Base/DeployableResource.cs
-::res://assets/data/items/::1775158608
+::res://assets/data/items/::1775643672
 branch1.tres::Resource::-1::1775149001::0::1::::<><><>0<>0<><>::res://scripts/data/inventory/items/Branch1Item.cs
 cordel.tres::Resource::-1::1775152041::0::1::::<><><>0<>0<><>::res://scripts/data/inventory/items/CordelItem.cs
 fibra.tres::Resource::-1::1775150777::0::1::::<><><>0<>0<><>::res://scripts/data/inventory/items/FibraItem.cs
@@ -19,6 +20,7 @@ mimbre.tres::Resource::-1::1774862562::0::1::::<><><>0<>0<><>::res://scripts/dat
 mochila1.tres::Resource::-1::1774210839::0::1::::<><><>0<>0<><>::
 piedra1.tres::Resource::-1::1775147404::0::1::::<><><>0<>0<><>::res://scripts/data/inventory/items/Piedra1Item.cs
 seta.tres::Resource::-1::1774209234::0::1::::<><><>0<>0<><>::res://scripts/data/inventory/items/Seta.cs
+venda.tres::Resource::-1::1775643672::0::1::::<><><>0<>0<><>::res://scripts/data/inventory/items/Venda.cs
 ::res://assets/models/::1775148498
 Unnamed project.glb::PackedScene::8163695851906325503::1774355950::1774355980::1::::<><><>0<>0<>9df8593ea10cc39f25964bd8d289109d<>res://.godot/imported/Unnamed project.glb-97af61559cf28c4f572847dcfda9759d.scn::uid://qdhqvw6q7x0y::::res://assets/models/Unnamed project_modddif_image_0.png
 Unnamed project_modddif_image_0.png::CompressedTexture2D::1129669361529755942::1774355966::1774355983::1::::<><><>0<>0<>5bc2f3b3a2620a5ec4b7846e10af55db<>res://.godot/imported/Unnamed project_modddif_image_0.png-f36d52bf5a163d5e1e987256171ee60f.s3tc.ctex::
@@ -298,7 +300,7 @@ low.png::CompressedTexture2D::7193796439711695433::1773758276::1774267239::1::::
 medium.png::CompressedTexture2D::4465468390481065534::1590340356::1774267242::1::::<><><>0<>0<>c1158e0ad372e5ccf0446e9e4f30128b<>res://.godot/imported/medium.png-79cfae847e28f1f11260e0fe9c127465.ctex::
 toaster.png::CompressedTexture2D::1601806853427920340::1773758325::1774267242::1::::<><><>0<>0<>1088a0942d2bc3989584b38e6161bf1e<>res://.godot/imported/toaster.png-86c3d30d9abf6aeed4f32d60bcd026d5.ctex::
 ultra.png::CompressedTexture2D::607126318238486269::1773758210::1774267243::1::::<><><>0<>0<>ac1fc0c91831d59d9c6dd4d2cb30d9f8<>res://.godot/imported/ultra.png-601dc975c923d5808c242bd8c974b698.ctex::
-::res://assets/textures/items/::1775158412
+::res://assets/textures/items/::1775643482
 ::res://assets/textures/items/branch1/::1775149222
 high.png::CompressedTexture2D::779580884119400529::1775148891::1775149222::1::::<><><>0<>0<>80129b4b75db3621daff474774f2e918<>res://.godot/imported/high.png-44cca7daeee26db04c5e20866025855b.ctex::
 low.png::CompressedTexture2D::4413302810986524624::1775148891::1775149222::1::::<><><>0<>0<>184da7041f85d0654f915b2c107703ec<>res://.godot/imported/low.png-8fe7bc79041b8365bf9c705038a9deaa.ctex::
@@ -323,7 +325,7 @@ low.png::CompressedTexture2D::170742560938301882::1775150556::1775150834::1::::<
 medium.png::CompressedTexture2D::3328721100420849123::1775150556::1775150835::1::::<><><>0<>0<>0ca1c43c64b6e6c35dc013fec738e905<>res://.godot/imported/medium.png-c614d723b921c57a10421bc91fe24b6f.ctex::
 toaster.png::CompressedTexture2D::2499466182949401835::1775150556::1775150835::1::::<><><>0<>0<>38558aed6186fa354311c325215709de<>res://.godot/imported/toaster.png-b9d5c1695c2590a89146ba63941f46e8.ctex::
 ultra.png::CompressedTexture2D::6870582447034210281::1775150556::1775150835::1::::<><><>0<>0<>69ba02fb124cefa6fbb4a88f71a7f9c9<>res://.godot/imported/ultra.png-e129e9b3e5976dc945fbfd778cde4f5e.ctex::
-::res://assets/textures/items/hachapiedra/::1775158458
+::res://assets/textures/items/hachapiedra/::1775158959
 high.png::CompressedTexture2D::1112287208224163117::1775158420::1775158959::1::::<><><>0<>0<>c353fa826e98a1e3881551998a793765<>res://.godot/imported/high.png-69c6def5da6ebd46872194e24ba47c3f.ctex::
 low.png::CompressedTexture2D::293810564220379071::1775158420::1775158959::1::::<><><>0<>0<>5a786401aa620c4cdf652919f2eb9e32<>res://.godot/imported/low.png-71e46eb575c8771ee166923ea2373cae.ctex::
 medium.png::CompressedTexture2D::5118545119446702291::1775158420::1775158959::1::::<><><>0<>0<>3fdd618aac37a03c7586461f429a227a<>res://.godot/imported/medium.png-c87d0c2bd4a35075669e32f9ba0cedcc.ctex::
@@ -365,6 +367,12 @@ low.png::CompressedTexture2D::5448363328398389387::1774207357::1774267230::1::::
 medium.png::CompressedTexture2D::371072325354498623::1774207357::1774267231::1::::<><><>0<>0<>be57fd22aeffb57491055b5bbe46364d<>res://.godot/imported/medium.png-7a829878598433d1ddb11273667e4fc7.ctex::
 toaster.png::CompressedTexture2D::795387350603309984::1774207357::1774267233::1::::<><><>0<>0<>8d19cc92f3c77a6b9abc33df3d9362bb<>res://.godot/imported/toaster.png-a6b4d51dd12c2f5f8bf9fb1f994d4d2c.ctex::
 ultra.png::CompressedTexture2D::5006186362591213733::1774207357::1774267233::1::::<><><>0<>0<>27c5c6566687d2cbe76e7dab543b334e<>res://.godot/imported/ultra.png-63737289ee503159849a2dde2c0f0d83.ctex::
+::res://assets/textures/items/venda/::1775643586
+high.png::CompressedTexture2D::7859660067765862586::1775643348::1775676222::1::::<><><>0<>0<>3b66670ebb6fb940b0e68d48e0743b49<>res://.godot/imported/high.png-a0b4fa2c42bd05707f1a82cfd362f51e.ctex::
+low.png::CompressedTexture2D::7453027400944760243::1775643348::1775676222::1::::<><><>0<>0<>8978c74f340b3d9995a157bc2ef4651e<>res://.godot/imported/low.png-956c171416f1cc4107ae9e83788db0bb.ctex::
+medium.png::CompressedTexture2D::4742608254305582892::1775643348::1775676222::1::::<><><>0<>0<>29cc26beac9bcab2e91c687e6fc8bd5f<>res://.godot/imported/medium.png-f81dedac4e7e326fd37799ddd28021b4.ctex::
+toaster.png::CompressedTexture2D::1516793556450647759::1775643348::1775676222::1::::<><><>0<>0<>d987624961d3d20b5be40f300ca6e30e<>res://.godot/imported/toaster.png-b980eb82fba10147c5af5b814db83ee0.ctex::
+ultra.png::CompressedTexture2D::2501932184835263006::1775643348::1775676222::1::::<><><>0<>0<>be4f631bb756f8c2380df856e9d69016<>res://.godot/imported/ultra.png-010e723432f19422b766437f3359d0df.ctex::
 ::res://assets/textures/skybox/::1773769631
 ::res://assets/textures/skybox/high/::1775145545
 cielo.png::CompressedTexture2D::9181620701852275860::1773769664::1775145545::1::::<><><>0<>0<>ddbf4269df707781e1540d3fa93fd5f8<>res://.godot/imported/cielo.png-c7fa46ef581efd4598e97b95c421ed71.ctex::
@@ -386,7 +394,7 @@ a80b3e912a67afb6.json::JSON::-1::1773571965::0::1::::<><><>0<>0<><>::
 ::res://codigo/core/::1773306852
 ::res://codigo/data/::1773306852
 ::res://codigo/utils/::1773248480
-::res://contexto/::1774813291
+::res://contexto/::1775570638
 biomas.md::TextFile::-1::1773177793::0::1::::<><><>0<>0<><>::
 calidad.md::TextFile::-1::1773736490::0::1::::<><><>0<>0<><>::
 diseño.md::TextFile::-1::1773573885::0::1::::<><><>0<>0<><>::
@@ -400,13 +408,14 @@ modelado3d.md::TextFile::-1::1773178765::0::1::::<><><>0<>0<><>::
 network.md::TextFile::-1::1773177231::0::1::::<><><>0<>0<><>::
 nuevo-flujo.md::TextFile::-1::1773572899::0::1::::<><><>0<>0<><>::
 personajes.md::TextFile::-1::1773573878::0::1::::<><><>0<>0<><>::
+plantas.md::TextFile::-1::1775571718::0::1::::<><><>0<>0<><>::
 render.md::TextFile::-1::1773177102::0::1::::<><><>0<>0<><>::
 resumen.md::TextFile::-1::1773736748::0::1::::<><><>0<>0<><>::
-sistemas.md::TextFile::-1::1775151460::0::1::::<><><>0<>0<><>::
+sistemas.md::TextFile::-1::1775161730::0::1::::<><><>0<>0<><>::
 ::res://fdd/::1774345605
 ::res://fdd/active/::1774205202
-current-feature.md::TextFile::-1::1774878994::0::1::::<><><>0<>0<><>::
-::res://fdd/active/daily-notes/::1775141327
+current-feature.md::TextFile::-1::1775161596::0::1::::<><><>0<>0<><>::
+::res://fdd/active/daily-notes/::1775639268
 2026-03-11.md::TextFile::-1::1773256995::0::1::::<><><>0<>0<><>::
 2026-03-12-10-06.md::TextFile::-1::1773306420::0::1::::<><><>0<>0<><>::
 2026-03-14_Feature3_Completado.md::TextFile::-1::1773498174::0::1::::<><><>0<>0<><>::
@@ -427,8 +436,11 @@ current-feature.md::TextFile::-1::1774878994::0::1::::<><><>0<>0<><>::
 2026-03-26-08-30.md::TextFile::-1::1774531325::0::1::::<><><>0<>0<><>::
 2026-03-29-19-15.md::TextFile::-1::1774821412::0::1::::<><><>0<>0<><>::
 2026-03-30-10-35.md::TextFile::-1::1774884336::0::1::::<><><>0<>0<><>::
-2026-04-02-16-30.md::TextFile::-1::1775158288::0::1::::<><><>0<>0<><>::
-::res://fdd/completed/::1774879047
+2026-04-02-16-30.md::TextFile::-1::1775161802::0::1::::<><><>0<>0<><>::
+2026-04-03-09-55.md::TextFile::-1::1775205558::0::1::::<><><>0<>0<><>::
+2026-04-07-10-45.md::TextFile::-1::1775560546::0::1::::<><><>0<>0<><>::
+2026-04-08-11-00.md::TextFile::-1::1775674338::0::1::::<><><>0<>0<><>::
+::res://fdd/completed/::1775161536
 current-feature.md::TextFile::-1::1773428058::0::1::::<><><>0<>0<><>::
 F1-interfaces-basicas.md::TextFile::-1::1773321724::0::1::::<><><>0<>0<><>::
 F3-sistema-personajes.md::TextFile::-1::1773572541::0::1::::<><><>0<>0<><>::
@@ -453,11 +465,13 @@ feature-4-completion-report.md::TextFile::-1::1773573617::0::1::::<><><>0<>0<><>
 feature-8-sistema-calidad-completed.md::TextFile::-1::1773779961::0::1::::<><><>0<>0<><>::
 feature-9-completion-report.md::TextFile::-1::1774292177::0::1::::<><><>0<>0<><>::
 feature-10-completion-report.md::TextFile::-1::1774879047::0::1::::<><><>0<>0<><>::
-::res://fdd/features/::1774205220
+feature-11-completion-report.md::TextFile::-1::1775161536::0::1::::<><><>0<>0<><>::
+::res://fdd/features/::1775639391
 F7-renderizado-objetos3d.md::TextFile::-1::1773675478::0::1::::<><><>0<>0<><>::
 feature-0-arquitectura-pseudocodigo.md::TextFile::-1::1773256708::0::1::::<><><>0<>0<><>::
 feature-8-sistema-calidad.md::TextFile::-1::1773779932::0::1::::<><><>0<>0<><>::
 feature-9-sistema-inventario.md::TextFile::-1::1774205220::0::1::::<><><>0<>0<><>::
+feature-12-sistema-salud.md::TextFile::-1::1775639787::0::1::::<><><>0<>0<><>::
 ::res://fdd/metrics/::1773179619
 velocity-tracking.md::TextFile::-1::1774345450::0::1::::<><><>0<>0<><>::
 ::res://fdd/roadmap/::1774345605
@@ -466,13 +480,13 @@ future-ideas.md::TextFile::-1::1774345906::0::1::::<><><>0<>0<><>::
 completion-report.md::TextFile::-1::1773179613::0::1::::<><><>0<>0<><>::
 daily-note-template.md::TextFile::-1::1773179605::0::1::::<><><>0<>0<><>::
 feature-template.md::TextFile::-1::1773179451::0::1::::<><><>0<>0<><>::
-::res://procedimientos/::1774862807
+::res://procedimientos/::1775556331
 ::res://scenes/::1773586592
 ::res://scenes/player/::1774813135
 animada_con_tree.tscn::PackedScene::9080012587309743334::1774528026::0::1::::<><><>0<>0<><>::uid://6qw44rxugwqe::::res://assets/models/human/animada.glb
 animado_con_tree.tscn::PackedScene::4258612702484893008::1774813135::0::1::::<><><>0<>0<><>::uid://bbanr6c7qbtlo::::res://assets/models/human/animado.glb
 ficha_jugador.tscn::PackedScene::-1::1773586592::0::1::::<><><>0<>0<><>::res://scripts/Core/Player/JugadorController.cs<>res://scripts/Core/Player/StatsJugador.cs<>res://scripts/Core/Player/InteraccionJugador.cs
-::res://scenes/ui/::1775154835
+::res://scenes/ui/::1775641007
 build_ui.tscn::PackedScene::111981967259774944::1774869782::0::1::::<><><>0<>0<><>::res://scripts/ui/BuildUI.cs
 character_create_menu.tscn::PackedScene::-1::1773754389::0::1::::<><><>0<>0<><>::res://scripts/ui/CharacterCreateMenu.cs
 character_select_menu.tscn::PackedScene::-1::1773754386::0::1::::<><><>0<>0<><>::res://scripts/ui/CharacterSelectMenu.cs
@@ -481,6 +495,7 @@ craft_menu.tscn::PackedScene::175482054745842314::1775153532::0::1::::<><><>0<>0
 debug_console.tscn::PackedScene::-1::1774210140::0::1::::<><><>0<>0<><>::
 deploy_menu.tscn::PackedScene::7471677259275416586::1774861186::0::1::::<><><>0<>0<><>::res://scripts/ui/DeployMenu.cs
 game_world.tscn::PackedScene::-1::1773579713::0::1::::<><><>0<>0<><>::res://scripts/ui/GameWorld.cs<>res://scripts/ui/FreeCameraController.cs
+health_panel.tscn::PackedScene::-1::1775641007::0::1::::<><><>0<>0<><>::res://scripts/ui/HealthPanel.cs
 inventory_ui.tscn::PackedScene::8306783403246342618::1774206995::0::1::::<><><>0<>0<><>::res://scripts/ui/InventoryUI.cs
 loading_scene.tscn::PackedScene::-1::1773315218::0::1::::<><><>0<>0<><>::res://scripts/ui/LoadingScene.cs
 main_menu.tscn::PackedScene::-1::1773754559::0::1::::<><><>0<>0<><>::res://scripts/ui/MainMenu.cs
@@ -507,12 +522,12 @@ inspect_model.gd::GDScript::7558768984952181479::1774527427::0::1::::<>SceneTree
 ::res://scripts/Core/Player/Modelos/::1774512694
 ::res://scripts/Core/Quality/::1773757424
 ::res://scripts/Core/Terrain/::1775142983
-::res://scripts/data/::1774256675
+::res://scripts/data/::1775640159
 ::res://scripts/data/inventory/::1774214425
-::res://scripts/data/inventory/items/::1775158580
+::res://scripts/data/inventory/items/::1775643608
 ::res://scripts/data/Map/::1774259544
-::res://scripts/ui/::1775153921
-::res://scripts/ui/commands/::1774263945
+::res://scripts/ui/::1775640950
+::res://scripts/ui/commands/::1775645117
 ::res://scripts/ui/components/::1774268206
 ::res://scripts/utils/::1775146689
 ::res://shaders/::1773593671

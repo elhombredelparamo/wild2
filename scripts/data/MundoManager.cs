@@ -174,9 +174,30 @@ namespace Wild.Data
         /// </summary>
         public PlayerData CargarDatosJugador(string personajeId)
         {
-            if (!HayMundoActual) return null;
+            if (!HayMundoActual) 
+            {
+                Logger.LogWarning($"MundoManager: Intento de cargar datos sin mundo seleccionado (Personaje: {personajeId})");
+                return null;
+            }
+
             string path = ObtenerRutaDatosJugadorEnMundo(_mundoActualId, personajeId);
-            return PersistenceService.LoadJson<PlayerData>(path);
+            string absPath = ProjectSettings.GlobalizePath(path);
+            
+            Logger.LogInfo($"MundoManager: Cargando datos del personaje {personajeId} desde '{path}'");
+
+            if (!File.Exists(absPath))
+            {
+                Logger.LogWarning($"MundoManager: No existe archivo de datos para {personajeId} en el mundo {_mundoActualId}");
+                return null;
+            }
+
+            var data = PersistenceService.LoadJson<PlayerData>(path);
+            if (data == null)
+            {
+                Logger.LogError($"MundoManager: Error al deserializar datos de {personajeId}");
+            }
+            
+            return data;
         }
     }
 }

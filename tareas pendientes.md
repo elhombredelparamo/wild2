@@ -7,6 +7,11 @@
 - [ ] Ajustar formato de icono: `res://assets/textures/items/mimbre/medium.png`
 - [ ] Ajustar formato de icono: `res://assets/textures/items/mimbre/low.png`
 - [ ] Ajustar formato de icono: `res://assets/textures/items/mimbre/toaster.png`
+- [ ] Ajustar formato de icono: `res://assets/textures/items/venda/ultra.png`
+- [ ] Ajustar formato de icono: `res://assets/textures/items/venda/high.png`
+- [ ] Ajustar formato de icono: `res://assets/textures/items/venda/medium.png`
+- [ ] Ajustar formato de icono: `res://assets/textures/items/venda/low.png`
+- [ ] Ajustar formato de icono: `res://assets/textures/items/venda/toaster.png`
 
 ---
 

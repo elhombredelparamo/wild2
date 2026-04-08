@@ -155,6 +155,7 @@ El sistema de persistencia asegura que cada acción del jugador y cada cambio en
 
 ### **PersistenceService** (Capa de Abstracción de Archivos)
 - **Filosofía**: Wrapper sobre Godot y .NET para serialización JSON segura, con creación automática de directorios y manejo de excepciones centralizado.
+- **Regla Arquitectónica (Simetría)**: Es obligatorio pasar siempre `DefaultOptions` (que define `SnakeCaseLower`) tanto a `JsonSerializer.Serialize` como a `JsonSerializer.Deserialize`. La falta de simetría impide el mapeo correcto de campos en C#.
 - **Regla Arquitectónica**: Prohibido usar `FileAccess` directamente; todas las operaciones de disco deben pasar por este servicio.
 
 ### **MundoManager** (Orquestador de Ciclo de Vida)
@@ -164,7 +165,9 @@ El sistema de persistencia asegura que cada acción del jugador y cada cambio en
 ### **Componentes de Código Clave (Persistencia)**
 | Clase | Método Principal | Descripción |
 | :--- | :--- | :--- |
-| `PersistenceService`| `SaveJson<T> / LoadJson<T>`| Centraliza la E/S con gestión de rutas globales. |
+| `PersistenceService`| `SaveJson<T> / LoadJson<T>`| Centraliza la E/S. Debe unificar las `JsonSerializerOptions`. |
+| `PlayerManager` | `GuardarEstadoJugador` | **Muro de Seguridad**: Debe validar `IsInsideTree()` antes de capturar la posición global para evitar ceros durante el cierre. |
+| `PlayerData` | `[JsonPropertyName]` | Atributos explícitos en campos críticos (`pos_x`, etc.) para asegurar el mapeo JSON. |
 | `MundoManager` | `ObtenerRutaChunksActual()`| Resuelve carpetas de chunks y objetos por ID de mundo. |
 | `ChunkData`      | `ToBinary() / FromBinary()`| Gestiona archivos `.dat` (binarios) de altitud/malla. |
 | `ChunkStateData` | `JsonSerializer.Serialize` | Gestiona archivos `.json` (estado dinámico del chunk). Incluye `CustomData` para deployables. |

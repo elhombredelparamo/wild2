@@ -110,7 +110,7 @@ Usar archivos en `contexto/` y `codigo/` según necesidad específica.
 9. **Feature 9:** Sistema de Inventario ✅ (completada)
 10. **Feature 10:** Sistema de Deployables ✅ (completada)
 11. **Feature 11:** Sistema de Crafteos ✅ (completada 2026-04-02)
-12. **Feature 12:** Sistema de Salud (2 días)
+12. **Feature 12:** Sistema de Salud ✅ (completada)
 13. **Feature 13:** Red y Multijugador (3 días)
 14. **Feature 14:** Pulido Previo Beta (2 días)
 15. **Feature 15:** Contenido de Océano y Sistema de Agua (3 días)
@@ -127,6 +127,7 @@ Usar archivos en `contexto/` y `codigo/` según necesidad específica.
 - Sistema de logging estándar (no GD.Print)
 - Coordenadas globales únicamente
 - Nomenclatura consistente
+- **Simetría de Persistencia**: Usar siempre las mismas `JsonSerializerOptions` (Naming Policy) tanto para Guardar como para Cargar.
 
 ### Desarrollo
 - Feature-Driven Development (FDD)

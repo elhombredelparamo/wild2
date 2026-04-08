@@ -1,0 +1,12 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/inventory/items/Venda.cs" id="1_venda"]
+
+[resource]
+script = ExtResource("1_venda")
+Id = "venda"
+Name = "Venda"
+Description = "Venda estéril para curar heridas"
+IconPath = "res://assets/textures/items/venda/ultra.png"
+StackSize = 10
+Weight = 0.1

@@ -44,6 +44,11 @@ namespace Wild.UI
         private PlayerManager  _playerManager;
         private JugadorController _jugador;
         private Label          _labelCoords;
+        private ProgressBar    _healthBar;
+        private Label          _labelDeath;
+        private ColorRect      _deathOverlay;
+        private Node           _healthPanelNode; 
+        private HealthPanel    _healthPanel;
         private FreeCam        _freeCam;
         private PlacementManager _placementManager;
         private ConstructionDeployable _currentConstructionSite;
@@ -89,6 +94,7 @@ namespace Wild.UI
 
                 SetupCraftBuildUI();
                 SetupCraftingPlacementManager();
+                SetupHealthPanel();
 
                 Logger.LogInfo("GameWorld._Ready() - Mundo de juego inicializado exitosamente");
             }
@@ -549,6 +555,9 @@ namespace Wild.UI
                 if (_jugador != null)
                 {
                     _jugador.PhysicsEnabled = false; // Desactivar física hasta que haya suelo
+                    
+                    // Finalizar inicialización de estadísticas tras spawn
+                    _jugador.Stats?.FinalizarCarga();
                 }
 
                 // Desactivar la cámara de debug de GameWorld si existe
@@ -587,8 +596,47 @@ namespace Wild.UI
                 _labelCoords.Text = "Cargando terreno...";
                 
                 uiLayer.AddChild(_labelCoords);
+                
+                // Barra de Salud (Inferior Derecha)
+                _healthBar = new ProgressBar();
+                _healthBar.Name = "HealthBar";
+                _healthBar.Size = new Vector2(250, 25);
+                _healthBar.AnchorLeft = 1.0f;
+                _healthBar.AnchorTop = 1.0f;
+                _healthBar.AnchorRight = 1.0f;
+                _healthBar.AnchorBottom = 1.0f;
+                _healthBar.OffsetLeft = -270;
+                _healthBar.OffsetTop = -45;
+                _healthBar.OffsetRight = -20;
+                _healthBar.OffsetBottom = -20;
+                _healthBar.Value = 100;
+                _healthBar.ShowPercentage = true;
+                
+                // Estilo de la barra (Verde)
+                var styleBox = new StyleBoxFlat();
+                styleBox.BgColor = new Color(0.2f, 0.8f, 0.2f, 0.8f); // Verde
+                styleBox.CornerRadiusTopLeft = 4;
+                styleBox.CornerRadiusBottomRight = 4;
+                _healthBar.AddThemeStyleboxOverride("fill", styleBox);
+                uiLayer.AddChild(_healthBar);
+
+                // Overlay de Muerte
+                _deathOverlay = new ColorRect();
+                _deathOverlay.Color = new Color(0, 0, 0, 0.7f);
+                _deathOverlay.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+                _deathOverlay.Visible = false;
+                uiLayer.AddChild(_deathOverlay);
+
+                _labelDeath = new Label();
+                _labelDeath.Text = "HAS MUERTO";
+                _labelDeath.AddThemeFontSizeOverride("font_size", 64);
+                _labelDeath.AddThemeColorOverride("font_color", Colors.Red);
+                _labelDeath.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+                _labelDeath.Visible = false;
+                _deathOverlay.AddChild(_labelDeath);
+
                 uiLayer.Visible = true;
-                Logger.LogInfo("GameWorld: HUD de coordenadas inicializado.");
+                Logger.LogInfo("GameWorld: HUD extendido (Salud/Muerte) inicializado.");
             }
             catch (System.Exception e)
             {
@@ -630,7 +678,76 @@ namespace Wild.UI
             if (_labelCoords != null && _jugador != null)
             {
                 _labelCoords.Text = $"X: {refPos.X:F1} Y: {refPos.Y:F1} Z: {refPos.Z:F1}";
+                
+                // Actualizar Barra de Salud
+                if (_healthBar != null && _jugador.Stats != null)
+                {
+                    _healthBar.Value = _jugador.Stats.Salud;
+                    
+                    // Cambiar color según salud
+                    var fill = (StyleBoxFlat)_healthBar.GetThemeStylebox("fill");
+                    if (_healthBar.Value < 25) fill.BgColor = Colors.Red;
+                    else if (_healthBar.Value < 50) fill.BgColor = Colors.Orange;
+                    else fill.BgColor = new Color(0.2f, 0.8f, 0.2f, 0.8f);
+
+                    // Detectar muerte visualmente
+                    if (_healthBar.Value <= 0 && !_deathOverlay.Visible)
+                    {
+                        MostrarMenuMuerte();
+                    }
+                }
             }
+        }
+
+        private void MostrarMenuMuerte()
+        {
+            if (_deathOverlay.Visible) return;
+            
+            Logger.LogWarning("GameWorld: Iniciando secuencia de muerte.");
+            _deathOverlay.Visible = true;
+            _labelDeath.Visible = true;
+            _jugador.SetFrozen(true);
+            
+            // Timer para respawn (3 segundos)
+            GetTree().CreateTimer(3.0).Timeout += RespawnJugador;
+        }
+
+        private void RespawnJugador()
+        {
+            Logger.LogInfo("GameWorld: Ejecutando respawn.");
+            _deathOverlay.Visible = false;
+            _labelDeath.Visible = false;
+            
+            // Teletransporte al punto de spawn
+            Vector3 spawnPos = PlayerManager.Instance?.SpawnPoint ?? new Vector3(0, 0.3f, 0);
+            _jugador.GlobalPosition = spawnPos;
+            
+            // Reset de Stats
+            if (_jugador.Stats != null)
+            {
+                _jugador.Stats.SaludData = new HealthData();
+                _jugador.Stats.Hambre = 100f;
+                _jugador.Stats.Sed = 100f;
+                _jugador.Stats.Energia = 100f;
+                _jugador.Stats.FinalizarCarga(); // Asegurar que el metabolismo se reactive
+            }
+
+            // Limpiar Inventario (como pidió el USER)
+            if (Wild.Data.Inventory.InventoryManager.Instance != null)
+            {
+                // Un hack rápido para limpiar por ahora: resetear los contenedores
+                foreach (var container in Wild.Data.Inventory.InventoryManager.Instance.Containers)
+                {
+                    foreach (var slot in container.Slots)
+                    {
+                        slot.Item = null;
+                        slot.Quantity = 0;
+                    }
+                }
+            }
+
+            _jugador.SetFrozen(false);
+            Logger.LogInfo("GameWorld: Respawn completado.");
         }
 
         // ── Input ─────────────────────────────────────────────────────────────
@@ -731,6 +848,10 @@ namespace Wild.UI
                     if (_isPaused || (_debugConsole != null && _debugConsole.IsOpen())) return;
                     if (_placementManager != null && _placementManager.IsPlacing) return;
 
+                    // Si está cerrado, solo permitir abrir si no hay otros menús abiertos
+                    bool isOpen = _inventoryUI != null && _inventoryUI.IsOpen();
+                    if (!isOpen && IsAnyUIOpen()) return;
+
                     if (_buildUI != null && _buildUI.IsOpen())
                     {
                         Logger.LogInfo("GameWorld._Input: TAB → cerrando menú de construcción");
@@ -748,7 +869,9 @@ namespace Wild.UI
                 if (@event.IsActionPressed("deploy_menu_toggle"))
                 {
                     if (_isPaused || (_debugConsole != null && _debugConsole.IsOpen())) return;
-                    if (_inventoryUI != null && _inventoryUI.IsOpen()) return;
+                    
+                    bool isOpen = _deployMenu != null && _deployMenu.IsOpen();
+                    if (!isOpen && IsAnyUIOpen()) return;
 
                     Logger.LogInfo("GameWorld._Input: B → alternando menú de deployables");
                     ToggleDeployMenu();
@@ -759,8 +882,9 @@ namespace Wild.UI
                 if (@event.IsActionPressed("craft_menu_toggle"))
                 {
                     if (_isPaused || (_debugConsole != null && _debugConsole.IsOpen())) return;
-                    if (_inventoryUI != null && _inventoryUI.IsOpen()) return;
-                    if (_deployMenu != null && _deployMenu.IsOpen()) return;
+                    
+                    bool isOpen = _craftMenu != null && _craftMenu.IsOpen();
+                    if (!isOpen && IsAnyUIOpen()) return;
 
                     Logger.LogInfo("GameWorld._Input: C → alternando menú de crafteo");
                     ToggleCraftMenu();
@@ -770,6 +894,19 @@ namespace Wild.UI
                 if (@event is InputEventKey { Pressed: true, Keycode: Key.F12 })
                 {
                     ToggleFreeCam();
+                }
+
+                // Prioridad 6: H (health_panel_toggle)
+                if (@event.IsActionPressed("health_panel_toggle") || (@event is InputEventKey kH && kH.Pressed && kH.Keycode == Key.H))
+                {
+                    if (_isPaused || (_debugConsole != null && _debugConsole.IsOpen())) return;
+
+                    bool isOpen = _healthPanel != null && _healthPanel.Visible;
+                    if (!isOpen && IsAnyUIOpen()) return;
+                    
+                    Logger.LogInfo("GameWorld._Input: H → alternando panel de salud");
+                    ToggleHealthPanel();
+                    GetViewport().SetInputAsHandled();
                 }
             }
             catch (System.Exception e)
@@ -900,6 +1037,41 @@ namespace Wild.UI
             }
         }
 
+        private void SetupHealthPanel()
+        {
+            try
+            {
+                string path = "res://scenes/ui/health_panel.tscn";
+                // En este flujo, si el tscn no existe, lo crearemos o fallaremos con gracia.
+                // Intentamos cargar de caché.
+                var cached = GameLoader.Instance?.GetResource<PackedScene>(path);
+                var scene = cached ?? GD.Load<PackedScene>(path);
+                
+                if (scene != null)
+                {
+                    _healthPanel = scene.Instantiate<HealthPanel>();
+                    var uiLayer = GetNode<CanvasLayer>("UI");
+                    uiLayer.AddChild(_healthPanel);
+                    _healthPanel.Hide();
+                    Logger.LogInfo("GameWorld: HealthPanel cargado e inicializado.");
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning($"GameWorld: No se pudo cargar HealthPanel.tscn: {e.Message}. Se creará dinámicamente si es posible.");
+            }
+        }
+
+        private void ToggleHealthPanel()
+        {
+            if (_healthPanel == null) return;
+            
+            if (_healthPanel.Visible) _healthPanel.Close();
+            else _healthPanel.Open();
+            
+            UpdateCharacterState();
+        }
+
         public void ToggleBuildUI()
         {
             if (_buildUI == null) return;
@@ -919,6 +1091,18 @@ namespace Wild.UI
             }
         }
 
+        private bool IsAnyUIOpen()
+        {
+            return _isPaused || 
+                   (_inventoryUI != null && _inventoryUI.IsOpen()) || 
+                   (_deployMenu != null && _deployMenu.IsOpen()) ||
+                   (_craftMenu != null && _craftMenu.IsOpen()) ||
+                   (_buildUI != null && _buildUI.IsOpen()) ||
+                   (_craftBuildUI != null && _craftBuildUI.IsOpen()) ||
+                   (_debugConsole != null && _debugConsole.IsOpen()) ||
+                   (_healthPanel != null && _healthPanel.Visible);
+        }
+
         private void UpdateCharacterState()
         {
             bool anyBlockingUIOpen = _isPaused || 
@@ -927,7 +1111,8 @@ namespace Wild.UI
                                      (_craftMenu != null && _craftMenu.IsOpen()) ||
                                      (_buildUI != null && _buildUI.IsOpen()) ||
                                      (_craftBuildUI != null && _craftBuildUI.IsOpen()) ||
-                                     (_debugConsole != null && _debugConsole.IsOpen());
+                                     (_debugConsole != null && _debugConsole.IsOpen()) ||
+                                     (_healthPanel != null && _healthPanel.Visible);
             
             bool isPlacing = (_placementManager != null && _placementManager.IsPlacing) ||
                              (_craftingPlacementManager != null && _craftingPlacementManager.IsPlacing);

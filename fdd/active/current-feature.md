@@ -1,48 +1,50 @@
-# Feature Activa: 12 - Sistema de Salud
+# Feature Activa: 13 - Red y Multijugador
 
 ## 🎯 **Objetivo Principal**
-Implementar sistema completo de salud que gestione el estado vital del jugador, incluyendo daño, curación y efectos de estado.
+Implementar sistema de red cliente-servidor que permita multijugador con sincronización de jugadores, terreno y estado del juego.
 
 ## 📝 **Descripción**
-- Sistema de salud y regeneración
-- Efectos de estado (veneno, curación, etc.)
-- Interfaz de salud visual
-- Integración con sistema de combate
-- Sistema de muerte y respawn
-- Optimización de rendimiento
+- Protocolo de red cliente-servidor
+- Sincronización de jugadores y posición
+- Sincronización de terreno procedural
+- Sistema de salud multijugador
+- Sistema de respawn multijugador
+- Optimización de red y rendimiento
 
 ## 📋 **Checklist de Tareas**
-- [ ] Diseñar sistema de salud
-- [ ] Implementar interfaz de salud
-- [ ] Crear sistema de efectos de estado
-- [ ] Integrar con sistema de jugador
-- [ ] Implementar daño y curación
-- [ ] Sistema de muerte y respawn
-- [ ] Optimizar rendimiento
-- [ ] Testing completo del sistema
+- [ ] Diseñar arquitectura de red
+- [ ] Implementar servidor dedicado
+- [ ] Implementar cliente de red
+- [ ] Sincronizar jugadores
+- [ ] Sincronizar terreno
+- [ ] Integrar sistema de salud multijugador
+- [ ] Sistema de respawn multijugador
+- [ ] Optimizar rendimiento de red
+- [ ] Testing multijugador completo
 
 ## 📊 **Progreso Actual**
 - **Estado:** Por iniciar ⏳
-- **Fecha de inicio:** 2026-04-03
-- **Tiempo estimado:** 2 días
+- **Fecha de inicio:** 2026-04-09
+- **Tiempo estimado:** 3 días
 - **Prioridad:** Alta
-- **Feature anterior:** Sistema de Crafteos ✅ (completada 2026-04-02)
-- **Siguiente paso:** Diseñar sistema de salud
+- **Feature anterior:** Sistema de Salud ✅ (completada 2026-04-08)
+- **Siguiente paso:** Diseñar arquitectura de red
 
 ## 🔗 **Referencias**
-- `fdd/features/feature-12-sistema-salud.md` - Documentación completa (por crear)
-- `contexto/salud.md` - Diseño del sistema
-- `codigo/systems/salud.pseudo` - Diseño técnico
-- `fdd/completed/feature-11-completion-report.md` - Sistema de Crafteos
+- `fdd/features/feature-13-red-multijugador.md` - Documentación completa (por crear)
+- `contexto/network.md` - Diseño del sistema de red
+- `codigo/core/network.pseudo` - Diseño técnico
+- `fdd/completed/feature-12-completion-report.md` - Sistema de Salud
 - `fdd/metrics/velocity-tracking.md` - Métricas del proyecto
 
 ## 📊 **Contexto**
-- **Feature 10:** Sistema de Deployables ✅ (completada)
-- **Feature 11:** Sistema de Crafteos ✅ (completada 2026-04-02)
+- **Feature 11:** Sistema de Crafteos ✅ (completada)
+- **Feature 12:** Sistema de Salud ✅ (completada 2026-04-08)
 - **Sistema de Terreno:** Completado ✅ (5 biomas + blending)
 - **Sistema de Jugador:** Completado ✅ (física y controles)
-- **Feature actual:** Sistema de Salud
-- **Siguiente:** Feature 13 - Red y Multijugador
+- **Sistema de Salud:** Completado ✅ (efectos de estado, items médicos)
+- **Feature actual:** Red y Multijugador
+- **Siguiente:** Feature 14 - Pulido Previo Beta
 
 ---
-**Feature 12 Activa - Sistema de Salud para Wild v2.0**
+**Feature 13 Activa - Red y Multijugador para Wild v2.0**

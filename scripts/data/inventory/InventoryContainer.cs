@@ -283,6 +283,27 @@ namespace Wild.Data.Inventory
             return false;
         }
 
+        /// <summary>
+        /// Elimina una cantidad específica de ítems de un slot determinado.
+        /// </summary>
+        public bool RemoveItem(int index, int quantity)
+        {
+            if (index < 0 || index >= Slots.Count) return false;
+            
+            var slot = Slots[index];
+            if (slot.IsEmpty()) return false;
+
+            slot.Quantity -= quantity;
+            if (slot.Quantity <= 0)
+            {
+                slot.Item = null;
+                slot.Quantity = 0;
+            }
+
+            OnChanged?.Invoke();
+            return true;
+        }
+
         public string ToData()
         {
             var data = Slots.Select(slot => new InventorySlotData

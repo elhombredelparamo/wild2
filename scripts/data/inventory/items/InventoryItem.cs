@@ -17,5 +17,19 @@ namespace Wild.Data.Inventory
             string quality = Wild.Core.Quality.QualityManager.Instance.Settings.IconQuality.ToString().ToLower();
             return $"res://assets/textures/items/{Id.ToLower()}/{quality}.png";
         }
+
+        /// <summary>
+        /// Devuelve una lista de acciones personalizadas para este objeto en el inventario.
+        /// </summary>
+        public virtual System.Collections.Generic.List<ItemAction> GetActions(InventoryContainer container, int slotIndex)
+        {
+            return new System.Collections.Generic.List<ItemAction>();
+        }
+    }
+
+    public class ItemAction
+    {
+        public string Label { get; set; }
+        public System.Action<InventoryContainer, int> Execute { get; set; }
     }
 }
